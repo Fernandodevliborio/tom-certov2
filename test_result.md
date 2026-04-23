@@ -125,11 +125,11 @@ backend:
 
   - task: "Lógica avançada de decisão tonal no backend Python"
     implemented: true
-    working: false
+    working: true
     file: "backend/key_detection.py"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
@@ -137,6 +137,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "FAIL: POST /api/analyze-key with 6s 440Hz sine WAV returns 500 internal_error. Empty-body 400 audio_too_short path works. Root cause = DEPENDENCY MISMATCH: torch==2.11.0+cpu but torchaudio==2.11.0 was installed from CUDA index and requires libcudart.so.13 (not present in this CPU-only container). Stack trace: `torchcrepe/__init__.py` imports `torchaudio`, which loads `_torchaudio.abi3.so` → `OSError: libcudart.so.13: cannot open shared object file`. The Python logic itself looks correct by code review — this is strictly an install mismatch. FIX (by main agent): reinstall torchaudio from the CPU wheel index, e.g. `pip install --force-reinstall torchaudio==2.11.0+cpu --index-url https://download.pytorch.org/whl/cpu` (or pin the matching cpu build in requirements.txt). After the reinstall, re-run backend_test.py — all other 20 tests already pass."
+      - working: true
+        agent: "testing"
+        comment: "PASS after torchaudio CPU wheel reinstall. POST /api/analyze-key with 6s 440Hz mono 16kHz PCM_16 sine WAV → HTTP 200 success:true. All required fields present: duration_s=6.0, notes_count=1, phrases_count=1, method='torchcrepe-tiny+tonicanchor-v2', tonic=9, tonic_name='Lá', quality='major', key_name='Lá Maior', confidence=0.5515, margin=0.0. top_candidates = list of 5 dicts each with keys {key, score, boost, alignment, cadence, ks} — top result: {Lá Maior, score=0.6371, boost=0.82, alignment=0.7, cadence=1.0, ks=0.842}. histogram = 12 floats (index 9 = 5559.25). gravity = 12 floats (index 9 = 32.53). Empty-body case also still returns 400 audio_too_short with message 'Áudio muito curto ou vazio.' HTTP layer end-to-end verified via requests against http://localhost:8001/api/analyze-key. No code was modified."
 
 frontend:
   - task: "Remover painel RN admin criado por engano"
@@ -158,10 +161,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Lógica avançada de decisão tonal no backend Python"
-  stuck_tasks:
-    - "Lógica avançada de decisão tonal no backend Python"
+  current_focus: []
+  stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
@@ -212,3 +213,26 @@ agent_communication:
 
           The Python logic in key_detection.py was reviewed and looks correct — this is
           strictly a runtime dependency issue, not a code bug.
+  - agent: "testing"
+    message: |
+      Re-test of /api/analyze-key after torchaudio CPU wheel reinstall: PASS.
+
+      • POST /api/analyze-key (empty body) → HTTP 400 {success:false, error:"audio_too_short",
+        message:"Áudio muito curto ou vazio."} ✓
+
+      • POST /api/analyze-key (6s, 440Hz, 16kHz mono PCM_16 sine WAV, 192044 bytes) → HTTP 200
+        success:true. All required fields present and correctly typed:
+          - duration_s=6.0, notes_count=1, phrases_count=1
+          - method="torchcrepe-tiny+tonicanchor-v2"
+          - tonic=9, tonic_name="Lá", quality="major", key_name="Lá Maior"
+          - confidence≈0.5515, margin=0.0
+          - top_candidates: list of 5 dicts, each with keys {key, score, boost, alignment,
+            cadence, ks}. Top = {Lá Maior, score=0.6371, boost=0.82, alignment=0.7,
+            cadence=1.0, ks=0.842}.
+          - histogram: 12 floats (index 9 = 5559.25, rest 0)
+          - gravity: 12 floats (index 9 = 32.53, rest 0)
+
+      Backend log confirms: "[AnalyzeKey] duration=6.0s notes=1 key=Lá Maior conf=0.55".
+      HTTP layer end-to-end verified against http://localhost:8001/api/analyze-key via
+      requests. No code was modified. Task "Lógica avançada de decisão tonal no backend
+      Python" is now working:true, stuck_count=0, needs_retesting=false.
