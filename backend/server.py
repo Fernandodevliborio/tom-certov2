@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -358,6 +358,23 @@ async def seed_test_token():
 @api_router.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+# ─── Admin UI (HTML Panel) ──────────────────────────────────────────────
+ADMIN_HTML_PATH = ROOT_DIR / "admin_ui.html"
+
+@api_router.get("/admin-ui", response_class=HTMLResponse)
+async def admin_ui():
+    """Serve o painel HTML de administração."""
+    if not ADMIN_HTML_PATH.exists():
+        return HTMLResponse("<h1>admin_ui.html não encontrado</h1>", status_code=500)
+    return HTMLResponse(ADMIN_HTML_PATH.read_text(encoding="utf-8"))
+
+@api_router.get("/admin", response_class=HTMLResponse)
+async def admin_redirect_to_ui():
+    """Alias legível para o painel."""
+    if not ADMIN_HTML_PATH.exists():
+        return HTMLResponse("<h1>admin_ui.html não encontrado</h1>", status_code=500)
+    return HTMLResponse(ADMIN_HTML_PATH.read_text(encoding="utf-8"))
 
 # ─── Include router ─────────────────────────────────────────────────────
 app.include_router(api_router)

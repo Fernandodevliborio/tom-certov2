@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Stack, SplashScreen, useSegments } from 'expo-router';
+import { Stack, SplashScreen } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
@@ -35,11 +35,7 @@ function kickBackgroundOtaCheck() {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
-  const segments = useSegments();
-
-  // Painel admin tem autenticação própria — não requer token do app
-  if (segments[0] === 'admin') return <>{children}</>;
-
+  // Painel admin agora é servido como HTML pelo backend em /admin — não há mais rota RN
   if (status !== 'authenticated') return <ActivationScreen />;
   return <>{children}</>;
 }
