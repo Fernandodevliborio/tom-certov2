@@ -58,6 +58,20 @@ class TokenCreate(BaseModel):
     duration_minutes: Optional[int] = None
     notes: Optional[str] = None
 
+class TokenUpdate(BaseModel):
+    active: Optional[bool] = None
+    customer_name: Optional[str] = None
+    device_limit: Optional[int] = None
+    notes: Optional[str] = None
+
+# ─── Admin Key ──────────────────────────────────────────────────────────
+ADMIN_KEY = os.environ.get('ADMIN_KEY', 'tomcerto-admin-2026')
+
+def verify_admin(request: Request):
+    key = request.headers.get('X-Admin-Key') or request.query_params.get('admin_key')
+    if key != ADMIN_KEY:
+        raise HTTPException(401, "Admin key inválida")
+
 # ─── Helpers JWT ────────────────────────────────────────────────────────
 def create_session_token(token_id: str, device_id: str, customer_name: Optional[str] = None,
                           duration_minutes: Optional[int] = None, expires_at: Optional[str] = None) -> str:
@@ -244,8 +258,9 @@ async def create_token(body: TokenCreate):
     return JSONResponse({"ok": True, "token_id": str(result.inserted_id), "code": code})
 
 @api_router.get("/admin/tokens")
-async def list_tokens():
-    tokens = await db.tokens.find().to_list(200)
+async def list_tokens(request: Request):
+    verify_admin(request)
+    tokens = await db.tokens.find().sort("created_at", -1).to_list(500)
     for t in tokens:
         t["_id"] = str(t["_id"])
         if isinstance(t.get("created_at"), datetime):
@@ -254,7 +269,68 @@ async def list_tokens():
             t["expires_at"] = t["expires_at"].isoformat()
         if isinstance(t.get("last_used_at"), datetime):
             t["last_used_at"] = t["last_used_at"].isoformat()
-    return JSONResponse({"tokens": tokens})
+    total = len(tokens)
+    active_count = sum(1 for t in tokens if t.get("active", True))
+    return JSONResponse({"tokens": tokens, "total": total, "active": active_count})
+
+@api_router.patch("/admin/tokens/{token_id}")
+async def update_token(token_id: str, body: TokenUpdate, request: Request):
+    verify_admin(request)
+    try:
+        oid = ObjectId(token_id)
+    except Exception:
+        raise HTTPException(400, "token_id inválido")
+    update = {}
+    if body.active is not None:
+        update["active"] = body.active
+    if body.customer_name is not None:
+        update["customer_name"] = body.customer_name
+    if body.device_limit is not None:
+        update["device_limit"] = body.device_limit
+    if body.notes is not None:
+        update["notes"] = body.notes
+    if not update:
+        raise HTTPException(400, "Nada para atualizar")
+    update["updated_at"] = datetime.now(timezone.utc)
+    result = await db.tokens.update_one({"_id": oid}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(404, "Token não encontrado")
+    return JSONResponse({"ok": True})
+
+@api_router.post("/admin/tokens/{token_id}/clear-devices")
+async def clear_devices(token_id: str, request: Request):
+    verify_admin(request)
+    try:
+        oid = ObjectId(token_id)
+    except Exception:
+        raise HTTPException(400, "token_id inválido")
+    result = await db.tokens.update_one(
+        {"_id": oid},
+        {"$set": {"active_devices": [], "updated_at": datetime.now(timezone.utc)}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Token não encontrado")
+    return JSONResponse({"ok": True})
+
+@api_router.delete("/admin/tokens/{token_id}")
+async def delete_token(token_id: str, request: Request):
+    verify_admin(request)
+    try:
+        oid = ObjectId(token_id)
+    except Exception:
+        raise HTTPException(400, "token_id inválido")
+    result = await db.tokens.delete_one({"_id": oid})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Token não encontrado")
+    return JSONResponse({"ok": True})
+
+@api_router.get("/admin/stats")
+async def admin_stats(request: Request):
+    verify_admin(request)
+    total = await db.tokens.count_documents({})
+    active = await db.tokens.count_documents({"active": True})
+    revoked = await db.tokens.count_documents({"active": False})
+    return JSONResponse({"total": total, "active": active, "revoked": revoked})
 
 # ─── Seed: Token de Teste ───────────────────────────────────────────────
 @api_router.post("/admin/seed-test-token")
