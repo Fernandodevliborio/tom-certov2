@@ -205,8 +205,9 @@ async def analyze_key(request: Request):
     """
     audio_bytes = await request.body()
     logger.info(f"[AnalyzeKey] recebeu {len(audio_bytes)} bytes")
-    if not audio_bytes or len(audio_bytes) < 1000:
-        logger.warning(f"[AnalyzeKey] REJEITADO: áudio muito curto ({len(audio_bytes)} bytes)")
+    # 1000 bytes = ~30ms. Agora aceita clips menores (1.5s mínimo = 48000 bytes)
+    if not audio_bytes or len(audio_bytes) < 500:
+        logger.warning(f"[AnalyzeKey] REJEITADO: áudio vazio ({len(audio_bytes)} bytes)")
         return JSONResponse({
             "success": False,
             "error": "audio_too_short",

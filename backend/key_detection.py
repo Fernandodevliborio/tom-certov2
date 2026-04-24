@@ -499,10 +499,10 @@ def detect_key_from_notes(
     else:
         third_component = 0.0  # sem terça = sem certeza maj/min
 
-    # 3) Material disponível — peso 15%
-    # 8+ notas e 2+ frases já é suficiente
-    notes_saturation = min(1.0, len(notes) / 8.0)
-    phrases_saturation = min(1.0, len(phrases) / 2.0)
+    # 3) Material disponível — peso 10%
+    # 4+ notas E 1+ frase já dá material razoável em clips curtos
+    notes_saturation = min(1.0, len(notes) / 4.0)
+    phrases_saturation = min(1.0, len(phrases) / 1.0)
     material_component = 0.5 * notes_saturation + 0.5 * phrases_saturation
 
     # 4) Alinhamento tonal (TonicAnchor) — peso 20% (foi 10%)
@@ -529,8 +529,8 @@ def detect_key_from_notes(
         flags.append('no_third_evidence')        # nem maj 3ª nem min 3ª no áudio
     elif 0.35 < tc_top['ratio'] < 0.65:
         flags.append('ambiguous_third')          # ambas terças aparecem (dúvida maj/min)
-    if len(notes) < 6:
-        flags.append('few_notes')                # < 6 notas segmentadas
+    if len(notes) < 4:
+        flags.append('few_notes')                # < 4 notas segmentadas (antes era 6)
     if len(phrases) < 2:
         flags.append('single_phrase')            # só uma frase — cadência não comparável
     if top['cadence'] == 0.0:
@@ -626,11 +626,11 @@ def analyze_audio_bytes(audio_bytes: bytes) -> Dict[str, Any]:
     audio = load_audio_from_bytes(audio_bytes)
     duration_s = len(audio) / SAMPLE_RATE
 
-    if duration_s < 3.0:
+    if duration_s < 1.5:
         return {
             'success': False,
             'error': 'audio_too_short',
-            'message': 'Áudio muito curto. Cante pelo menos 5 segundos.',
+            'message': 'Áudio muito curto. Cante pelo menos 2 segundos.',
             'duration_s': duration_s,
         }
 

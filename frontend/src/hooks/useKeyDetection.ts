@@ -155,7 +155,9 @@ export function useKeyDetection(): UseKeyDetectionReturn {
 
     const phrase = buildPhrase(notes);
     if (phrase) {
-      setSoftInfo(`Frase capturada (${reason}): ${notes.length} notas`);
+      // ── Info técnica silenciosa (não exibir "Frase capturada" pro usuário) ──
+      // eslint-disable-next-line no-console
+      console.log(`[Phrase] capturada ${reason}: ${notes.length} notas`);
       setKeyState(prev => {
         const next = ingestPhrase(prev, phrase);
         try {
@@ -179,7 +181,10 @@ export function useKeyDetection(): UseKeyDetectionReturn {
         return next;
       });
     } else {
-      setSoftInfo(`Frase descartada (${reason}): ${notes.length} notas curtas`);
+      // Frase curta: usar como evidência fraca (log interno apenas — NÃO exibir)
+      // eslint-disable-next-line no-console
+      console.log(`[Phrase] descartada ${reason}: ${notes.length} notas curtas (evidência fraca)`);
+      // NÃO seta softInfo — usuário não vê isso
     }
   }, [commitCurNote]);
 
@@ -308,9 +313,10 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const [mlResult, setMlResult] = useState<MLAnalysisResult | null>(null);
   const [mlProgress, setMlProgress] = useState(0);
 
-  const ML_CAPTURE_DURATION_MS = 10000;
-  const ML_START_DELAY_MS = 2500;
-  const ML_REANALYZE_INTERVAL_MS = 12000;
+  const ML_CAPTURE_DURATION_MS = 8000;     // 8s — mais rápido que 10s
+  const ML_START_DELAY_MS = 2000;
+  const ML_REANALYZE_INTERVAL_MS = 6000;   // re-análise a cada 6s em vez de 12s
+  const ML_MIN_CLIP_SAMPLES = 16000 * 2;   // 2s mínimo (era 3s)
 
   const runMLAnalysis = useCallback(async () => {
     if (!isRunning) return;
@@ -342,9 +348,9 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       // eslint-disable-next-line no-console
       console.log(`[ML] Clip capturado: ${clip.samples.length} samples (${durS.toFixed(1)}s)`);
 
-      if (clip.samples.length < 16000 * 3) {
+      if (clip.samples.length < ML_MIN_CLIP_SAMPLES) {
         // eslint-disable-next-line no-console
-        console.warn(`[ML] Clip muito curto (${durS.toFixed(1)}s < 3s) — descartado`);
+        console.warn(`[ML] Clip muito curto (${durS.toFixed(1)}s < 2s) — descartado`);
         setMlState('idle');
         return;
       }

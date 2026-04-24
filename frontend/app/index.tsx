@@ -339,8 +339,8 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     if (!isRunning) return 'TOQUE PARA COMEÇAR';
     if (mlStage === 'confirmed') return 'TOM IDENTIFICADO';
     if (mlStage === 'probable') return 'IDENTIFICANDO TONALIDADE…';
-    if (mlStage === 'analyzing') return 'CONTINUE CANTANDO…';
-    return 'OUVINDO SUA VOZ…';
+    // Se tá rodando e sem ML result ainda, mostrar "Analisando tom" em vez de "Ouvindo voz"
+    return 'ANALISANDO TOM…';
   })();
 
   const statusDotColor = (() => {
@@ -515,13 +515,13 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           </View>
         )}
 
-        {/* Soft Info */}
-        {softInfo ? (
+        {/* Soft Info — oculta pro usuário (só logs técnicos internos) */}
+        {/* {softInfo ? (
           <View style={ss.softBar}>
             <Ionicons name="information-circle-outline" size={14} color={C.amber} />
             <Text style={ss.softBarTxt}>{softInfo}</Text>
           </View>
-        ) : null}
+        ) : null} */}
       </ScrollView>
     </View>
   );
