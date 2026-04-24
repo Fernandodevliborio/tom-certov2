@@ -204,7 +204,9 @@ async def analyze_key(request: Request):
     Pipeline: CREPE → notas MIDI → frases → Krumhansl + TonicAnchor + guard
     """
     audio_bytes = await request.body()
+    logger.info(f"[AnalyzeKey] recebeu {len(audio_bytes)} bytes")
     if not audio_bytes or len(audio_bytes) < 1000:
+        logger.warning(f"[AnalyzeKey] REJEITADO: áudio muito curto ({len(audio_bytes)} bytes)")
         return JSONResponse({
             "success": False,
             "error": "audio_too_short",
@@ -214,13 +216,21 @@ async def analyze_key(request: Request):
     try:
         from key_detection import analyze_audio_bytes
         result = analyze_audio_bytes(audio_bytes)
-        logger.info(
-            f"[AnalyzeKey] duration={result.get('duration_s', '?')}s "
-            f"notes={result.get('notes_count', '?')} "
-            f"key={result.get('key_name', '?')} "
-            f"conf={result.get('confidence', '?'):.2f}" if result.get('confidence') else
-            f"[AnalyzeKey] error={result.get('error', '?')}"
-        )
+        if result.get('success'):
+            logger.info(
+                f"[AnalyzeKey] ✓ key={result.get('key_name', '?')} "
+                f"conf={result.get('confidence', 0):.2f} "
+                f"notes={result.get('notes_count', '?')} "
+                f"phrases={result.get('phrases_count', '?')} "
+                f"duration={result.get('duration_s', '?')}s "
+                f"flags={result.get('flags', [])}"
+            )
+        else:
+            logger.warning(
+                f"[AnalyzeKey] ✗ error={result.get('error', '?')} "
+                f"duration={result.get('duration_s', '?')}s "
+                f"f0_valid={result.get('valid_f0_frames', '?')}"
+            )
         return JSONResponse(result)
     except Exception as e:
         logger.error(f"[AnalyzeKey] Erro: {e}", exc_info=True)

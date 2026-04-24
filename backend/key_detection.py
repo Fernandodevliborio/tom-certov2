@@ -545,33 +545,34 @@ def detect_key_from_notes(
         if grav_list[0] != top['root']:
             flags.append('weak_tonic_gravity')   # a tônica escolhida não é o centro gravitacional
 
-    # ── PENALIDADES DE HONESTIDADE ───────────────────────────────────
-    # Mesmo com análise internamente consistente, se o contexto é pobre,
-    # a confidence tem que refletir o RISCO do sistema estar olhando
-    # pro dado errado (porque não há dado suficiente).
-    damping = 1.0
+    # ── PENALIDADES DE HONESTIDADE (v3.1 — reduzidas) ────────────────
+    # ANTES: multiplicativa (0.6 × 0.7 × 0.7 = 0.29) — zerava confidence boa
+    # AGORA: penalidade máxima por flag, total acumulativo com TETO em 0.45
+    penalty = 0.0
     if 'no_third_evidence' in flags:
-        damping *= 0.60   # sem 3ª, maj/min = chute quase puro
+        penalty = max(penalty, 0.30)   # sem 3ª é sério
     if 'ambiguous_third' in flags:
-        damping *= 0.55   # terças conflitantes = indecisão real (mais forte)
+        penalty = max(penalty, 0.25)
     if 'few_notes' in flags:
-        damping *= 0.70   # poucas notas = amostra insuficiente
+        penalty = max(penalty, 0.15)
     if 'single_phrase' in flags and 'close_call' in flags:
-        damping *= 0.70   # uma frase só + margem estreita = dobro de incerteza
+        penalty = max(penalty, 0.20)
     if 'relative_ambiguous' in flags:
-        damping *= 0.70   # relativo pode ter errado o sorteio (mais forte)
-    if 'no_resolution' in flags:
-        damping *= 0.80   # nada resolveu na tônica escolhida
+        penalty = max(penalty, 0.20)
     if 'weak_tonic_gravity' in flags:
-        damping *= 0.70   # NOVO: tônica escolhida não é o centro gravitacional
-    # Combinação tóxica: múltiplas flags ambíguas juntas → sistema está chutando
-    ambig_flags_count = sum(1 for f in flags if f in (
+        penalty = max(penalty, 0.20)
+    # combo tóxico: múltiplas flags ambíguas empilhadas
+    ambig_count = sum(1 for f in flags if f in (
         'close_call', 'ambiguous_third', 'relative_ambiguous', 'weak_tonic_gravity'
     ))
-    if ambig_flags_count >= 2:
-        damping *= 0.60   # duas ou mais flags de ambiguidade = alto risco
+    if ambig_count >= 3:
+        penalty = min(0.45, penalty + 0.15)
+    elif ambig_count >= 2:
+        penalty = min(0.40, penalty + 0.08)
 
-    confidence = confidence * damping
+    # TETO 0.45 — nunca dampear mais que 45% (confidence 0.80 -> no mínimo 0.44)
+    penalty = min(0.45, penalty)
+    confidence = confidence * (1.0 - penalty)
     confidence = float(min(1.0, max(0.0, confidence)))
 
     # Recomendação honesta

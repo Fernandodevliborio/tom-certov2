@@ -326,26 +326,46 @@ export function useKeyDetection(): UseKeyDetectionReturn {
         setMlProgress(Math.min(1, elapsed / ML_CAPTURE_DURATION_MS));
       }, 100);
 
+      // eslint-disable-next-line no-console
+      console.log('[ML] Iniciando captura de 10s...');
       const clip = await engine.captureClip(ML_CAPTURE_DURATION_MS);
       clearInterval(progTimer);
       setMlProgress(1);
 
-      if (!clip || clip.samples.length < 16000 * 3) {
+      if (!clip) {
+        // eslint-disable-next-line no-console
+        console.warn('[ML] captureClip retornou NULL — engine não acumulou samples');
+        setMlState('idle');
+        return;
+      }
+      const durS = clip.samples.length / (clip.sampleRate || 16000);
+      // eslint-disable-next-line no-console
+      console.log(`[ML] Clip capturado: ${clip.samples.length} samples (${durS.toFixed(1)}s)`);
+
+      if (clip.samples.length < 16000 * 3) {
+        // eslint-disable-next-line no-console
+        console.warn(`[ML] Clip muito curto (${durS.toFixed(1)}s < 3s) — descartado`);
         setMlState('idle');
         return;
       }
 
       setMlState('analyzing');
+      // eslint-disable-next-line no-console
+      console.log('[ML] Enviando pro backend...');
       const result = await analyzeKeyML(clip, 30000);
       if (result.success) {
+        // eslint-disable-next-line no-console
+        console.log(`[ML] ✓ ${result.key_name} conf=${(result.confidence ?? 0).toFixed(2)} flags=${result.flags?.join(',') ?? ''}`);
         setMlResult(result);
         setMlState('done');
       } else {
-        console.warn('[ML] Analyze falhou:', result.error, result.message);
+        // eslint-disable-next-line no-console
+        console.warn(`[ML] ✗ Backend rejeitou: ${result.error} — ${result.message}`);
         setMlState('idle');
       }
     } catch (e: any) {
-      console.warn('[ML] Erro na análise:', e?.message || e);
+      // eslint-disable-next-line no-console
+      console.warn('[ML] Exceção na análise:', e?.message || e);
       setMlState('idle');
     }
   }, [isRunning, engine, mlState]);

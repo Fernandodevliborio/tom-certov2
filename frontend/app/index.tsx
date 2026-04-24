@@ -206,13 +206,13 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════
-  // HISTERESE + FLOOR DE CONFIANÇA HONESTO
+  // HISTERESE + FLOOR DE CONFIANÇA HONESTO (v3.1 — thresholds relaxados)
   // ═══════════════════════════════════════════════════════════════
-  // Thresholds absolutos — NUNCA mostrar tom abaixo destes limites.
-  const MIN_DISPLAY_CONF = 0.35;       // abaixo disso, nenhum tom é exibido
-  const MIN_CONFIRM_CONF = 0.60;       // abaixo disso, só é "provável"
-  const LOCK_REPLACE_CONF = 0.65;      // para trocar tom confirmado, o novo precisa ter ≥ isso
-  const LOCK_REPLACE_MARGIN = 0.10;    // e superar o atual em pelo menos 10pp
+  // Thresholds: abaixo de 25% = nada, 25-50% = provável, >=50% = confirmado.
+  const MIN_DISPLAY_CONF = 0.25;       // mostra "provável" a partir daqui
+  const MIN_CONFIRM_CONF = 0.50;       // cava como "confirmado" a partir daqui
+  const LOCK_REPLACE_CONF = 0.55;      // para trocar tom confirmado
+  const LOCK_REPLACE_MARGIN = 0.08;    // e superar o atual em pelo menos 8pp
 
   // Tom travado (último ML result com conf >= 0.60) — mantém estável
   const lockedKeyRef = useRef<{
