@@ -309,8 +309,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const [mlProgress, setMlProgress] = useState(0);
 
   const ML_CAPTURE_DURATION_MS = 10000;
-  const ML_START_DELAY_MS = 2000;
-  const ML_REANALYZE_INTERVAL_MS = 20000;
+  const ML_START_DELAY_MS = 2500;
+  const ML_REANALYZE_INTERVAL_MS = 12000;
 
   const runMLAnalysis = useCallback(async () => {
     if (!isRunning) return;
@@ -387,27 +387,29 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     setMlState('idle');
   }, [stop]);
 
+  // Único timer que SEMPRE re-tenta a análise ML a cada ML_REANALYZE_INTERVAL_MS
+  // (antes havia dois effects separados com gates que travavam após falha)
   useEffect(() => {
     if (!isRunning) return;
-    if (mlState !== 'idle') return;
-    if (mlResult?.success) return;
-    const timer = setTimeout(() => {
-      setMlState('waiting');
-      runMLAnalysis();
-    }, ML_START_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [isRunning, mlState, mlResult, runMLAnalysis]);
+    let cancelled = false;
 
-  useEffect(() => {
-    if (!isRunning) return;
-    if (!mlResult?.success) return;
-    const interval = setInterval(() => {
-      if (mlState === 'idle' || mlState === 'done') {
-        runMLAnalysis();
-      }
-    }, ML_REANALYZE_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [isRunning, mlResult, mlState, runMLAnalysis]);
+    const tryRun = async () => {
+      if (cancelled) return;
+      if (mlState === 'listening' || mlState === 'analyzing') return;
+      await runMLAnalysis();
+    };
+
+    // Primeira tentativa após ML_START_DELAY_MS
+    const initial = setTimeout(tryRun, ML_START_DELAY_MS);
+    // Re-tentativas a cada ML_REANALYZE_INTERVAL_MS, independente do resultado anterior
+    const interval = setInterval(tryRun, ML_REANALYZE_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
+  }, [isRunning, runMLAnalysis]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {

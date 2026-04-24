@@ -71,11 +71,12 @@ export function usePitchEngine(): PitchEngineHandle {
   const ringRef = useRef(new Float32Array(RING_CAPACITY));
   const ringLenRef = useRef(0);
 
-  const captureActiveRef = useRef(false);
-  const captureBuffersRef = useRef<Float32Array[]>([]);
-  const captureTotalSamplesRef = useRef(0);
-  const captureMaxSamplesRef = useRef(0);
-  const captureResolveRef = useRef<((clip: CapturedClip | null) => void) | null>(null);
+  // ── Ring buffer CONTÍNUO para captureClip (últimos 15s sempre disponíveis) ──
+  const CAPTURE_RING_DURATION_S = 15;
+  const CAPTURE_RING_CAPACITY = SAMPLE_RATE * CAPTURE_RING_DURATION_S;
+  const captureRingRef = useRef(new Float32Array(CAPTURE_RING_CAPACITY));
+  const captureRingPosRef = useRef(0);    // índice de escrita
+  const captureRingFilledRef = useRef(0); // total de samples escritos (até CAPACITY)
 
   // ── Pitch analysis per frame ─────────────────────────────────────
   const runYinOnFrame = useCallback((frame: Float32Array, sampleRate: number) => {
@@ -109,38 +110,20 @@ export function usePitchEngine(): PitchEngineHandle {
         return; // base64 not supported — we requested streamFormat='float32'
       }
 
-      // Capture to clip (for ML analysis) ─────────────────────────
-      if (captureActiveRef.current) {
-        const cloned = new Float32Array(data.length);
-        cloned.set(data);
-        captureBuffersRef.current.push(cloned);
-        captureTotalSamplesRef.current += cloned.length;
-        if (
-          captureMaxSamplesRef.current > 0 &&
-          captureTotalSamplesRef.current >= captureMaxSamplesRef.current
-        ) {
-          const total = captureTotalSamplesRef.current;
-          const merged = new Float32Array(total);
-          let off = 0;
-          for (const buf of captureBuffersRef.current) {
-            merged.set(buf, off);
-            off += buf.length;
-          }
-          captureActiveRef.current = false;
-          captureBuffersRef.current = [];
-          captureTotalSamplesRef.current = 0;
-          captureMaxSamplesRef.current = 0;
-          const resolver = captureResolveRef.current;
-          captureResolveRef.current = null;
-          if (resolver) {
-            resolver({
-              samples: merged,
-              sampleRate: SAMPLE_RATE,
-              durationMs: (total / SAMPLE_RATE) * 1000,
-            });
-          }
-        }
+      // Capture to continuous ring buffer (writer always on) ──────
+      const cap = captureRingRef.current;
+      const capCapacity = cap.length;
+      let capPos = captureRingPosRef.current;
+      for (let i = 0; i < data.length; i++) {
+        cap[capPos] = data[i];
+        capPos++;
+        if (capPos >= capCapacity) capPos = 0;
       }
+      captureRingPosRef.current = capPos;
+      captureRingFilledRef.current = Math.min(
+        captureRingFilledRef.current + data.length,
+        capCapacity
+      );
 
       // Ring buffer + YIN per-frame ────────────────────────────────
       const ring = ringRef.current;
@@ -286,44 +269,36 @@ export function usePitchEngine(): PitchEngineHandle {
 
   const captureClip = useCallback(async (durationMs: number): Promise<CapturedClip | null> => {
     if (!activeRef.current) return null;
-    if (captureActiveRef.current) return null;
-    const targetSamples = Math.round((durationMs / 1000) * SAMPLE_RATE);
-    captureBuffersRef.current = [];
-    captureTotalSamplesRef.current = 0;
-    captureMaxSamplesRef.current = targetSamples;
-    return new Promise((resolve) => {
-      captureResolveRef.current = resolve;
-      captureActiveRef.current = true;
-      setTimeout(() => {
-        if (captureActiveRef.current && captureResolveRef.current === resolve) {
-          const total = captureTotalSamplesRef.current;
-          if (total > 0) {
-            const merged = new Float32Array(total);
-            let off = 0;
-            for (const buf of captureBuffersRef.current) {
-              merged.set(buf, off);
-              off += buf.length;
-            }
-            captureResolveRef.current = null;
-            captureActiveRef.current = false;
-            captureBuffersRef.current = [];
-            captureTotalSamplesRef.current = 0;
-            resolve({
-              samples: merged,
-              sampleRate: SAMPLE_RATE,
-              durationMs: (total / SAMPLE_RATE) * 1000,
-            });
-          } else {
-            captureActiveRef.current = false;
-            captureResolveRef.current = null;
-            resolve(null);
-          }
-        }
-      }, durationMs * 2 + 1000);
-    });
+    // Snapshot INSTANTÂNEO do ring buffer contínuo — sem esperar acumular
+    const wantSamples = Math.min(
+      captureRingFilledRef.current,
+      Math.round((durationMs / 1000) * SAMPLE_RATE)
+    );
+    if (wantSamples < SAMPLE_RATE * 2) {
+      // menos de 2s disponíveis ainda — ring ainda enchendo
+      return null;
+    }
+    const cap = captureRingRef.current;
+    const capCapacity = cap.length;
+    const pos = captureRingPosRef.current;
+    const merged = new Float32Array(wantSamples);
+    // O end do ring (últimos escritos) é logo antes de `pos` — queremos os últimos N samples
+    const startIdx = (pos - wantSamples + capCapacity) % capCapacity;
+    if (startIdx + wantSamples <= capCapacity) {
+      merged.set(cap.subarray(startIdx, startIdx + wantSamples));
+    } else {
+      const tail = capCapacity - startIdx;
+      merged.set(cap.subarray(startIdx, capCapacity), 0);
+      merged.set(cap.subarray(0, wantSamples - tail), tail);
+    }
+    return {
+      samples: merged,
+      sampleRate: SAMPLE_RATE,
+      durationMs: (wantSamples / SAMPLE_RATE) * 1000,
+    };
   }, []);
 
-  const isCapturing = useCallback(() => captureActiveRef.current, []);
+  const isCapturing = useCallback(() => false, []);
 
   return {
     isSupported: Platform.OS !== 'web',
