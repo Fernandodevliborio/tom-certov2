@@ -353,11 +353,37 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     }
   }, [mlResult?.key_name, mlResult?.confidence, mlResult?.recommendation]);
 
+  // Indicador de última análise — visível pro usuário ver que sistema está vivo
+  const [lastAnalysisAt, setLastAnalysisAt] = useState<number | null>(null);
+  const [analysisCount, setAnalysisCount] = useState(0);
+
+  useEffect(() => {
+    if (mlResult?.success) {
+      setLastAnalysisAt(Date.now());
+      setAnalysisCount(c => c + 1);
+    }
+  }, [mlResult]);
+
+  const [tickRefresh, setTickRefresh] = useState(0);
+  useEffect(() => {
+    if (!isRunning) return;
+    const t = setInterval(() => setTickRefresh(x => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [isRunning]);
+
+  const lastAnalysisAgoTxt = useMemo(() => {
+    void tickRefresh;
+    if (!lastAnalysisAt) return null;
+    const ago = Math.round((Date.now() - lastAnalysisAt) / 1000);
+    if (ago < 5) return `análise há ${ago}s · ${analysisCount} análises`;
+    if (ago < 60) return `análise há ${ago}s · ${analysisCount} análises`;
+    return `última análise há ${Math.round(ago/60)}min · ${analysisCount} total`;
+  }, [lastAnalysisAt, analysisCount, tickRefresh]);
+
   const statusLabel = (() => {
     if (!isRunning) return 'TOQUE PARA COMEÇAR';
     if (mlStage === 'confirmed') return 'TOM IDENTIFICADO';
     if (mlStage === 'probable') return 'IDENTIFICANDO TONALIDADE…';
-    // Se tá rodando e sem ML result ainda, mostrar "Analisando tom" em vez de "Ouvindo voz"
     return 'ANALISANDO TOM…';
   })();
 
@@ -402,7 +428,8 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
         <View style={{ flex: 1 }}>
           <Text style={ss.headerBrand}>Tom Certo</Text>
           <Text style={ss.headerVersion} numberOfLines={1}>
-            v2.0.6 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            v2.0.8 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            {lastAnalysisAgoTxt ? ` · ${lastAnalysisAgoTxt}` : ''}
           </Text>
         </View>
         <View style={ss.headerStatusRow}>

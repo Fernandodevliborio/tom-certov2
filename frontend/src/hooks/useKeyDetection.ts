@@ -393,21 +393,22 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     setMlState('idle');
   }, [stop]);
 
-  // Único timer que SEMPRE re-tenta a análise ML a cada ML_REANALYZE_INTERVAL_MS
-  // (antes havia dois effects separados com gates que travavam após falha)
+  // ── Ref estável para runMLAnalysis (evita reset do interval em mudanças de state)
+  const runMLAnalysisRef = useRef(runMLAnalysis);
+  useEffect(() => { runMLAnalysisRef.current = runMLAnalysis; }, [runMLAnalysis]);
+
+  // Único timer ESTÁVEL — não depende de mlState, tenta a cada 6s independente
   useEffect(() => {
     if (!isRunning) return;
     let cancelled = false;
 
     const tryRun = async () => {
       if (cancelled) return;
-      if (mlState === 'listening' || mlState === 'analyzing') return;
-      await runMLAnalysis();
+      const fn = runMLAnalysisRef.current;
+      if (fn) await fn();
     };
 
-    // Primeira tentativa após ML_START_DELAY_MS
     const initial = setTimeout(tryRun, ML_START_DELAY_MS);
-    // Re-tentativas a cada ML_REANALYZE_INTERVAL_MS, independente do resultado anterior
     const interval = setInterval(tryRun, ML_REANALYZE_INTERVAL_MS);
 
     return () => {
@@ -415,7 +416,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       clearTimeout(initial);
       clearInterval(interval);
     };
-  }, [isRunning, runMLAnalysis]);
+  }, [isRunning]); // SÓ isRunning — não reseta com state
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
