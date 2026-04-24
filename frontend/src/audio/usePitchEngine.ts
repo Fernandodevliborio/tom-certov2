@@ -1,9 +1,18 @@
 /**
  * NATIVE (iOS/Android) pitch engine using @siteed/audio-studio for real PCM streaming.
+ *
+ * IMPORTANT:
+ *   - useAudioRecorder is a React hook and MUST be called at the top level of this hook.
+ *   - On web, Metro bundler auto-resolves the `.web.ts` variant of this file.
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import {
+  useAudioRecorder,
+  AudioStudioModule,
+  type AudioDataEvent,
+} from '@siteed/audio-studio';
 import { yinPitch } from './yin';
 import { frequencyToMidi, midiToPitchClass } from '../utils/noteUtils';
 import * as storage from '../auth/storage';
@@ -21,34 +30,38 @@ const STREAM_INTERVAL_MS = 100;
 const PERM_KEY = 'tc_mic_granted_v1';
 const RING_CAPACITY = 8192;
 
-// Lazy imports for native modules (not available on web)
-let AudioStudioModuleRef: any = null;
-let useAudioRecorderRef: any = null;
-
 async function ensureMicPermission(): Promise<'granted' | 'denied' | 'blocked'> {
   try {
-    if (!AudioStudioModuleRef) return 'denied';
-    const current = await AudioStudioModuleRef.getPermissionsAsync?.().catch(() => null);
-    if (current && (current as any).granted) {
+    const mod: any = AudioStudioModule;
+    if (!mod) return 'denied';
+    const current = await mod.getPermissionsAsync?.().catch(() => null);
+    if (current && current.granted) {
       await storage.setItem(PERM_KEY, '1');
       return 'granted';
     }
-    if (current && (current as any).canAskAgain === false) return 'blocked';
+    if (current && current.canAskAgain === false) return 'blocked';
 
-    const next = await AudioStudioModuleRef.requestPermissionsAsync();
-    if ((next as any).granted) {
+    const next = await mod.requestPermissionsAsync?.();
+    if (next && next.granted) {
       await storage.setItem(PERM_KEY, '1');
       return 'granted';
     }
-    if ((next as any).canAskAgain === false) return 'blocked';
+    if (next && next.canAskAgain === false) return 'blocked';
     return 'denied';
-  } catch {
+  } catch (e) {
+    console.warn('[AudioEngine] permission check failed:', String((e as any)?.message || e));
     return 'denied';
   }
 }
 
 export function usePitchEngine(): PitchEngineHandle {
-  const recorderRef = useRef<any>(null);
+  // ── React hooks (MUST be called at top level) ────────────────────
+  const recorder = useAudioRecorder();
+
+  // Keep a ref so async callbacks always see the latest recorder object
+  const recorderRef = useRef(recorder);
+  useEffect(() => { recorderRef.current = recorder; }, [recorder]);
+
   const onPitchRef = useRef<PitchCallback | null>(null);
   const onErrorRef = useRef<ErrorCallback | null>(null);
   const softInfoRef = useRef<((msg: string) => void) | null>(null);
@@ -64,6 +77,7 @@ export function usePitchEngine(): PitchEngineHandle {
   const captureMaxSamplesRef = useRef(0);
   const captureResolveRef = useRef<((clip: CapturedClip | null) => void) | null>(null);
 
+  // ── Pitch analysis per frame ─────────────────────────────────────
   const runYinOnFrame = useCallback((frame: Float32Array, sampleRate: number) => {
     if (!activeRef.current) return;
     const result = yinPitch(frame, { sampleRate });
@@ -79,12 +93,23 @@ export function usePitchEngine(): PitchEngineHandle {
     }
   }, []);
 
+  // ── Audio stream callback ────────────────────────────────────────
   const handleAudioStream = useCallback(
-    async (event: any) => {
+    async (event: AudioDataEvent) => {
       if (!activeRef.current) return;
-      const data = event.data;
-      if (!(data instanceof Float32Array)) return;
+      const raw = (event as any).data;
+      // Normalize to Float32Array — native may deliver Float32Array (Android JSI),
+      // Array<number> (iOS JS bridge), or base64 string (when streamFormat='raw').
+      let data: Float32Array | null = null;
+      if (raw instanceof Float32Array) {
+        data = raw;
+      } else if (Array.isArray(raw)) {
+        data = Float32Array.from(raw as number[]);
+      } else {
+        return; // base64 not supported — we requested streamFormat='float32'
+      }
 
+      // Capture to clip (for ML analysis) ─────────────────────────
       if (captureActiveRef.current) {
         const cloned = new Float32Array(data.length);
         cloned.set(data);
@@ -108,11 +133,16 @@ export function usePitchEngine(): PitchEngineHandle {
           const resolver = captureResolveRef.current;
           captureResolveRef.current = null;
           if (resolver) {
-            resolver({ samples: merged, sampleRate: SAMPLE_RATE, durationMs: (total / SAMPLE_RATE) * 1000 });
+            resolver({
+              samples: merged,
+              sampleRate: SAMPLE_RATE,
+              durationMs: (total / SAMPLE_RATE) * 1000,
+            });
           }
         }
       }
 
+      // Ring buffer + YIN per-frame ────────────────────────────────
       const ring = ringRef.current;
       const len = ringLenRef.current;
 
@@ -147,20 +177,23 @@ export function usePitchEngine(): PitchEngineHandle {
     [runYinOnFrame]
   );
 
+  // ── Stop ─────────────────────────────────────────────────────────
   const stop = useCallback(async () => {
     if (!activeRef.current && !isStartingRef.current) return;
     activeRef.current = false;
     ringLenRef.current = 0;
     try {
-      if (recorderRef.current) {
-        await recorderRef.current.stopRecording();
+      const rec: any = recorderRef.current;
+      if (rec?.stopRecording) {
+        await rec.stopRecording();
       }
     } catch (e: any) {
       console.warn('[AudioEngine][STOP] stopRecording() falhou:', String(e?.message || e));
     }
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await new Promise(resolve => setTimeout(resolve, 200));
   }, []);
 
+  // ── Start ────────────────────────────────────────────────────────
   const start = useCallback(
     async (onPitch: PitchCallback, onError: ErrorCallback): Promise<boolean> => {
       if (isStartingRef.current) return false;
@@ -171,79 +204,82 @@ export function usePitchEngine(): PitchEngineHandle {
       onErrorRef.current = onError;
       ringLenRef.current = 0;
 
-      // Lazy-load native modules
       try {
-        if (!useAudioRecorderRef) {
-          const mod = require('@siteed/audio-studio');
-          AudioStudioModuleRef = mod.AudioStudioModule;
-          useAudioRecorderRef = mod.useAudioRecorder;
-        }
-        if (!recorderRef.current && useAudioRecorderRef) {
-          // useAudioRecorder is a hook — we can't call it here normally.
-          // This engine should be used only when the hook is initialized.
-          // For environments where native module is unavailable, we fall back to web.
-        }
-      } catch {
-        isStartingRef.current = false;
-        onError(
-          'Recurso não disponível neste ambiente. Instale o APK para usar.',
-          'platform_limit'
-        );
-        return false;
-      }
-
-      try {
+        // 1) Permission (shows OS prompt if needed)
         const perm = await ensureMicPermission();
         if (perm === 'blocked') {
           isStartingRef.current = false;
-          onError('Permita o acesso ao microfone nas configurações do aparelho.', 'permission_blocked');
+          onError(
+            'Permita o acesso ao microfone nas configurações do aparelho.',
+            'permission_blocked'
+          );
           return false;
         }
         if (perm === 'denied') {
           isStartingRef.current = false;
-          onError('Permita o acesso ao microfone para detectar o tom.', 'permission_denied');
+          onError('Permissão de microfone negada.', 'permission_denied');
           return false;
         }
 
-        if (recorderRef.current) {
-          await recorderRef.current.startRecording({
-            sampleRate: SAMPLE_RATE,
-            channels: 1,
-            encoding: 'pcm_32bit',
-            streamFormat: 'float32',
-            interval: STREAM_INTERVAL_MS,
-            android: { audioSource: 'unprocessed' } as any,
-            ios: { audioSession: { category: 'PlayAndRecord', mode: 'measurement' } } as any,
-            onAudioStream: handleAudioStream,
-          } as any);
-          activeRef.current = true;
-          return true;
+        // 2) Start recording — NOW using the hook's startRecording
+        const rec: any = recorderRef.current;
+        if (!rec || typeof rec.startRecording !== 'function') {
+          isStartingRef.current = false;
+          console.error('[AudioEngine] useAudioRecorder did not return startRecording()', {
+            hasRec: !!rec,
+            keys: rec ? Object.keys(rec) : [],
+            platform: Platform.OS,
+          });
+          onError(
+            'Falha ao inicializar o gravador de áudio.',
+            'platform_limit'
+          );
+          return false;
         }
 
-        // Fallback: if no recorder, fail gracefully
+        await rec.startRecording({
+          sampleRate: SAMPLE_RATE,
+          channels: 1,
+          encoding: 'pcm_32bit',
+          streamFormat: 'float32',
+          interval: STREAM_INTERVAL_MS,
+          keepAwake: true,
+          android: { audioSource: 'unprocessed' } as any,
+          ios: { audioSession: { category: 'PlayAndRecord', mode: 'measurement' } } as any,
+          onAudioStream: handleAudioStream,
+        } as any);
+
+        activeRef.current = true;
         isStartingRef.current = false;
-        onError('Recurso não disponível neste ambiente.', 'platform_limit');
-        return false;
+        return true;
       } catch (err: any) {
         activeRef.current = false;
-        const msg = String(err?.message || err || '');
-        let reason: PitchErrorReason = 'unknown';
-        if (/permission|denied|NotAllowed/i.test(msg)) reason = 'permission_denied';
-        else if (/not.*support|nativemodule|unavailable|TurboModule/i.test(msg)) reason = 'platform_limit';
-        onError(
-          reason === 'platform_limit'
-            ? 'Recurso não disponível neste ambiente. Instale o APK para usar.'
-            : 'Não foi possível iniciar o microfone. Tente novamente.',
-          reason
-        );
-        return false;
-      } finally {
         isStartingRef.current = false;
+        const msg = String(err?.message || err || '');
+        console.error('[AudioEngine][START] exception:', msg);
+
+        let reason: PitchErrorReason = 'unknown';
+        let userMsg = 'Não foi possível iniciar o microfone.';
+        if (/permission|denied|NotAllowed/i.test(msg)) {
+          reason = 'permission_denied';
+          userMsg = 'Permissão de microfone negada.';
+        } else if (/block/i.test(msg)) {
+          reason = 'permission_blocked';
+          userMsg = 'Microfone bloqueado nas configurações do sistema.';
+        } else if (/not.*support|nativemodule|unavailable|TurboModule|RNCAudio/i.test(msg)) {
+          reason = 'platform_limit';
+          userMsg = 'Recurso de áudio indisponível. Atualize o app.';
+        } else {
+          userMsg = `Erro no microfone: ${msg.slice(0, 80)}`;
+        }
+        onError(userMsg, reason);
+        return false;
       }
     },
     [stop, handleAudioStream]
   );
 
+  // ── Misc helpers ─────────────────────────────────────────────────
   const setSoftInfoHandler = useCallback((handler: (msg: string) => void) => {
     softInfoRef.current = handler;
   }, []);
@@ -272,7 +308,11 @@ export function usePitchEngine(): PitchEngineHandle {
             captureActiveRef.current = false;
             captureBuffersRef.current = [];
             captureTotalSamplesRef.current = 0;
-            resolve({ samples: merged, sampleRate: SAMPLE_RATE, durationMs: (total / SAMPLE_RATE) * 1000 });
+            resolve({
+              samples: merged,
+              sampleRate: SAMPLE_RATE,
+              durationMs: (total / SAMPLE_RATE) * 1000,
+            });
           } else {
             captureActiveRef.current = false;
             captureResolveRef.current = null;
