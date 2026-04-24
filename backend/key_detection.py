@@ -708,3 +708,310 @@ def analyze_audio_bytes(audio_bytes: bytes) -> Dict[str, Any]:
         'method': f'torchcrepe-{MODEL_CAPACITY}+tonicanchor-v2',
         **key_result,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# NOVO ALGORITMO v4 — "Theory-First" (2026)
+# ═══════════════════════════════════════════════════════════════════════
+# Baseado em teoria musical real, não em estatística correlacional.
+# Três pilares:
+#   1. Finalização (última nota sustentada) — com as 3 hipóteses: tônica,
+#      5ª, ou 3ª da tônica real.
+#   2. Encaixe de escala (campo harmônico) — % da duração dentro da escala.
+#   3. Clareza da terça — decide maior vs menor.
+# ═══════════════════════════════════════════════════════════════════════
+
+# Graus da escala (em semitons a partir da tônica)
+SCALE_MAJOR = [0, 2, 4, 5, 7, 9, 11]   # I ii iii IV V vi vii°
+SCALE_MINOR = [0, 2, 3, 5, 7, 8, 10]   # i ii° III iv v VI VII  (natural)
+# Harmônica/Melódica: adicionamos a 7ª maior (lead tone) como tolerada em menor
+SCALE_MINOR_EXT = [0, 2, 3, 5, 7, 8, 10, 11]  # permite acidente da harm./mel.
+
+MIN_SUSTAINED_MS = 300   # nota "sustentada" pra virar candidata a finalis
+MIN_LAST_NOTE_MS = 200   # nota final precisa ter pelo menos isso
+
+# Pesos do pilar 1 (finalização)
+W_FINAL_TONIC = 5.0    # última nota É a tônica (hipótese 1)
+W_FINAL_FIFTH = 3.5    # última nota é a 5ª da tônica (hipótese 2)
+W_FINAL_THIRD = 3.0    # última nota é a 3ª da tônica (hipótese 3)
+W_PHRASE_END = 1.5     # cada fim de frase também contribui (menor peso)
+
+
+def _pitch_class_weights(notes: List[Dict[str, Any]]) -> np.ndarray:
+    """Peso de cada pitch class = soma de (dur_ms × rms_conf)."""
+    w = np.zeros(12, dtype=np.float64)
+    for n in notes:
+        w[n['pitch_class']] += n['dur_ms'] * n.get('rms_conf', 1.0)
+    return w
+
+
+def _last_sustained_note(notes: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Última nota com duração mínima de 'sustentada' (ou a mais longa das últimas 3 se nenhuma bater)."""
+    if not notes:
+        return None
+    # Varre de trás pra frente procurando nota sustentada
+    for n in reversed(notes):
+        if n['dur_ms'] >= MIN_SUSTAINED_MS:
+            return n
+    # Fallback: entre as últimas 3 notas, a mais longa
+    tail = notes[-3:]
+    if not tail:
+        return None
+    best = max(tail, key=lambda x: x['dur_ms'])
+    if best['dur_ms'] >= MIN_LAST_NOTE_MS:
+        return best
+    return None
+
+
+def _tonic_affinity_scores(
+    notes: List[Dict[str, Any]],
+    phrases: List[List[Dict[str, Any]]],
+) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """
+    Pilar 1 — Afinidade de tônica por pitch class, considerando as 3 hipóteses
+    de finalização (tônica, 5ª, 3ª).
+
+    Retorna (score[12], diagnóstico).
+    """
+    affinity = np.zeros(12, dtype=np.float64)
+
+    # 1a) Recorrência: pitch classes com mais duração já começam com algum peso
+    pc_weights = _pitch_class_weights(notes)
+    total = float(pc_weights.sum() or 1.0)
+    # Normalizado para que o pc dominante tenha ~2.0 de contribuição
+    affinity += (pc_weights / (pc_weights.max() or 1.0)) * 2.0
+
+    # 1b) Nota final do clipe — 3 hipóteses com pesos distintos
+    last = _last_sustained_note(notes)
+    last_pc = last['pitch_class'] if last else None
+    last_dur = last['dur_ms'] if last else 0.0
+
+    # Escalonamento: nota final "muito longa" (>600ms) dá peso total;
+    # nota final curta (300-600ms) dá peso parcial
+    dur_factor = min(1.0, last_dur / 600.0) if last else 0.0
+
+    if last_pc is not None:
+        affinity[last_pc] += W_FINAL_TONIC * dur_factor                   # tônica
+        affinity[(last_pc - 7) % 12] += W_FINAL_FIFTH * dur_factor        # 5ª → tônica está -7
+        affinity[(last_pc - 4) % 12] += W_FINAL_THIRD * dur_factor        # 3ª M → tônica está -4
+        affinity[(last_pc - 3) % 12] += W_FINAL_THIRD * dur_factor * 0.9  # 3ª m → tônica está -3
+
+    # 1c) Fim de frase (menor peso) — apoia mas não decide
+    for ph in phrases:
+        if not ph:
+            continue
+        end_pc = ph[-1]['pitch_class']
+        end_dur = ph[-1]['dur_ms']
+        if end_dur < MIN_LAST_NOTE_MS:
+            continue
+        factor = min(1.0, end_dur / 400.0)
+        affinity[end_pc] += W_PHRASE_END * factor
+        affinity[(end_pc - 7) % 12] += W_PHRASE_END * factor * 0.5
+        affinity[(end_pc - 4) % 12] += W_PHRASE_END * factor * 0.4
+        affinity[(end_pc - 3) % 12] += W_PHRASE_END * factor * 0.4
+
+    # Normalizar para [0,1]
+    max_a = affinity.max() or 1.0
+    normalized = affinity / max_a
+
+    diag = {
+        'last_note_pc': last_pc,
+        'last_note_dur_ms': last_dur,
+        'last_note_name': NOTE_NAMES_BR[last_pc] if last_pc is not None else None,
+        'pc_weights_raw': pc_weights.tolist(),
+        'affinity_raw': affinity.tolist(),
+    }
+    return normalized, diag
+
+
+def _diatonic_fit(pc_weights: np.ndarray, root: int, quality: str) -> float:
+    """
+    Pilar 2 — Proporção da duração que encaixa na escala (campo harmônico).
+    0.0 = nenhuma nota cabe · 1.0 = tudo cabe.
+    """
+    total = float(pc_weights.sum() or 1.0)
+    scale = SCALE_MAJOR if quality == 'major' else SCALE_MINOR_EXT
+    in_scale_pcs = set((root + iv) % 12 for iv in scale)
+    in_scale = float(sum(pc_weights[pc] for pc in in_scale_pcs))
+    return in_scale / total
+
+
+def _third_clarity_v2(pc_weights: np.ndarray, root: int) -> Dict[str, float]:
+    """
+    Pilar 3 — clareza da 3ª. Retorna qual terça domina e a força dela.
+    """
+    maj3 = float(pc_weights[(root + 4) % 12])
+    min3 = float(pc_weights[(root + 3) % 12])
+    total = maj3 + min3
+    if total < 1e-6:
+        return {'mode': 'unknown', 'strength': 0.0, 'maj3': 0.0, 'min3': 0.0, 'ratio': 0.5}
+    maj_ratio = maj3 / total
+    if maj_ratio >= 0.60:
+        mode = 'major'
+        strength = maj_ratio
+    elif maj_ratio <= 0.40:
+        mode = 'minor'
+        strength = 1.0 - maj_ratio
+    else:
+        mode = 'ambiguous'
+        strength = 0.5
+    return {'mode': mode, 'strength': strength, 'maj3': maj3, 'min3': min3, 'ratio': maj_ratio}
+
+
+def detect_key_theory_first(
+    notes: List[Dict[str, Any]],
+    phrases: List[List[Dict[str, Any]]],
+) -> Dict[str, Any]:
+    """
+    Detecção de tom v4 — Theory-First.
+
+    Algoritmo enxuto baseado em 3 pilares musicais:
+      1. Afinidade de tônica (finalização com 3 hipóteses: tônica/5ª/3ª + recorrência)
+      2. Encaixe diatônico (% da duração dentro da escala do candidato)
+      3. Clareza da 3ª (define maior vs menor)
+
+    Sem Krumhansl, sem guardas diatônicas opacas, sem acumulador.
+    Logs legíveis em cada pilar.
+    """
+    if not notes:
+        return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'no_notes'}
+
+    pc_weights = _pitch_class_weights(notes)
+    total_dur = float(pc_weights.sum())
+    if total_dur < 200:  # < 200ms de áudio musical útil
+        return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'too_little_audio'}
+
+    # Pilar 1 — Afinidade
+    tonic_aff, aff_diag = _tonic_affinity_scores(notes, phrases)
+
+    # Pilar 2 + 3 — Para cada 24 candidatos, combinar os 3 pilares
+    candidates = []
+    for root in range(12):
+        tc = _third_clarity_v2(pc_weights, root)
+        for quality in ('major', 'minor'):
+            # Fit diatônico
+            fit = _diatonic_fit(pc_weights, root, quality)
+
+            # Hard cutoff: tom que explica < 65% das notas é descartado
+            # (não zeramos — apenas penalizamos fortemente na score)
+            if fit < 0.65:
+                fit_component = fit * 0.5  # penalidade linear
+            else:
+                fit_component = fit
+
+            # Afinidade da tônica
+            aff = float(tonic_aff[root])
+
+            # Terça: se a terça presente contradiz a qualidade, penaliza
+            if tc['mode'] == 'unknown':
+                third_component = 0.4  # neutro (sem info)
+            elif tc['mode'] == quality:
+                third_component = tc['strength']   # bônus (0.6..1.0)
+            elif tc['mode'] == 'ambiguous':
+                third_component = 0.5
+            else:
+                third_component = 0.15  # penalidade: terça errada pro modo
+
+            # 5ª justa presente?
+            fifth_weight = float(pc_weights[(root + 7) % 12])
+            fifth_component = min(1.0, fifth_weight / (pc_weights.max() or 1.0))
+
+            # Score final ponderado — soma explicável
+            score = (
+                0.35 * aff +
+                0.30 * fit_component +
+                0.20 * third_component +
+                0.15 * fifth_component
+            )
+
+            candidates.append({
+                'root': root,
+                'quality': quality,
+                'score': score,
+                'affinity': aff,
+                'fit': fit,
+                'third_mode': tc['mode'],
+                'third_strength': tc['strength'],
+                'fifth_support': fifth_component,
+            })
+
+    candidates.sort(key=lambda c: c['score'], reverse=True)
+    top = candidates[0]
+    runner = candidates[1] if len(candidates) > 1 else None
+
+    # ═══ Confidence honesta ═══
+    # 1) Margem relativa (50%) — quanto o top derrota o runner-up
+    top_s = max(top['score'], 1e-6)
+    margin = (top_s - (runner['score'] if runner else 0)) / top_s
+    margin_component = min(1.0, margin / 0.15)
+
+    # 2) Encaixe diatônico absoluto (30%) — tom precisa explicar o áudio
+    fit_abs = top['fit']
+    # fit 0.70 → 0.0, fit 1.0 → 1.0 (linear acima de 0.70)
+    fit_conf = max(0.0, min(1.0, (fit_abs - 0.70) / 0.30))
+
+    # 3) Clareza da terça (20%)
+    third_conf = 0.0
+    if top['third_mode'] == top['quality']:
+        third_conf = (top['third_strength'] - 0.5) * 2.0  # 0.5→0.0, 1.0→1.0
+    elif top['third_mode'] == 'ambiguous':
+        third_conf = 0.3
+    third_conf = max(0.0, min(1.0, third_conf))
+
+    confidence = 0.50 * margin_component + 0.30 * fit_conf + 0.20 * third_conf
+    confidence = float(min(1.0, max(0.0, confidence)))
+
+    # Flags honestas
+    flags = []
+    if len(notes) < 5:
+        flags.append('few_notes')
+    if fit_abs < 0.75:
+        flags.append('poor_scale_fit')   # notas fora da escala → ambiente instável
+    if margin < 0.05:
+        flags.append('close_call')
+    if top['third_mode'] == 'ambiguous':
+        flags.append('ambiguous_third')
+    if top['third_mode'] == 'unknown':
+        flags.append('no_third_evidence')
+
+    # Recomendação
+    if confidence < 0.35:
+        recommendation = 'keep_analyzing'
+    elif confidence < 0.60:
+        recommendation = 'uncertain_suggest_more_audio'
+    else:
+        recommendation = 'confident'
+
+    return {
+        'tonic': top['root'],
+        'tonic_name': NOTE_NAMES_BR[top['root']],
+        'quality': top['quality'],
+        'key_name': f"{NOTE_NAMES_BR[top['root']]} {'Maior' if top['quality'] == 'major' else 'menor'}",
+        'confidence': confidence,
+        'confidence_breakdown': {
+            'margin': round(margin_component, 3),
+            'fit': round(fit_conf, 3),
+            'third': round(third_conf, 3),
+        },
+        'flags': flags,
+        'recommendation': recommendation,
+        'top_candidates': [
+            {
+                'key': f"{NOTE_NAMES_BR[c['root']]} {'Maior' if c['quality'] == 'major' else 'menor'}",
+                'score': round(c['score'], 4),
+                'affinity': round(c['affinity'], 3),
+                'fit': round(c['fit'], 3),
+                'third_mode': c['third_mode'],
+                'third_strength': round(c['third_strength'], 3),
+                'fifth': round(c['fifth_support'], 3),
+            }
+            for c in candidates[:5]
+        ],
+        'diag': {
+            'last_note': aff_diag['last_note_name'],
+            'last_note_pc': aff_diag['last_note_pc'],
+            'last_note_dur_ms': aff_diag['last_note_dur_ms'],
+        },
+        'histogram': pc_weights.tolist(),
+        'method_version': 'theory-first-v4',
+    }

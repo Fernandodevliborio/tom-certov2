@@ -196,25 +196,12 @@ async def revalidate_session(body: RevalidateRequest):
         "expires_at": expires_at_str,
     })
 
-# ─── Acumulador de histograma por device (estabilidade temporal) ───
-# Cada análise soma no acumulador do device. Isso estabiliza resultado
-# em voz a capela (onde cada clip 8s flutua muito)
-from collections import defaultdict as _dd
-from typing import Dict
-import time as _time
-_accum_store: Dict[str, Dict] = _dd(lambda: {
-    'hist': None, 'grav': None, 'analyses': 0, 'last_update': 0,
-})
-ACCUM_DECAY = 0.80         # análise antiga perde 20% por ciclo
-ACCUM_RESET_AFTER_S = 30   # >30s sem análise = nova sessão
-
-
-# ─── Analyze Key (CREPE + TonicAnchor v3 + acumulador) ─────────────────
+# ─── Analyze Key (CREPE + Theory-First v4) ─────────────────────────
 @api_router.post("/analyze-key")
 async def analyze_key(request: Request):
     """
-    Pipeline: CREPE → notas → frases → absorb_detuning → histograma ACUMULADO
-    → Krumhansl + TonicAnchor + guards. Estabilidade temporal entre análises
+    Pipeline: CREPE → notas → frases → detect_key_theory_first (v4).
+    Análise INDIVIDUAL por clipe, sem acumulador entre músicas.
     """
     audio_bytes = await request.body()
     device_id = request.headers.get('X-Device-Id', 'anon')
@@ -255,36 +242,42 @@ async def analyze_key(request: Request):
                 'duration_s': duration_s,
             })
 
-        # ── ANÁLISE INDIVIDUAL POR MÚSICA (sem acumulador entre músicas) ──
-        # Cada clip de 8s é analisado de forma totalmente independente.
-        # Isso evita viés acumulado entre hinos de tonalidades diferentes.
-        result = detect_key_from_notes(notes, phrases)
+        # ── ANÁLISE THEORY-FIRST v4 (individual por clipe) ──
+        # Pilar 1: Afinidade de tônica (finalização com 3 hipóteses: tônica/5ª/3ª)
+        # Pilar 2: Encaixe de escala (% da duração dentro do campo harmônico)
+        # Pilar 3: Clareza da terça (maior vs menor)
+        from key_detection import detect_key_theory_first
+        result = detect_key_theory_first(notes, phrases)
         result['success'] = True
         result['duration_s'] = duration_s
         result['notes_count'] = len(notes)
         result['phrases_count'] = len(phrases)
-        result['method'] = 'torchcrepe-tiny+tonicanchor-v3+per-song'
-        result['accumulator'] = {'analyses': 1, 'stable': True}
+        result['method'] = 'torchcrepe-tiny+theory-first-v4'
 
-        # Logging detalhado (histograma + gravity + top3)
+        # Logging detalhado do novo algoritmo
         hist = result.get('histogram', [])
-        grav = result.get('gravity', [])
         note_names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
         hist_sorted = sorted(range(12), key=lambda i: hist[i], reverse=True) if len(hist) == 12 else []
-        grav_sorted = sorted(range(12), key=lambda i: grav[i], reverse=True) if len(grav) == 12 else []
-        hist_str = ' '.join(f"{note_names[i]}={hist[i]:.1f}" for i in hist_sorted[:5]) if hist_sorted else 'n/a'
-        grav_str = ' '.join(f"{note_names[i]}={grav[i]:.1f}" for i in grav_sorted[:5]) if grav_sorted else 'n/a'
+        hist_str = ' '.join(f"{note_names[i]}={hist[i]:.0f}" for i in hist_sorted[:5]) if hist_sorted else 'n/a'
         tops = result.get('top_candidates', [])[:3]
-        tops_str = ' | '.join(f"{t['key']}({t['score']:.3f})" for t in tops)
+        tops_str = ' | '.join(
+            f"{t['key']}(s={t['score']:.3f} aff={t['affinity']:.2f} fit={t['fit']:.2f} 3ª={t['third_mode'][:3]})"
+            for t in tops
+        )
+        diag = result.get('diag', {})
         logger.info(
             f"[AnalyzeKey] ✓ key={result.get('key_name', '?')} "
             f"conf={result.get('confidence', 0):.2f} "
-            f"analyses={store['analyses']} "
             f"notes={len(notes)} phrases={len(phrases)} "
             f"flags={result.get('flags', [])}"
         )
+        logger.info(
+            f"[AnalyzeKey]   última_nota={diag.get('last_note')} ({diag.get('last_note_dur_ms', 0):.0f}ms) "
+            f"— 3 hipóteses: tônica={diag.get('last_note')}, "
+            f"5ª→{note_names[((diag.get('last_note_pc') or 0) - 7) % 12] if diag.get('last_note_pc') is not None else '-'}, "
+            f"3ª→{note_names[((diag.get('last_note_pc') or 0) - 4) % 12] if diag.get('last_note_pc') is not None else '-'}"
+        )
         logger.info(f"[AnalyzeKey]   hist top5: {hist_str}")
-        logger.info(f"[AnalyzeKey]   grav top5: {grav_str}")
         logger.info(f"[AnalyzeKey]   top3 keys: {tops_str}")
 
         return JSONResponse(result)
