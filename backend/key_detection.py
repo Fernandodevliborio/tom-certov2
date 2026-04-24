@@ -161,9 +161,11 @@ def segment_notes(
     return notes
 
 
-def detect_phrases(notes: List[Dict[str, Any]], silence_gap_ms: float = 200.0) -> List[List[Dict[str, Any]]]:
+def detect_phrases(notes: List[Dict[str, Any]], silence_gap_ms: float = 500.0) -> List[List[Dict[str, Any]]]:
     """
     Agrupa notas em frases usando gap de silêncio.
+    Gap de 500ms: respirações curtas (<500ms) não quebram frase.
+    Isso evita contar cada respiração como "fim de frase/cadência" e viciar o TonicAnchor.
     """
     phrases: List[List[Dict[str, Any]]] = []
     current: List[Dict[str, Any]] = []
@@ -237,7 +239,7 @@ def pearson_correlation(a: np.ndarray, b: np.ndarray) -> float:
 # ═══════════════════════════════════════════════════════════════════════
 # Pesos
 ANCHOR_DECAY = 0.98        # 15-20s de memória
-W_END_PHRASE = 8.0         # cadência = evidência máxima
+W_END_PHRASE = 3.0         # cadência (reduzido de 8.0 — respiração != fim de frase)
 W_LONG_NOTE = 3.0          # nota >= 400ms
 W_DURATION_PER_MS = 0.003  # acumulador por ms
 W_RECURRENCE = 1.5         # bonus quando pc já tinha peso

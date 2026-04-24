@@ -255,42 +255,16 @@ async def analyze_key(request: Request):
                 'duration_s': duration_s,
             })
 
-        # ── Acumulador do device ─────────────────────────────────
-        now = _time.time()
-        store = _accum_store[device_id]
-        if store['last_update'] and now - store['last_update'] > ACCUM_RESET_AFTER_S:
-            logger.info(f"[AnalyzeKey] Reset acumulador dev={device_id[:8]}")
-            store['hist'] = None
-            store['grav'] = None
-            store['analyses'] = 0
-
-        hist_clip = absorb_detuning(compute_weighted_histogram(notes))
-        grav_clip = compute_tonic_gravity(notes, phrases)
-
-        if store['hist'] is None:
-            store['hist'] = hist_clip.copy()
-            store['grav'] = grav_clip.copy()
-        else:
-            store['hist'] = store['hist'] * ACCUM_DECAY + hist_clip
-            store['grav'] = store['grav'] * ACCUM_DECAY + grav_clip
-        store['last_update'] = now
-        store['analyses'] += 1
-
-        # Decide com histograma ACUMULADO (estabilidade!)
-        result = detect_key_from_notes(
-            notes, phrases,
-            hist_override=store['hist'],
-            gravity_override=store['grav'],
-        )
+        # ── ANÁLISE INDIVIDUAL POR MÚSICA (sem acumulador entre músicas) ──
+        # Cada clip de 8s é analisado de forma totalmente independente.
+        # Isso evita viés acumulado entre hinos de tonalidades diferentes.
+        result = detect_key_from_notes(notes, phrases)
         result['success'] = True
         result['duration_s'] = duration_s
         result['notes_count'] = len(notes)
         result['phrases_count'] = len(phrases)
-        result['method'] = 'torchcrepe-tiny+tonicanchor-v3+accum'
-        result['accumulator'] = {
-            'analyses': store['analyses'],
-            'stable': store['analyses'] >= 3,
-        }
+        result['method'] = 'torchcrepe-tiny+tonicanchor-v3+per-song'
+        result['accumulator'] = {'analyses': 1, 'stable': True}
 
         # Logging detalhado (histograma + gravity + top3)
         hist = result.get('histogram', [])
