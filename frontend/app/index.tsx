@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions,
-  Easing, Platform, Modal, ScrollView, Linking, Alert, ActivityIndicator,
+  Easing, Platform, Modal, ScrollView, Linking, Alert, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,10 +126,12 @@ function InitialScreen({
     <Animated.View testID="initial-screen" style={[ss.initialRoot, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
       {/* Brand Block */}
       <View style={ss.brandBlock}>
-        <Animated.View style={{ opacity: logoGlow }}>
-          <View style={ss.logoCircleMain}>
-            <Ionicons name="musical-notes" size={88} color={C.amber} />
-          </View>
+        <Animated.View style={[ss.logoWrapMain, { opacity: logoGlow }]}>
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={ss.logoImgMain}
+            resizeMode="contain"
+          />
         </Animated.View>
         <Text style={ss.brandTitle}>Tom Certo</Text>
         <Text style={ss.brandSub}>DETECTOR DE TONALIDADE</Text>
@@ -263,7 +265,11 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     <View testID="active-screen" style={ss.activeRoot}>
       {/* Header */}
       <View style={ss.activeHeader}>
-        <Ionicons name="musical-notes" size={22} color={C.amber} />
+        <Image
+          source={require('../assets/images/logo.png')}
+          style={ss.headerLogo}
+          resizeMode="contain"
+        />
         <Text style={ss.headerBrand}>Tom Certo</Text>
         <View style={ss.headerStatusRow}>
           <Animated.View style={[ss.statusDot, { backgroundColor: statusDotColor, opacity: statusDot }]} />
@@ -478,13 +484,18 @@ const ss = StyleSheet.create({
     paddingTop: SH * 0.08, paddingBottom: 36, paddingHorizontal: 24,
   },
   brandBlock: { alignItems: 'center', gap: 6 },
-  logoCircleMain: {
-    width: 130, height: 130, borderRadius: 65,
-    backgroundColor: 'rgba(255,176,32,0.10)',
-    borderWidth: 1, borderColor: 'rgba(255,176,32,0.25)',
+  logoWrapMain: {
+    width: 170, height: 170,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
+    ...Platform.select({
+      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.55, shadowRadius: 36 },
+      android: { elevation: 14 },
+      default: {},
+    }),
   },
+  logoImgMain: { width: 170, height: 170 },
+  headerLogo: { width: 28, height: 28 },
   brandTitle: { fontFamily: 'Outfit_800ExtraBold', fontSize: 28, color: C.white, letterSpacing: -0.8 },
   brandSub: { fontFamily: 'Manrope_500Medium', fontSize: 10, color: C.text3, letterSpacing: 3 },
 

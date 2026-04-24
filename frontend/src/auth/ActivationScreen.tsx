@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, Animated,
   Dimensions, Easing, KeyboardAvoidingView, Platform, ScrollView,
-  Keyboard, ActivityIndicator, Linking,
+  Keyboard, ActivityIndicator, Linking, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -143,8 +143,12 @@ export default function ActivationScreen() {
 
             {/* Brand block */}
             <Animated.View style={[ss.brandBlock, { transform: [{ scale: logoScale }] }]}>
-              <Animated.View style={[ss.logoCircle, { opacity: logoGlow }]}>
-                <Text style={ss.logoEmoji}>🎵</Text>
+              <Animated.View style={[ss.logoWrap, { opacity: logoGlow }]}>
+                <Image
+                  source={require('../../assets/images/logo.png')}
+                  style={ss.logoImg}
+                  resizeMode="contain"
+                />
               </Animated.View>
               <Text style={ss.appName}>Tom Certo</Text>
               <Text style={ss.tagline}>DETECTOR DE TONALIDADE</Text>
@@ -283,19 +287,17 @@ const ss = StyleSheet.create({
   container: { paddingHorizontal: 32, alignItems: 'center' },
 
   brandBlock: { alignItems: 'center', marginBottom: SH * 0.06 },
-  logoCircle: {
-    width: 110, height: 110, borderRadius: 55,
-    backgroundColor: 'rgba(255,176,32,0.15)',
-    borderWidth: 1.5, borderColor: 'rgba(255,176,32,0.35)',
+  logoWrap: {
+    width: 160, height: 160,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
     ...Platform.select({
-      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 24 },
-      android: { elevation: 8 },
+      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.55, shadowRadius: 32 },
+      android: { elevation: 12 },
       default: {},
     }),
   },
-  logoEmoji: { fontSize: 52 },
+  logoImg: { width: 160, height: 160 },
   appName: { fontFamily: 'Outfit_800ExtraBold', fontSize: 32, color: C.white, letterSpacing: -1, marginBottom: 4 },
   tagline: { fontFamily: 'Manrope_500Medium', fontSize: 11, color: C.text3, letterSpacing: 3.2, textTransform: 'uppercase', marginTop: 2 },
 

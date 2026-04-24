@@ -69,11 +69,14 @@
     padding: 36px 28px; border-radius: 20px; border: 1px solid var(--border);
     text-align: center;
   }
-  #login .icon-wrap {
-    width: 84px; height: 84px; border-radius: 50%;
-    background: var(--amber-muted); border: 1.5px solid var(--amber-border);
-    margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;
-    font-size: 40px;
+  #login .logo-wrap {
+    width: 120px; height: 120px;
+    margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center;
+    filter: drop-shadow(0 0 24px rgba(255,176,32,0.4));
+  }
+  #login .logo-wrap img {
+    width: 100%; height: 100%; object-fit: contain;
   }
   #login h1 { font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 6px; }
   #login .sub { font-size: 11px; color: var(--text3); letter-spacing: 3px; margin-bottom: 32px; }
@@ -89,7 +92,7 @@
     padding: 16px 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
   }
   .header h1 { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.4px; display: flex; gap: 10px; align-items: center; }
-  .header h1::before { content: "🎵"; font-size: 22px; }
+  .header h1 .hlogo { width: 28px; height: 28px; object-fit: contain; }
   .backend-info { font-size: 11px; color: var(--text3); margin-top: 6px; }
 
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
@@ -187,7 +190,7 @@
 
 <!-- LOGIN SCREEN -->
 <div id="login">
-  <div class="icon-wrap">🛡️</div>
+  <div class="logo-wrap"><img src="/api/admin-logo" alt="Tom Certo" /></div>
   <h1>Tom Certo Admin</h1>
   <div class="sub">PAINEL DE GESTÃO DE TOKENS</div>
   <div class="row">
@@ -202,7 +205,7 @@
 <div id="dash">
   <div class="header">
     <div>
-      <h1>Tom Certo Admin</h1>
+      <h1><img class="hlogo" src="/api/admin-logo" alt="" />Tom Certo Admin</h1>
       <div class="backend-info" id="backend-info"></div>
     </div>
     <button class="btn btn-ghost" id="logout-btn">⎋ Sair</button>

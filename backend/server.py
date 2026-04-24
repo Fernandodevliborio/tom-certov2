@@ -263,12 +263,9 @@ async def list_tokens(request: Request):
     tokens = await db.tokens.find().sort("created_at", -1).to_list(500)
     for t in tokens:
         t["_id"] = str(t["_id"])
-        if isinstance(t.get("created_at"), datetime):
-            t["created_at"] = t["created_at"].isoformat()
-        if isinstance(t.get("expires_at"), datetime):
-            t["expires_at"] = t["expires_at"].isoformat()
-        if isinstance(t.get("last_used_at"), datetime):
-            t["last_used_at"] = t["last_used_at"].isoformat()
+        for k, v in list(t.items()):
+            if isinstance(v, datetime):
+                t[k] = v.isoformat()
     total = len(tokens)
     active_count = sum(1 for t in tokens if t.get("active", True))
     return JSONResponse({"tokens": tokens, "total": total, "active": active_count})
@@ -361,6 +358,15 @@ async def health():
 
 # ─── Admin UI (HTML Panel) ──────────────────────────────────────────────
 ADMIN_HTML_PATH = ROOT_DIR / "admin_ui.html"
+LOGO_PATH = ROOT_DIR.parent / "frontend" / "assets" / "images" / "logo.png"
+
+@api_router.get("/admin-logo")
+async def admin_logo():
+    """Serve a logo dourada do app para uso no painel HTML."""
+    if LOGO_PATH.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(str(LOGO_PATH), media_type="image/png")
+    return JSONResponse({"error": "logo not found"}, status_code=404)
 
 @api_router.get("/admin-ui", response_class=HTMLResponse)
 async def admin_ui():
