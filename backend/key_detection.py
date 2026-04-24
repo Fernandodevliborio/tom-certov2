@@ -505,17 +505,18 @@ def detect_key_from_notes(
     phrases_saturation = min(1.0, len(phrases) / 2.0)
     material_component = 0.5 * notes_saturation + 0.5 * phrases_saturation
 
-    # 4) Alinhamento tonal (TonicAnchor) — peso 10%
+    # 4) Alinhamento tonal (TonicAnchor) — peso 20% (foi 10%)
+    # Gravidade no centro tonal é o melhor indicador anti-grau-falso
     alignment_component = top['alignment']
 
     # 5) Cadência — peso 5%
     cadence_component = top['cadence']
 
     confidence = (
-        0.50 * margin_component +
-        0.20 * third_component +
-        0.15 * material_component +
-        0.10 * alignment_component +
+        0.45 * margin_component +       # margem ainda o mais importante
+        0.20 * third_component +        # terça clara
+        0.20 * alignment_component +    # AUMENTADO — tônica tem que "puxar"
+        0.10 * material_component +
         0.05 * cadence_component
     )
     confidence = float(min(1.0, max(0.0, confidence)))
@@ -538,6 +539,11 @@ def detect_key_from_notes(
         close = abs(top['score'] - runner['score']) / max(top['score'], 1e-6)
         if close < 0.10:
             flags.append('relative_ambiguous')    # maj vs rel-min muito próximos
+    # NOVO: tônica-top não tem a maior gravidade no histograma → suspeito
+    if len(gravity) == 12:
+        grav_list = sorted(range(12), key=lambda i: gravity[i], reverse=True)
+        if grav_list[0] != top['root']:
+            flags.append('weak_tonic_gravity')   # a tônica escolhida não é o centro gravitacional
 
     # ── PENALIDADES DE HONESTIDADE ───────────────────────────────────
     # Mesmo com análise internamente consistente, se o contexto é pobre,
@@ -547,15 +553,23 @@ def detect_key_from_notes(
     if 'no_third_evidence' in flags:
         damping *= 0.60   # sem 3ª, maj/min = chute quase puro
     if 'ambiguous_third' in flags:
-        damping *= 0.60   # terças conflitantes = indecisão real
+        damping *= 0.55   # terças conflitantes = indecisão real (mais forte)
     if 'few_notes' in flags:
         damping *= 0.70   # poucas notas = amostra insuficiente
     if 'single_phrase' in flags and 'close_call' in flags:
         damping *= 0.70   # uma frase só + margem estreita = dobro de incerteza
     if 'relative_ambiguous' in flags:
-        damping *= 0.75   # relativo pode ter errado o sorteio
+        damping *= 0.70   # relativo pode ter errado o sorteio (mais forte)
     if 'no_resolution' in flags:
         damping *= 0.80   # nada resolveu na tônica escolhida
+    if 'weak_tonic_gravity' in flags:
+        damping *= 0.70   # NOVO: tônica escolhida não é o centro gravitacional
+    # Combinação tóxica: múltiplas flags ambíguas juntas → sistema está chutando
+    ambig_flags_count = sum(1 for f in flags if f in (
+        'close_call', 'ambiguous_third', 'relative_ambiguous', 'weak_tonic_gravity'
+    ))
+    if ambig_flags_count >= 2:
+        damping *= 0.60   # duas ou mais flags de ambiguidade = alto risco
 
     confidence = confidence * damping
     confidence = float(min(1.0, max(0.0, confidence)))

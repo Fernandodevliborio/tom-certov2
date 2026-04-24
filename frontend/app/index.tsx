@@ -205,38 +205,103 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     smartStatus, mlResult,
   } = det;
 
-  // ── Lógica de confiança HONESTA (baseada em recommendation + flags do backend) ──
-  const mlStage: 'none' | 'analyzing' | 'probable' | 'confirmed' = useMemo(() => {
-    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return 'none';
-    const rec = mlResult.recommendation;
+  // ═══════════════════════════════════════════════════════════════
+  // HISTERESE + FLOOR DE CONFIANÇA HONESTO
+  // ═══════════════════════════════════════════════════════════════
+  // Thresholds absolutos — NUNCA mostrar tom abaixo destes limites.
+  const MIN_DISPLAY_CONF = 0.35;       // abaixo disso, nenhum tom é exibido
+  const MIN_CONFIRM_CONF = 0.60;       // abaixo disso, só é "provável"
+  const LOCK_REPLACE_CONF = 0.65;      // para trocar tom confirmado, o novo precisa ter ≥ isso
+  const LOCK_REPLACE_MARGIN = 0.10;    // e superar o atual em pelo menos 10pp
+
+  // Tom travado (último ML result com conf >= 0.60) — mantém estável
+  const lockedKeyRef = useRef<{
+    tonic: number; quality: 'major' | 'minor'; key_name: string; confidence: number; at: number;
+  } | null>(null);
+  const [lockedKeyTick, setLockedKeyTick] = useState(0); // força re-render
+
+  useEffect(() => {
+    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
     const conf = mlResult.confidence ?? 0;
-    if (rec === 'confident' || conf >= 0.60) return 'confirmed';
-    if (rec === 'uncertain_suggest_more_audio' || conf >= 0.35) return 'probable';
-    return 'analyzing';  // keep_analyzing
-  }, [mlResult?.success, mlResult?.tonic, mlResult?.quality, mlResult?.confidence, mlResult?.recommendation]);
+    const tonic = mlResult.tonic;
+    const quality = mlResult.quality as 'major' | 'minor';
+
+    // Se nada travado ainda, trava se conf >= 0.60
+    if (!lockedKeyRef.current) {
+      if (conf >= MIN_CONFIRM_CONF) {
+        lockedKeyRef.current = {
+          tonic, quality,
+          key_name: mlResult.key_name || '',
+          confidence: conf,
+          at: Date.now(),
+        };
+        setLockedKeyTick(t => t + 1);
+      }
+      return;
+    }
+
+    // Se já tem travado, só troca se:
+    // (1) mesmo tom → só atualiza confidence (sem "trocar")
+    const cur = lockedKeyRef.current;
+    if (cur.tonic === tonic && cur.quality === quality) {
+      cur.confidence = Math.max(cur.confidence, conf);
+      cur.at = Date.now();
+      return;
+    }
+    // (2) tom diferente → só troca com conf superior + margem significativa
+    if (conf >= LOCK_REPLACE_CONF && conf >= cur.confidence + LOCK_REPLACE_MARGIN) {
+      lockedKeyRef.current = {
+        tonic, quality,
+        key_name: mlResult.key_name || '',
+        confidence: conf,
+        at: Date.now(),
+      };
+      setLockedKeyTick(t => t + 1);
+    }
+    // Senão: ignora, mantém o tom travado (evita flip-flop)
+  }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
+
+  // Limpa tom travado se parar de gravar
+  useEffect(() => {
+    if (!isRunning) {
+      lockedKeyRef.current = null;
+      setLockedKeyTick(t => t + 1);
+    }
+  }, [isRunning]);
+
+  // ── Estado visível baseado em tom travado + último ML ────────────
+  const mlStage: 'none' | 'analyzing' | 'probable' | 'confirmed' = useMemo(() => {
+    // Se há tom travado, ele domina
+    if (lockedKeyRef.current) return 'confirmed';
+    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return 'none';
+    const conf = mlResult.confidence ?? 0;
+    if (conf >= MIN_CONFIRM_CONF) return 'confirmed';
+    if (conf >= MIN_DISPLAY_CONF) return 'probable';
+    return 'analyzing';
+  }, [mlResult?.success, mlResult?.tonic, mlResult?.quality, mlResult?.confidence, lockedKeyTick]);
 
   const mlKey = useMemo(() => {
+    if (lockedKeyRef.current) {
+      return { root: lockedKeyRef.current.tonic, quality: lockedKeyRef.current.quality };
+    }
     if (mlStage === 'none' || mlStage === 'analyzing') return null;
     return {
       root: mlResult!.tonic!,
       quality: mlResult!.quality as 'major' | 'minor',
     };
-  }, [mlStage, mlResult?.tonic, mlResult?.quality]);
+  }, [mlStage, mlResult?.tonic, mlResult?.quality, lockedKeyTick]);
 
-  // ML > local detector na prioridade
-  const confirmedKey = mlStage === 'confirmed'
-    ? mlKey
-    : (mlStage === 'none' && keyTier === 'confirmed' ? currentKey : null);
-  const provisionalKey = mlStage === 'probable'
-    ? mlKey
-    : (mlStage === 'none' && keyTier === 'provisional' ? currentKey : null);
+  // IMPORTANTE: detector LOCAL foi desativado como fallback visual —
+  // ele tende a confirmar com baixa confiança (12%) e criar flip-flop.
+  // A partir daqui, SÓ o ML backend manda no display.
+  const confirmedKey = mlStage === 'confirmed' ? mlKey : null;
+  const provisionalKey = mlStage === 'probable' ? mlKey : null;
   const displayKey = confirmedKey || provisionalKey;
 
-  // Dica amigável baseada nas flags do backend (sem expor jargão técnico)
+  // Dica amigável baseada nas flags do backend
   const friendlyHint = useMemo(() => {
     if (!mlResult?.success || mlStage === 'confirmed') return null;
     const flags = mlResult.flags || [];
-    // Prioridade: o problema mais acionável primeiro
     if (flags.includes('ambiguous_third')) return 'Tonalidade ainda ambígua — continue cantando';
     if (flags.includes('no_third_evidence')) return 'Ainda analisando maior/menor…';
     if (flags.includes('few_notes')) return 'Cante por mais alguns segundos';
@@ -248,20 +313,24 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     return null;
   }, [mlResult?.flags, mlStage, mlResult?.success]);
 
-  // Confidence em % (somente pra debug/barra interna; usuário vê estado textual)
-  const confPct = mlResult?.success
-    ? Math.round((mlResult.confidence ?? 0) * 100)
-    : Math.round(Math.max(0, liveConfidence) * 100);
+  // Confidence do ML result atual (para a barra visual)
+  const confPct = (() => {
+    if (lockedKeyRef.current) {
+      return Math.round(lockedKeyRef.current.confidence * 100);
+    }
+    if (mlResult?.success) return Math.round((mlResult.confidence ?? 0) * 100);
+    return 0;
+  })();
   const confColor = confPct >= 60 ? C.green : confPct >= 35 ? C.amber : C.text2;
 
-  // Log técnico (debug only) — NÃO exibir pro usuário
+  // Log técnico (dev only)
   useEffect(() => {
     if (mlResult?.success && mlResult.key_name) {
       // eslint-disable-next-line no-console
       console.log(
         `[ML] ${mlResult.key_name} conf=${(mlResult.confidence ?? 0).toFixed(2)} ` +
         `rec=${mlResult.recommendation} flags=[${(mlResult.flags ?? []).join(',')}] ` +
-        `m_rel=${mlResult.margin_relative ?? mlResult.margin ?? 0}`
+        `locked=${lockedKeyRef.current?.key_name ?? 'null'}`
       );
     }
   }, [mlResult?.key_name, mlResult?.confidence, mlResult?.recommendation]);
@@ -271,21 +340,13 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     if (mlStage === 'confirmed') return 'TOM IDENTIFICADO';
     if (mlStage === 'probable') return 'IDENTIFICANDO TONALIDADE…';
     if (mlStage === 'analyzing') return 'CONTINUE CANTANDO…';
-    if (smartStatus === 'confirmed') return 'TOM IDENTIFICADO';
-    if (smartStatus === 'analyzing') return 'ANALISANDO O TOM…';
-    if (smartStatus === 'listening') return 'OUVINDO SUA VOZ…';
-    if (smartStatus === 'warming') return 'OUVINDO SUA VOZ…';
-    if (phraseStage === 'listening') return 'OUVINDO SUA VOZ…';
-    if (phraseStage === 'probable') return 'IDENTIFICANDO TONALIDADE…';
-    if (phraseStage === 'confirmed') return 'CONFIRMANDO TOM…';
-    if (phraseStage === 'definitive') return 'TOM IDENTIFICADO';
-    return 'PRONTO';
+    return 'OUVINDO SUA VOZ…';
   })();
 
   const statusDotColor = (() => {
     if (!isRunning) return C.text3;
-    if (mlStage === 'confirmed' || smartStatus === 'confirmed' || phraseStage === 'definitive') return C.green;
-    if (mlStage === 'probable' || smartStatus === 'analyzing') return C.amber;
+    if (mlStage === 'confirmed') return C.green;
+    if (mlStage === 'probable') return C.amber;
     return C.text2;
   })();
 
