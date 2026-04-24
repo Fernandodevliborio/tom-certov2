@@ -67,8 +67,22 @@ export interface MLAnalysisResult {
   quality?: 'major' | 'minor';
   key_name?: string;
   confidence?: number;
-  top_candidates?: Array<{ key: string; score: number; cadence: number; ks: number }>;
-  margin?: number;
+  confidence_breakdown?: {
+    margin: number; third: number; material: number;
+    alignment: number; cadence: number;
+  };
+  flags?: Array<
+    'close_call' | 'no_third_evidence' | 'ambiguous_third' |
+    'few_notes' | 'single_phrase' | 'no_resolution' | 'relative_ambiguous'
+  >;
+  recommendation?: 'keep_analyzing' | 'uncertain_suggest_more_audio' | 'confident';
+  top_candidates?: Array<{
+    key: string; score: number; cadence: number; ks: number;
+    third_mul?: number; third_ratio?: number; alignment?: number; boost?: number;
+  }>;
+  margin_abs?: number;
+  margin_relative?: number;
+  margin?: number; // legacy
   error?: string;
   message?: string;
 }

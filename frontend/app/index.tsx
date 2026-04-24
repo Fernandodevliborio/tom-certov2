@@ -205,43 +205,93 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     smartStatus, mlResult,
   } = det;
 
-  const mlKey = useMemo(() => {
-    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return null;
-    return { root: mlResult.tonic, quality: mlResult.quality as 'major' | 'minor' };
-  }, [mlResult?.tonic, mlResult?.quality, mlResult?.success]);
+  // ── Lógica de confiança HONESTA (baseada em recommendation + flags do backend) ──
+  const mlStage: 'none' | 'analyzing' | 'probable' | 'confirmed' = useMemo(() => {
+    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return 'none';
+    const rec = mlResult.recommendation;
+    const conf = mlResult.confidence ?? 0;
+    if (rec === 'confident' || conf >= 0.60) return 'confirmed';
+    if (rec === 'uncertain_suggest_more_audio' || conf >= 0.35) return 'probable';
+    return 'analyzing';  // keep_analyzing
+  }, [mlResult?.success, mlResult?.tonic, mlResult?.quality, mlResult?.confidence, mlResult?.recommendation]);
 
-  const confirmedKey = mlKey || (keyTier === 'confirmed' ? currentKey : null);
-  const provisionalKey = mlKey ? null : (keyTier === 'provisional' ? currentKey : null);
+  const mlKey = useMemo(() => {
+    if (mlStage === 'none' || mlStage === 'analyzing') return null;
+    return {
+      root: mlResult!.tonic!,
+      quality: mlResult!.quality as 'major' | 'minor',
+    };
+  }, [mlStage, mlResult?.tonic, mlResult?.quality]);
+
+  // ML > local detector na prioridade
+  const confirmedKey = mlStage === 'confirmed'
+    ? mlKey
+    : (mlStage === 'none' && keyTier === 'confirmed' ? currentKey : null);
+  const provisionalKey = mlStage === 'probable'
+    ? mlKey
+    : (mlStage === 'none' && keyTier === 'provisional' ? currentKey : null);
   const displayKey = confirmedKey || provisionalKey;
 
+  // Dica amigável baseada nas flags do backend (sem expor jargão técnico)
+  const friendlyHint = useMemo(() => {
+    if (!mlResult?.success || mlStage === 'confirmed') return null;
+    const flags = mlResult.flags || [];
+    // Prioridade: o problema mais acionável primeiro
+    if (flags.includes('ambiguous_third')) return 'Tonalidade ainda ambígua — continue cantando';
+    if (flags.includes('no_third_evidence')) return 'Ainda analisando maior/menor…';
+    if (flags.includes('few_notes')) return 'Cante por mais alguns segundos';
+    if (flags.includes('single_phrase')) return 'Continue cantando para confirmar';
+    if (flags.includes('relative_ambiguous')) return 'Ainda decidindo entre tons próximos';
+    if (flags.includes('no_resolution')) return 'Resolva uma frase na tônica';
+    if (mlStage === 'analyzing') return 'Continue cantando…';
+    if (mlStage === 'probable') return 'Confirmando o tom…';
+    return null;
+  }, [mlResult?.flags, mlStage, mlResult?.success]);
+
+  // Confidence em % (somente pra debug/barra interna; usuário vê estado textual)
   const confPct = mlResult?.success
     ? Math.round((mlResult.confidence ?? 0) * 100)
     : Math.round(Math.max(0, liveConfidence) * 100);
-  const confColor = confPct >= 75 ? C.green : confPct >= 55 ? C.amber : C.text2;
+  const confColor = confPct >= 60 ? C.green : confPct >= 35 ? C.amber : C.text2;
+
+  // Log técnico (debug only) — NÃO exibir pro usuário
+  useEffect(() => {
+    if (mlResult?.success && mlResult.key_name) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[ML] ${mlResult.key_name} conf=${(mlResult.confidence ?? 0).toFixed(2)} ` +
+        `rec=${mlResult.recommendation} flags=[${(mlResult.flags ?? []).join(',')}] ` +
+        `m_rel=${mlResult.margin_relative ?? mlResult.margin ?? 0}`
+      );
+    }
+  }, [mlResult?.key_name, mlResult?.confidence, mlResult?.recommendation]);
 
   const statusLabel = (() => {
     if (!isRunning) return 'TOQUE PARA COMEÇAR';
+    if (mlStage === 'confirmed') return 'TOM IDENTIFICADO';
+    if (mlStage === 'probable') return 'IDENTIFICANDO TONALIDADE…';
+    if (mlStage === 'analyzing') return 'CONTINUE CANTANDO…';
     if (smartStatus === 'confirmed') return 'TOM IDENTIFICADO';
-    if (smartStatus === 'analyzing') return 'ANALISANDO O TOM...';
-    if (smartStatus === 'listening') return 'OUVINDO SUA VOZ...';
-    if (smartStatus === 'warming') return 'OUVINDO SUA VOZ...';
-    if (phraseStage === 'listening') return 'OUVINDO SUA VOZ...';
-    if (phraseStage === 'probable') return 'IDENTIFICANDO TONALIDADE...';
-    if (phraseStage === 'confirmed') return 'CONFIRMANDO TOM...';
+    if (smartStatus === 'analyzing') return 'ANALISANDO O TOM…';
+    if (smartStatus === 'listening') return 'OUVINDO SUA VOZ…';
+    if (smartStatus === 'warming') return 'OUVINDO SUA VOZ…';
+    if (phraseStage === 'listening') return 'OUVINDO SUA VOZ…';
+    if (phraseStage === 'probable') return 'IDENTIFICANDO TONALIDADE…';
+    if (phraseStage === 'confirmed') return 'CONFIRMANDO TOM…';
     if (phraseStage === 'definitive') return 'TOM IDENTIFICADO';
     return 'PRONTO';
   })();
 
   const statusDotColor = (() => {
     if (!isRunning) return C.text3;
-    if (smartStatus === 'confirmed' || phraseStage === 'definitive') return C.green;
-    if (smartStatus === 'analyzing') return C.amber;
+    if (mlStage === 'confirmed' || smartStatus === 'confirmed' || phraseStage === 'definitive') return C.green;
+    if (mlStage === 'probable' || smartStatus === 'analyzing') return C.amber;
     return C.text2;
   })();
 
   const harmonicField = useMemo(
-    () => displayKey ? getHarmonicField(displayKey.root, displayKey.quality) : [],
-    [displayKey?.root, displayKey?.quality]
+    () => confirmedKey ? getHarmonicField(confirmedKey.root, confirmedKey.quality) : [],
+    [confirmedKey?.root, confirmedKey?.quality]
   );
 
   const statusDot = useRef(new Animated.Value(1)).current;
@@ -340,13 +390,37 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   color={confirmedKey ? C.green : C.amber}
                 />
                 <Text style={[ss.keyCardBadgeTxt, { color: confirmedKey ? C.green : C.amber }]}>
-                  {confirmedKey ? 'TOM IDENTIFICADO' : 'IDENTIFICANDO...'}
+                  {confirmedKey ? 'TOM DETECTADO' : 'TOM PROVÁVEL'}
                 </Text>
               </View>
               <Text style={[ss.keyCardConfPct, { color: confColor }]}>{confPct}%</Text>
             </View>
             <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={!confirmedKey} />
             <ConfidenceBar pct={confPct} color={confColor} />
+            {!confirmedKey && friendlyHint ? (
+              <View style={ss.hintRow}>
+                <Ionicons name="ellipsis-horizontal-circle-outline" size={13} color={C.amber} />
+                <Text style={ss.hintTxt}>{friendlyHint}</Text>
+              </View>
+            ) : null}
+          </View>
+        )}
+
+        {/* Analyzing placeholder (sem tom ainda, mas já rodando) */}
+        {!displayKey && isRunning && (mlStage === 'analyzing' || friendlyHint) && (
+          <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
+            <View style={ss.keyCardHeader}>
+              <View style={[ss.keyCardBadge, { borderColor: C.amberBorder }]}>
+                <Ionicons name="sync" size={11} color={C.amber} />
+                <Text style={[ss.keyCardBadgeTxt, { color: C.amber }]}>ANALISANDO</Text>
+              </View>
+            </View>
+            <Text style={ss.analyzingTitle}>Continue cantando…</Text>
+            {friendlyHint ? (
+              <Text style={ss.analyzingSub}>{friendlyHint}</Text>
+            ) : (
+              <Text style={ss.analyzingSub}>Precisamos de mais alguns segundos para identificar o tom.</Text>
+            )}
           </View>
         )}
 
@@ -364,14 +438,14 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           </View>
         )}
 
-        {/* Harmonic Field */}
-        {displayKey && harmonicField.length > 0 && (
+        {/* Harmonic Field (só quando TOM CONFIRMADO, nunca provisório) */}
+        {confirmedKey && harmonicField.length > 0 && (
           <View style={ss.section}>
             <Text style={ss.sectionLabel}>CAMPO HARMÔNICO</Text>
             <View style={ss.chordGrid}>
               {harmonicField.map((chord, i) => (
                 <View key={i} style={[ss.chordCard, chord.isTonic && ss.chordCardTonic]}>
-                  <Text style={ss.chordDegree}>{degreeLabel(i, displayKey.quality)}</Text>
+                  <Text style={ss.chordDegree}>{degreeLabel(i, confirmedKey.quality)}</Text>
                   <Text style={[ss.chordName, chord.isTonic && ss.chordNameTonic]}>{chord.label}</Text>
                   <Text style={ss.chordIntl}>{chordIntlLabel(chord.root, chord.quality)}</Text>
                 </View>
@@ -612,6 +686,24 @@ const ss = StyleSheet.create({
   },
   keyCardBadgeTxt: { fontFamily: 'Manrope_600SemiBold', fontSize: 9.5, letterSpacing: 1.8 },
   keyCardConfPct: { fontFamily: 'Outfit_700Bold', fontSize: 13, color: C.text2, letterSpacing: -0.3 },
+  hintRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 10, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,176,32,0.15)',
+  },
+  hintTxt: {
+    flex: 1,
+    fontFamily: 'Manrope_500Medium', fontSize: 12.5, color: C.amber,
+    letterSpacing: 0.1,
+  },
+  analyzingTitle: {
+    fontFamily: 'Outfit_700Bold', fontSize: 22, color: C.white,
+    letterSpacing: -0.5, marginTop: 6,
+  },
+  analyzingSub: {
+    fontFamily: 'Manrope_400Regular', fontSize: 13, color: C.text2,
+    marginTop: 4, lineHeight: 18,
+  },
   keyDisplayRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   keyDisplayNote: { fontFamily: 'Outfit_800ExtraBold', fontSize: 40, color: C.white, lineHeight: 44, letterSpacing: -1.2 },
   keyDisplayQual: { fontFamily: 'Outfit_700Bold', fontSize: 22, color: C.white, letterSpacing: -0.5 },
