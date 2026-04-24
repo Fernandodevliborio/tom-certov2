@@ -95,19 +95,60 @@ export function usePitchEngine(): PitchEngineHandle {
   }, []);
 
   // ── Audio stream callback ────────────────────────────────────────
+  const streamFrameCountRef = useRef(0);
+  const streamLoggedTypeRef = useRef<string>('');
+
   const handleAudioStream = useCallback(
     async (event: AudioDataEvent) => {
       if (!activeRef.current) return;
       const raw = (event as any).data;
-      // Normalize to Float32Array — native may deliver Float32Array (Android JSI),
-      // Array<number> (iOS JS bridge), or base64 string (when streamFormat='raw').
       let data: Float32Array | null = null;
+
+      // Log type ONCE on first call (or when it changes) — diagnostic
+      const dataType = raw instanceof Float32Array ? 'float32array'
+        : Array.isArray(raw) ? 'array'
+        : typeof raw === 'string' ? 'base64'
+        : raw instanceof ArrayBuffer ? 'arraybuffer'
+        : typeof raw;
+      if (dataType !== streamLoggedTypeRef.current) {
+        streamLoggedTypeRef.current = dataType;
+        // eslint-disable-next-line no-console
+        console.log(`[AudioStream] dataType=${dataType} raw.length=${raw?.length ?? '?'} sampleRate=${(event as any).sampleRate ?? '?'}`);
+      }
+
       if (raw instanceof Float32Array) {
         data = raw;
       } else if (Array.isArray(raw)) {
         data = Float32Array.from(raw as number[]);
+      } else if (raw instanceof ArrayBuffer) {
+        data = new Float32Array(raw);
+      } else if (typeof raw === 'string') {
+        // Base64-encoded PCM float32 — decode it
+        try {
+          const bin = globalThis.atob ? globalThis.atob(raw) : '';
+          const buf = new ArrayBuffer(bin.length);
+          const view = new Uint8Array(buf);
+          for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+          // encoding='pcm_32bit' streamFormat='float32' → Float32Array
+          data = new Float32Array(buf);
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.warn('[AudioStream] base64 decode fail', String((err as any)?.message || err));
+          return;
+        }
       } else {
-        return; // base64 not supported — we requested streamFormat='float32'
+        // eslint-disable-next-line no-console
+        console.warn(`[AudioStream] tipo desconhecido: ${dataType}`);
+        return;
+      }
+
+      if (!data || data.length === 0) return;
+
+      // Counter for diagnostic (logged every ~100 frames = 10s)
+      streamFrameCountRef.current++;
+      if (streamFrameCountRef.current % 100 === 0) {
+        // eslint-disable-next-line no-console
+        console.log(`[AudioStream] ${streamFrameCountRef.current} frames processados. Ring cheio: ${captureRingFilledRef.current}/${captureRingRef.current.length} samples`);
       }
 
       // Capture to continuous ring buffer (writer always on) ──────

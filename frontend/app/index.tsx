@@ -52,6 +52,24 @@ function InitialScreen({
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const prevErr = useRef<string | null>(null);
 
+  // OTA auto-check no startup — garante que app sempre tem bundle mais recente
+  useEffect(() => {
+    if (Platform.OS === 'web' || !Updates.isEnabled) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await Updates.checkForUpdateAsync();
+        if (res.isAvailable && mounted) {
+          await Updates.fetchUpdateAsync();
+          if (mounted) await Updates.reloadAsync();
+        }
+      } catch {
+        // silencioso — não incomoda o usuário
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   const onCheckUpdate = async () => {
     if (checkingUpdate) return;
     if (Platform.OS === 'web' || !Updates.isEnabled) {
@@ -381,7 +399,12 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           style={ss.headerLogo}
           resizeMode="contain"
         />
-        <Text style={ss.headerBrand}>Tom Certo</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={ss.headerBrand}>Tom Certo</Text>
+          <Text style={ss.headerVersion} numberOfLines={1}>
+            v2.0.6 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+          </Text>
+        </View>
         <View style={ss.headerStatusRow}>
           <Animated.View style={[ss.statusDot, { backgroundColor: statusDotColor, opacity: statusDot }]} />
           <Text style={ss.headerStatusTxt}>{statusLabel}</Text>
@@ -672,7 +695,8 @@ const ss = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 8,
   },
-  headerBrand: { fontFamily: 'Outfit_700Bold', fontSize: 15, color: C.white, flex: 1, letterSpacing: -0.3 },
+  headerBrand: { fontFamily: 'Outfit_700Bold', fontSize: 15, color: C.white, letterSpacing: -0.3 },
+  headerVersion: { fontFamily: 'Manrope_500Medium', fontSize: 9, color: C.text3, letterSpacing: 0.3, marginTop: 1 },
   headerStatusRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: C.surface, borderRadius: 10, borderWidth: 1, borderColor: C.border,
