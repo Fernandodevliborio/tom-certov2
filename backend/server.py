@@ -218,6 +218,22 @@ async def analyze_key(request: Request):
         from key_detection import analyze_audio_bytes
         result = analyze_audio_bytes(audio_bytes)
         if result.get('success'):
+            # Top 5 PCs por histograma e por gravity
+            hist = result.get('histogram', [])
+            grav = result.get('gravity', [])
+            note_names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+            if hist and len(hist) == 12:
+                hist_sorted = sorted(range(12), key=lambda i: hist[i], reverse=True)
+                hist_str = ' '.join(f"{note_names[i]}={hist[i]:.2f}" for i in hist_sorted[:5])
+            else:
+                hist_str = 'n/a'
+            if grav and len(grav) == 12:
+                grav_sorted = sorted(range(12), key=lambda i: grav[i], reverse=True)
+                grav_str = ' '.join(f"{note_names[i]}={grav[i]:.2f}" for i in grav_sorted[:5])
+            else:
+                grav_str = 'n/a'
+            tops = result.get('top_candidates', [])[:3]
+            tops_str = ' | '.join(f"{t['key']}({t['score']:.3f})" for t in tops)
             logger.info(
                 f"[AnalyzeKey] ✓ key={result.get('key_name', '?')} "
                 f"conf={result.get('confidence', 0):.2f} "
@@ -226,6 +242,9 @@ async def analyze_key(request: Request):
                 f"duration={result.get('duration_s', '?')}s "
                 f"flags={result.get('flags', [])}"
             )
+            logger.info(f"[AnalyzeKey]   hist top5: {hist_str}")
+            logger.info(f"[AnalyzeKey]   grav top5: {grav_str}")
+            logger.info(f"[AnalyzeKey]   top3 keys: {tops_str}")
         else:
             logger.warning(
                 f"[AnalyzeKey] ✗ error={result.get('error', '?')} "
