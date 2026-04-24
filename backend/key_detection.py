@@ -366,41 +366,88 @@ def score_key(
     }
 
 
+def third_clarity(hist: np.ndarray, root: int, quality: str) -> Dict[str, float]:
+    """
+    Mede a clareza da terça da tônica candidata.
+    Returns:
+      - third_score: peso harmônico da terça COERENTE (maj se quality=major, min se quality=minor)
+      - conflict_score: peso da terça CONFLITANTE (a outra terça)
+      - ratio: third_score / (third_score + conflict_score). 1.0 = claro, 0.5 = ambíguo
+      - decisive: True se ratio >= 0.70 (terça dominante clara)
+    Uma 3ª presente e sustentada é a evidência mais forte para maj vs min.
+    """
+    maj_third_pc = (root + 4) % 12    # 3ª maior
+    min_third_pc = (root + 3) % 12    # 3ª menor
+    w_maj = float(hist[maj_third_pc])
+    w_min = float(hist[min_third_pc])
+    if quality == 'major':
+        third_score = w_maj
+        conflict_score = w_min
+    else:
+        third_score = w_min
+        conflict_score = w_maj
+    total = third_score + conflict_score
+    ratio = third_score / total if total > 0 else 0.5
+    return {
+        'third_score': third_score,
+        'conflict_score': conflict_score,
+        'ratio': ratio,
+        'decisive': ratio >= 0.70 and total > 0,
+        'present': total > 0,
+    }
+
+
 def detect_key_from_notes(
     notes: List[Dict[str, Any]],
     phrases: List[List[Dict[str, Any]]],
 ) -> Dict[str, Any]:
     """
-    Detecta tonalidade com pipeline v2 (lógica madura do frontend portada):
+    Detecta tonalidade com pipeline v3 — honest confidence edition:
     1. Pontua cada 1 dos 24 candidatos (Krumhansl + cadência + força - penalidade)
     2. Aplica BOOST de alignment por gravidade tonal global (TonicAnchor)
-    3. Ordena e aplica TIEBREAKER de pares relativos se top-2 forem relativos
-    4. Aplica GUARD anti-grau-diatônico: se runner-up é V/IV/ii/vi da tônica top,
-       exige gravity 1.3× maior para trocar — descarta graus como tônicas falsas
+    3. Aplica BOOST de terça (maj vs min da mesma raiz) via third_clarity
+    4. Ordena e aplica TIEBREAKER de pares relativos se top-2 forem relativos
+    5. Aplica GUARD anti-grau-diatônico: se runner-up é V/IV/ii/vi da tônica top
+    6. CONFIDENCE HONESTA: baseada em margem relativa, clareza da terça, material disponível
     """
     if not notes:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'no_notes'}
 
     hist = compute_weighted_histogram(notes)
-    if float(hist.sum()) < 1.0:
+    total_hist = float(hist.sum())
+    if total_hist < 1.0:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'too_little_audio'}
 
     # ── Gravidade tonal global (TonicAnchor) ─────────────────────────
     gravity = compute_tonic_gravity(notes, phrases)
 
-    # ── Scores base (Krumhansl + cadência + força - penalidade) ──────
+    # ── Scores base + boost de terça ─────────────────────────────────
     candidates = []
     for root in range(12):
         for quality in ('major', 'minor'):
             s = score_key(hist, phrases, root, quality)
             boost = alignment_boost(root, gravity)
-            effective_score = s['score'] * boost
+            tc = third_clarity(hist, root, quality)
+            # Third boost: +10% se ratio >= 0.70 e terça presente; -10% se ratio <= 0.30
+            if tc['present']:
+                if tc['ratio'] >= 0.70:
+                    third_multiplier = 1.0 + 0.10 * (tc['ratio'] - 0.70) / 0.30
+                elif tc['ratio'] <= 0.30:
+                    third_multiplier = 1.0 - 0.10 * (0.30 - tc['ratio']) / 0.30
+                else:
+                    third_multiplier = 1.0
+            else:
+                third_multiplier = 0.95  # sem 3ª → leve penalidade
+            effective_score = s['score'] * boost * third_multiplier
             candidates.append({
                 'root': root,
                 'quality': quality,
                 'base_score': s['score'],
                 'score': effective_score,
                 'boost': boost,
+                'third_multiplier': third_multiplier,
+                'third_ratio': tc['ratio'],
+                'third_present': tc['present'],
                 'alignment': alignment_score(root, gravity),
                 'cadence': s['cadence'],
                 'ks': s['ks'],
@@ -422,7 +469,6 @@ def detect_key_from_notes(
                 candidates[0], candidates[1] = candidates[1], candidates[0]
 
     # ── GUARD anti-grau-diatônico ────────────────────────────────────
-    # Se o runner-up é grau V/IV/ii/iii/vi da tônica top, confirma o top
     top = candidates[0]
     for runner_idx in range(1, min(5, len(candidates))):
         runner = candidates[runner_idx]
@@ -430,23 +476,97 @@ def detect_key_from_notes(
             grav_top    = float(gravity[top['root']])
             grav_runner = float(gravity[runner['root']])
             if grav_runner > grav_top * 1.3:
-                # Runner tem muito mais gravidade — provavelmente a tônica real
                 candidates[0], candidates[runner_idx] = runner, top
                 break
 
     top    = candidates[0]
     runner = candidates[1] if len(candidates) > 1 else None
-    margin = top['score'] - (runner['score'] if runner else 0)
+    margin_abs = top['score'] - (runner['score'] if runner else 0)
 
-    # Confiança: margem + alinhamento + cadência + ks
-    margin_norm = min(1.0, margin / 0.08)
+    # ═══════════════════════════════════════════════════════════════
+    # CONFIDENCE HONESTA v3
+    # ═══════════════════════════════════════════════════════════════
+    # 1) Margem RELATIVA (top vs runner) — peso dominante (50%)
+    top_score = max(top['score'], 1e-6)
+    relative_margin = margin_abs / top_score  # 0 = empate, 0.15+ = vitória clara
+    margin_component = min(1.0, relative_margin / 0.15)
+
+    # 2) Clareza da terça da tônica vencedora — peso 20%
+    tc_top = third_clarity(hist, top['root'], top['quality'])
+    if tc_top['present']:
+        # ratio 0.5 (ambíguo) → 0.0, ratio 1.0 (só uma terça) → 1.0
+        third_component = max(0.0, (tc_top['ratio'] - 0.5) * 2.0)
+    else:
+        third_component = 0.0  # sem terça = sem certeza maj/min
+
+    # 3) Material disponível — peso 15%
+    # 8+ notas e 2+ frases já é suficiente
+    notes_saturation = min(1.0, len(notes) / 8.0)
+    phrases_saturation = min(1.0, len(phrases) / 2.0)
+    material_component = 0.5 * notes_saturation + 0.5 * phrases_saturation
+
+    # 4) Alinhamento tonal (TonicAnchor) — peso 10%
+    alignment_component = top['alignment']
+
+    # 5) Cadência — peso 5%
+    cadence_component = top['cadence']
+
     confidence = (
-        0.35 * margin_norm +
-        0.25 * top['alignment'] +
-        0.25 * top['cadence'] +
-        0.15 * top['ks']
+        0.50 * margin_component +
+        0.20 * third_component +
+        0.15 * material_component +
+        0.10 * alignment_component +
+        0.05 * cadence_component
     )
     confidence = float(min(1.0, max(0.0, confidence)))
+
+    # ── Flags de auto-diagnóstico ────────────────────────────────────
+    flags = []
+    if relative_margin < 0.05:
+        flags.append('close_call')               # top e runner quase empatados
+    if not tc_top['present']:
+        flags.append('no_third_evidence')        # nem maj 3ª nem min 3ª no áudio
+    elif 0.35 < tc_top['ratio'] < 0.65:
+        flags.append('ambiguous_third')          # ambas terças aparecem (dúvida maj/min)
+    if len(notes) < 6:
+        flags.append('few_notes')                # < 6 notas segmentadas
+    if len(phrases) < 2:
+        flags.append('single_phrase')            # só uma frase — cadência não comparável
+    if top['cadence'] == 0.0:
+        flags.append('no_resolution')            # nenhuma frase termina na tônica
+    if runner and is_relative_pair(top, runner):
+        close = abs(top['score'] - runner['score']) / max(top['score'], 1e-6)
+        if close < 0.10:
+            flags.append('relative_ambiguous')    # maj vs rel-min muito próximos
+
+    # ── PENALIDADES DE HONESTIDADE ───────────────────────────────────
+    # Mesmo com análise internamente consistente, se o contexto é pobre,
+    # a confidence tem que refletir o RISCO do sistema estar olhando
+    # pro dado errado (porque não há dado suficiente).
+    damping = 1.0
+    if 'no_third_evidence' in flags:
+        damping *= 0.60   # sem 3ª, maj/min = chute quase puro
+    if 'ambiguous_third' in flags:
+        damping *= 0.60   # terças conflitantes = indecisão real
+    if 'few_notes' in flags:
+        damping *= 0.70   # poucas notas = amostra insuficiente
+    if 'single_phrase' in flags and 'close_call' in flags:
+        damping *= 0.70   # uma frase só + margem estreita = dobro de incerteza
+    if 'relative_ambiguous' in flags:
+        damping *= 0.75   # relativo pode ter errado o sorteio
+    if 'no_resolution' in flags:
+        damping *= 0.80   # nada resolveu na tônica escolhida
+
+    confidence = confidence * damping
+    confidence = float(min(1.0, max(0.0, confidence)))
+
+    # Recomendação honesta
+    if confidence < 0.35:
+        recommendation = 'keep_analyzing'
+    elif confidence < 0.60:
+        recommendation = 'uncertain_suggest_more_audio'
+    else:
+        recommendation = 'confident'
 
     return {
         'tonic': top['root'],
@@ -454,11 +574,22 @@ def detect_key_from_notes(
         'quality': top['quality'],
         'key_name': f"{NOTE_NAMES_BR[top['root']]} {'Maior' if top['quality'] == 'major' else 'menor'}",
         'confidence': confidence,
+        'confidence_breakdown': {
+            'margin': round(margin_component, 3),
+            'third': round(third_component, 3),
+            'material': round(material_component, 3),
+            'alignment': round(alignment_component, 3),
+            'cadence': round(cadence_component, 3),
+        },
+        'flags': flags,
+        'recommendation': recommendation,
         'top_candidates': [
             {
                 'key': f"{NOTE_NAMES_BR[c['root']]} {'Maior' if c['quality'] == 'major' else 'menor'}",
                 'score': round(c['score'], 4),
                 'boost': round(c['boost'], 3),
+                'third_mul': round(c['third_multiplier'], 3),
+                'third_ratio': round(c['third_ratio'], 3),
                 'alignment': round(c['alignment'], 3),
                 'cadence': round(c['cadence'], 3),
                 'ks': round(c['ks'], 3),
@@ -467,7 +598,8 @@ def detect_key_from_notes(
         ],
         'histogram': hist.tolist(),
         'gravity': gravity.tolist(),
-        'margin': round(margin, 4),
+        'margin_abs': round(margin_abs, 4),
+        'margin_relative': round(relative_margin, 4),
     }
 
 
