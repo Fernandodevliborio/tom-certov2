@@ -1,0 +1,21 @@
+# expo
+node_modules/
+.expo/
+web-build/
+dist/
+
+# Native
+android/
+ios/
+
+# Dev
+.git/
+.github/
+.vscode/
+*.log
+
+# Large/unneeded
+backend/
+assets/images/app-image.png
+assets/images/react-logo*
+assets/images/partial-react-logo.png

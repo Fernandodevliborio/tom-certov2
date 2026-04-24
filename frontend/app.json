@@ -2,6 +2,7 @@
   "expo": {
     "name": "Tom Certo",
     "slug": "tom-certo-v2",
+    "owner": "fernandosliborio",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -13,7 +14,9 @@
       "bundleIdentifier": "com.tomcerto.app",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Captura voz para detectar tonalidade musical",
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -49,12 +52,16 @@
       "typedRoutes": true
     },
     "updates": {
-      "url": "https://u.expo.dev/tom-certo-v2",
       "enabled": true,
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/6a910bde-ddfa-4d98-92ae-db275c2c4376"
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
+    "runtimeVersion": "2.0.0",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6a910bde-ddfa-4d98-92ae-db275c2c4376"
+      }
     }
   }
 }
