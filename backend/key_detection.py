@@ -189,6 +189,38 @@ def compute_weighted_histogram(notes: List[Dict[str, Any]]) -> np.ndarray:
     return h
 
 
+def absorb_detuning(hist: np.ndarray, ratio_threshold: float = 0.45) -> np.ndarray:
+    """
+    Absorve desafinação: se um vizinho cromático (±1 semitom) tem peso
+    < ratio_threshold × peso do PC dominante, é tratado como "bleed"
+    de desafinação/CREPE harmônico — parte é absorvida no vizinho forte.
+
+    Ex: se F=1000 e F#=300 (30%, < 45%), então 60% do F# é absorvido em F
+    (F vira 1180, F# vira 120). Preserva evidência genuína (se F# fosse 700
+    = 70%, ficaria intocado).
+
+    Isso estabiliza tremendamente voz desafinada ±30-50 cents.
+    """
+    out = np.copy(hist).astype(np.float64)
+    original = np.copy(hist).astype(np.float64)
+    for i in range(12):
+        strong = original[i]
+        if strong <= 1e-6:
+            continue
+        for neighbor in ((i - 1) % 12, (i + 1) % 12):
+            weak = original[neighbor]
+            if weak <= 1e-6:
+                continue
+            if weak < ratio_threshold * strong:
+                # absorve 60% do vizinho fraco no forte
+                absorbed = 0.60 * weak
+                out[i] += absorbed
+                out[neighbor] -= absorbed
+    # Sanity: nenhum PC pode ficar negativo
+    out = np.maximum(out, 0.0)
+    return out
+
+
 def pearson_correlation(a: np.ndarray, b: np.ndarray) -> float:
     """Correlação de Pearson entre vetores."""
     a_mean = a.mean()
@@ -400,6 +432,8 @@ def third_clarity(hist: np.ndarray, root: int, quality: str) -> Dict[str, float]
 def detect_key_from_notes(
     notes: List[Dict[str, Any]],
     phrases: List[List[Dict[str, Any]]],
+    hist_override: Optional[np.ndarray] = None,
+    gravity_override: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     """
     Detecta tonalidade com pipeline v3 — honest confidence edition:
@@ -409,17 +443,27 @@ def detect_key_from_notes(
     4. Ordena e aplica TIEBREAKER de pares relativos se top-2 forem relativos
     5. Aplica GUARD anti-grau-diatônico: se runner-up é V/IV/ii/vi da tônica top
     6. CONFIDENCE HONESTA: baseada em margem relativa, clareza da terça, material disponível
+
+    hist_override/gravity_override permitem passar histograma ACUMULADO
+    (de múltiplas análises) para estabilidade temporal em voz a capela.
     """
     if not notes:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'no_notes'}
 
-    hist = compute_weighted_histogram(notes)
+    if hist_override is not None:
+        hist = hist_override.astype(np.float64)
+    else:
+        hist_raw = compute_weighted_histogram(notes)
+        hist = absorb_detuning(hist_raw, ratio_threshold=0.45)
     total_hist = float(hist.sum())
     if total_hist < 1.0:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'too_little_audio'}
 
     # ── Gravidade tonal global (TonicAnchor) ─────────────────────────
-    gravity = compute_tonic_gravity(notes, phrases)
+    if gravity_override is not None:
+        gravity = gravity_override.astype(np.float64)
+    else:
+        gravity = compute_tonic_gravity(notes, phrases)
 
     # ── Scores base + boost de terça ─────────────────────────────────
     candidates = []

@@ -90,6 +90,7 @@ export interface MLAnalysisResult {
 export async function analyzeKeyML(
   clip: CapturedClip,
   timeoutMs: number = 30000,
+  deviceId?: string,
 ): Promise<MLAnalysisResult> {
   const wav = float32ToWav(clip.samples, clip.sampleRate);
   const base = getBackendUrl();
@@ -100,10 +101,13 @@ export async function analyzeKeyML(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const headers: Record<string, string> = { 'Content-Type': 'audio/wav' };
+  if (deviceId) headers['X-Device-Id'] = deviceId;
+
   try {
     const res = await fetch(`${base}/api/analyze-key`, {
       method: 'POST',
-      headers: { 'Content-Type': 'audio/wav' },
+      headers,
       body: wav as any,
       signal: controller.signal,
     });

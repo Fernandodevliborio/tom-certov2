@@ -196,61 +196,123 @@ async def revalidate_session(body: RevalidateRequest):
         "expires_at": expires_at_str,
     })
 
-# ─── Analyze Key (CREPE + TonicAnchor v2) ──────────────────────────────
+# ─── Acumulador de histograma por device (estabilidade temporal) ───
+# Cada análise soma no acumulador do device. Isso estabiliza resultado
+# em voz a capela (onde cada clip 8s flutua muito)
+from collections import defaultdict as _dd
+from typing import Dict
+import time as _time
+_accum_store: Dict[str, Dict] = _dd(lambda: {
+    'hist': None, 'grav': None, 'analyses': 0, 'last_update': 0,
+})
+ACCUM_DECAY = 0.80         # análise antiga perde 20% por ciclo
+ACCUM_RESET_AFTER_S = 30   # >30s sem análise = nova sessão
+
+
+# ─── Analyze Key (CREPE + TonicAnchor v3 + acumulador) ─────────────────
 @api_router.post("/analyze-key")
 async def analyze_key(request: Request):
     """
-    Recebe bytes de áudio (WAV 16kHz mono) e retorna tonalidade detectada.
-    Pipeline: CREPE → notas MIDI → frases → Krumhansl + TonicAnchor + guard
+    Pipeline: CREPE → notas → frases → absorb_detuning → histograma ACUMULADO
+    → Krumhansl + TonicAnchor + guards. Estabilidade temporal entre análises
     """
     audio_bytes = await request.body()
-    logger.info(f"[AnalyzeKey] recebeu {len(audio_bytes)} bytes")
-    # 1000 bytes = ~30ms. Agora aceita clips menores (1.5s mínimo = 48000 bytes)
+    device_id = request.headers.get('X-Device-Id', 'anon')
+    logger.info(f"[AnalyzeKey] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
     if not audio_bytes or len(audio_bytes) < 500:
-        logger.warning(f"[AnalyzeKey] REJEITADO: áudio vazio ({len(audio_bytes)} bytes)")
         return JSONResponse({
-            "success": False,
-            "error": "audio_too_short",
+            "success": False, "error": "audio_too_short",
             "message": "Áudio muito curto ou vazio."
         }, status_code=400)
 
     try:
-        from key_detection import analyze_audio_bytes
-        result = analyze_audio_bytes(audio_bytes)
-        if result.get('success'):
-            # Top 5 PCs por histograma e por gravity
-            hist = result.get('histogram', [])
-            grav = result.get('gravity', [])
-            note_names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
-            if hist and len(hist) == 12:
-                hist_sorted = sorted(range(12), key=lambda i: hist[i], reverse=True)
-                hist_str = ' '.join(f"{note_names[i]}={hist[i]:.2f}" for i in hist_sorted[:5])
-            else:
-                hist_str = 'n/a'
-            if grav and len(grav) == 12:
-                grav_sorted = sorted(range(12), key=lambda i: grav[i], reverse=True)
-                grav_str = ' '.join(f"{note_names[i]}={grav[i]:.2f}" for i in grav_sorted[:5])
-            else:
-                grav_str = 'n/a'
-            tops = result.get('top_candidates', [])[:3]
-            tops_str = ' | '.join(f"{t['key']}({t['score']:.3f})" for t in tops)
-            logger.info(
-                f"[AnalyzeKey] ✓ key={result.get('key_name', '?')} "
-                f"conf={result.get('confidence', 0):.2f} "
-                f"notes={result.get('notes_count', '?')} "
-                f"phrases={result.get('phrases_count', '?')} "
-                f"duration={result.get('duration_s', '?')}s "
-                f"flags={result.get('flags', [])}"
-            )
-            logger.info(f"[AnalyzeKey]   hist top5: {hist_str}")
-            logger.info(f"[AnalyzeKey]   grav top5: {grav_str}")
-            logger.info(f"[AnalyzeKey]   top3 keys: {tops_str}")
+        from key_detection import (
+            load_audio_from_bytes, extract_f0_with_crepe, f0_to_midi,
+            segment_notes, detect_phrases,
+            compute_weighted_histogram, absorb_detuning,
+            compute_tonic_gravity, detect_key_from_notes,
+            SAMPLE_RATE as _SR,
+        )
+
+        audio = load_audio_from_bytes(audio_bytes, target_sr=_SR)
+        duration_s = float(len(audio) / _SR)
+        if duration_s < 1.5:
+            return JSONResponse({
+                'success': False, 'error': 'audio_too_short',
+                'message': f'Áudio muito curto ({duration_s:.1f}s).',
+                'duration_s': duration_s,
+            })
+
+        f0_hz, conf_arr = extract_f0_with_crepe(audio, _SR)
+        midi = f0_to_midi(f0_hz)
+        notes = segment_notes(midi, conf_arr)
+        phrases = detect_phrases(notes)
+
+        if not notes:
+            return JSONResponse({
+                'success': False, 'error': 'no_valid_pitch',
+                'message': 'Nenhuma nota detectada no áudio.',
+                'duration_s': duration_s,
+            })
+
+        # ── Acumulador do device ─────────────────────────────────
+        now = _time.time()
+        store = _accum_store[device_id]
+        if store['last_update'] and now - store['last_update'] > ACCUM_RESET_AFTER_S:
+            logger.info(f"[AnalyzeKey] Reset acumulador dev={device_id[:8]}")
+            store['hist'] = None
+            store['grav'] = None
+            store['analyses'] = 0
+
+        hist_clip = absorb_detuning(compute_weighted_histogram(notes))
+        grav_clip = compute_tonic_gravity(notes, phrases)
+
+        if store['hist'] is None:
+            store['hist'] = hist_clip.copy()
+            store['grav'] = grav_clip.copy()
         else:
-            logger.warning(
-                f"[AnalyzeKey] ✗ error={result.get('error', '?')} "
-                f"duration={result.get('duration_s', '?')}s "
-                f"f0_valid={result.get('valid_f0_frames', '?')}"
-            )
+            store['hist'] = store['hist'] * ACCUM_DECAY + hist_clip
+            store['grav'] = store['grav'] * ACCUM_DECAY + grav_clip
+        store['last_update'] = now
+        store['analyses'] += 1
+
+        # Decide com histograma ACUMULADO (estabilidade!)
+        result = detect_key_from_notes(
+            notes, phrases,
+            hist_override=store['hist'],
+            gravity_override=store['grav'],
+        )
+        result['success'] = True
+        result['duration_s'] = duration_s
+        result['notes_count'] = len(notes)
+        result['phrases_count'] = len(phrases)
+        result['method'] = 'torchcrepe-tiny+tonicanchor-v3+accum'
+        result['accumulator'] = {
+            'analyses': store['analyses'],
+            'stable': store['analyses'] >= 3,
+        }
+
+        # Logging detalhado (histograma + gravity + top3)
+        hist = result.get('histogram', [])
+        grav = result.get('gravity', [])
+        note_names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+        hist_sorted = sorted(range(12), key=lambda i: hist[i], reverse=True) if len(hist) == 12 else []
+        grav_sorted = sorted(range(12), key=lambda i: grav[i], reverse=True) if len(grav) == 12 else []
+        hist_str = ' '.join(f"{note_names[i]}={hist[i]:.1f}" for i in hist_sorted[:5]) if hist_sorted else 'n/a'
+        grav_str = ' '.join(f"{note_names[i]}={grav[i]:.1f}" for i in grav_sorted[:5]) if grav_sorted else 'n/a'
+        tops = result.get('top_candidates', [])[:3]
+        tops_str = ' | '.join(f"{t['key']}({t['score']:.3f})" for t in tops)
+        logger.info(
+            f"[AnalyzeKey] ✓ key={result.get('key_name', '?')} "
+            f"conf={result.get('confidence', 0):.2f} "
+            f"analyses={store['analyses']} "
+            f"notes={len(notes)} phrases={len(phrases)} "
+            f"flags={result.get('flags', [])}"
+        )
+        logger.info(f"[AnalyzeKey]   hist top5: {hist_str}")
+        logger.info(f"[AnalyzeKey]   grav top5: {grav_str}")
+        logger.info(f"[AnalyzeKey]   top3 keys: {tops_str}")
+
         return JSONResponse(result)
     except Exception as e:
         logger.error(f"[AnalyzeKey] Erro: {e}", exc_info=True)
@@ -259,6 +321,15 @@ async def analyze_key(request: Request):
             "error": "internal_error",
             "message": str(e),
         }, status_code=500)
+
+
+@api_router.post("/analyze-key/reset")
+async def analyze_key_reset(request: Request):
+    """Reseta acumulador do device (quando usuário recomeça)."""
+    device_id = request.headers.get('X-Device-Id', 'anon')
+    if device_id in _accum_store:
+        del _accum_store[device_id]
+    return JSONResponse({'ok': True, 'device': device_id[:8]})
 
 # ─── Admin: Criar Token (sem auth — proteger em produção) ──────────────
 @api_router.post("/admin/tokens")
