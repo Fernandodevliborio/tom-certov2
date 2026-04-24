@@ -778,8 +778,9 @@ def _tonic_affinity_scores(
     # 1a) Recorrência: pitch classes com mais duração já começam com algum peso
     pc_weights = _pitch_class_weights(notes)
     total = float(pc_weights.sum() or 1.0)
-    # Normalizado para que o pc dominante tenha ~2.0 de contribuição
-    affinity += (pc_weights / (pc_weights.max() or 1.0)) * 2.0
+    # Normalizado para que o pc dominante tenha ~3.0 de contribuição (era 2.0)
+    # Fortalecido porque "tônica é tipicamente a nota mais cantada" em hino/canto
+    affinity += (pc_weights / (pc_weights.max() or 1.0)) * 3.0
 
     # 1b) Nota final do clipe — 3 hipóteses com pesos distintos
     last = _last_sustained_note(notes)
@@ -790,11 +791,46 @@ def _tonic_affinity_scores(
     # nota final curta (300-600ms) dá peso parcial
     dur_factor = min(1.0, last_dur / 600.0) if last else 0.0
 
+    # ── Detecção de "última nota é função, não tônica" ──
+    # Se a nota mais cantada é a 5ª/3ª da última, então a última PROVAVELMENTE
+    # é uma resolução de função (5→1) ou (3→1), não a tônica em si.
+    # Isso captura o caso clássico: cantor para na 5ª achando que resolveu.
+    strongest_pc = int(np.argmax(pc_weights)) if pc_weights.max() > 0 else None
+    last_is_function = False
+    if last_pc is not None and strongest_pc is not None and strongest_pc != last_pc:
+        strong_w = pc_weights[strongest_pc]
+        last_w = pc_weights[last_pc]
+        # Só se o pc dominante tiver peso significativamente maior que a última nota
+        if strong_w > last_w * 1.3:
+            if strongest_pc == (last_pc - 7) % 12:
+                # Última = 5ª, dominante = tônica → boost na hipótese 5ª
+                last_is_function = '5th'
+            elif strongest_pc == (last_pc - 4) % 12:
+                last_is_function = 'maj3'
+            elif strongest_pc == (last_pc - 3) % 12:
+                last_is_function = 'min3'
+
     if last_pc is not None:
-        affinity[last_pc] += W_FINAL_TONIC * dur_factor                   # tônica
-        affinity[(last_pc - 7) % 12] += W_FINAL_FIFTH * dur_factor        # 5ª → tônica está -7
-        affinity[(last_pc - 4) % 12] += W_FINAL_THIRD * dur_factor        # 3ª M → tônica está -4
-        affinity[(last_pc - 3) % 12] += W_FINAL_THIRD * dur_factor * 0.9  # 3ª m → tônica está -3
+        # Pesos base
+        w_tonic = W_FINAL_TONIC
+        w_fifth = W_FINAL_FIFTH
+        w_maj3  = W_FINAL_THIRD
+        w_min3  = W_FINAL_THIRD * 0.9
+        # Redistribuição quando última nota é claramente uma "função"
+        if last_is_function == '5th':
+            w_tonic *= 0.55   # reduz hipótese "tônica = última"
+            w_fifth *= 1.55   # reforça hipótese "tônica = última−7"
+        elif last_is_function == 'maj3':
+            w_tonic *= 0.65
+            w_maj3  *= 1.50
+        elif last_is_function == 'min3':
+            w_tonic *= 0.65
+            w_min3  *= 1.50
+
+        affinity[last_pc] += w_tonic * dur_factor                  # tônica
+        affinity[(last_pc - 7) % 12] += w_fifth * dur_factor       # 5ª → tônica está -7
+        affinity[(last_pc - 4) % 12] += w_maj3 * dur_factor        # 3ª M → tônica está -4
+        affinity[(last_pc - 3) % 12] += w_min3 * dur_factor        # 3ª m → tônica está -3
 
     # 1c) Fim de frase (menor peso) — apoia mas não decide
     for ph in phrases:
