@@ -24,6 +24,7 @@ import { usePitchEngine } from '../audio/usePitchEngine';
 import { analyzeKeyML, MLAnalysisResult } from '../utils/mlKeyAnalyzer';
 import type { PitchEvent, PitchErrorReason } from '../audio/types';
 import { frequencyToMidi, midiToPitchClass } from '../utils/noteUtils';
+import { getDeviceId } from '../auth/deviceId';
 
 // ─── Filtros de frame ─────────────────────────────────────
 const MIN_RMS = 0.010;
@@ -312,6 +313,15 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const [mlState, setMlState] = useState<'idle' | 'waiting' | 'listening' | 'analyzing' | 'done' | 'error'>('idle');
   const [mlResult, setMlResult] = useState<MLAnalysisResult | null>(null);
   const [mlProgress, setMlProgress] = useState(0);
+  const deviceIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDeviceId()
+      .then((id) => { if (!cancelled) deviceIdRef.current = id; })
+      .catch(() => { /* fallback: backend usa 'anon' */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const ML_CAPTURE_DURATION_MS = 8000;     // 8s — mais rápido que 10s
   const ML_START_DELAY_MS = 2000;
@@ -358,7 +368,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       setMlState('analyzing');
       // eslint-disable-next-line no-console
       console.log('[ML] Enviando pro backend...');
-      const result = await analyzeKeyML(clip, 30000);
+      const result = await analyzeKeyML(clip, 30000, deviceIdRef.current ?? undefined);
       if (result.success) {
         // eslint-disable-next-line no-console
         console.log(`[ML] ✓ ${result.key_name} conf=${(result.confidence ?? 0).toFixed(2)} flags=${result.flags?.join(',') ?? ''}`);
