@@ -261,7 +261,7 @@ async def analyze_key(request: Request):
         hist_str = ' '.join(f"{note_names[i]}={hist[i]:.0f}" for i in hist_sorted[:5]) if hist_sorted else 'n/a'
         tops = result.get('top_candidates', [])[:3]
         tops_str = ' | '.join(
-            f"{t['key']}(s={t['score']:.3f} aff={t['affinity']:.2f} fit={t['fit']:.2f} 3ª={t['third_mode'][:3]})"
+            f"{t['key']}(s={t['score']:.3f} rec={t['recurrence']:.2f} fit={t['fit']:.2f} fc={t['final_compat']:.2f} 5ª={t['fifth']:.2f} 3ª={t['third_mode'][:3]})"
             for t in tops
         )
         diag = result.get('diag', {})

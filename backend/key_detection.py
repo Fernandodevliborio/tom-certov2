@@ -899,118 +899,156 @@ def detect_key_theory_first(
     phrases: List[List[Dict[str, Any]]],
 ) -> Dict[str, Any]:
     """
-    Detecção de tom v4 — Theory-First.
+    Detecção de tom v4.1 — "Universal Per-Candidate Scoring".
 
-    Algoritmo enxuto baseado em 3 pilares musicais:
-      1. Afinidade de tônica (finalização com 3 hipóteses: tônica/5ª/3ª + recorrência)
-      2. Encaixe diatônico (% da duração dentro da escala do candidato)
-      3. Clareza da 3ª (define maior vs menor)
+    Para cada um dos 24 candidatos (12 tônicas × 2 modos), calculamos
+    5 features INDEPENDENTES, cada uma normalizada [0..1]:
 
-    Sem Krumhansl, sem guardas diatônicas opacas, sem acumulador.
-    Logs legíveis em cada pilar.
+      F1. recurrence_score    — quanto a tônica candidata aparece no canto
+      F2. fit_score           — quanto da duração total cabe na escala
+      F3. final_compat        — última nota é 1, 3 ou 5 do candidato?
+      F4. third_match         — terça presente bate com o modo (maior/menor)?
+      F5. fifth_support       — 5ª justa do candidato presente?
+
+    Score final = soma ponderada. Sem regras especiais por caso.
+    Ganha o candidato mais bem suportado pelos 5 sinais simultaneamente.
+
+    Esta abordagem é UNIVERSAL: vale para qualquer dos 12 tons em qualquer
+    finalização (1, 3, 5).
     """
     if not notes:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'no_notes'}
 
     pc_weights = _pitch_class_weights(notes)
     total_dur = float(pc_weights.sum())
-    if total_dur < 200:  # < 200ms de áudio musical útil
+    if total_dur < 200:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'too_little_audio'}
 
-    # Pilar 1 — Afinidade
-    tonic_aff, aff_diag = _tonic_affinity_scores(notes, phrases)
+    max_w = float(pc_weights.max() or 1.0)
 
-    # Pilar 2 + 3 — Para cada 24 candidatos, combinar os 3 pilares
+    # Última nota sustentada
+    last = _last_sustained_note(notes)
+    last_pc = last['pitch_class'] if last else None
+    last_dur = last['dur_ms'] if last else 0.0
+
+    # Phrase endings (peso menor, suporte adicional)
+    phrase_end_pcs = [ph[-1]['pitch_class'] for ph in phrases if ph and ph[-1]['dur_ms'] >= MIN_LAST_NOTE_MS]
+    phrase_end_set = set(phrase_end_pcs)
+
     candidates = []
     for root in range(12):
-        tc = _third_clarity_v2(pc_weights, root)
+        # F1. Recurrence — quanto T aparece no canto (normalizado)
+        recurrence = float(pc_weights[root]) / max_w   # [0..1]
+
+        # F5. Fifth support — 5ª justa de T presente?
+        fifth_pc = (root + 7) % 12
+        fifth_support = float(pc_weights[fifth_pc]) / max_w
+
         for quality in ('major', 'minor'):
-            # Fit diatônico
+            # F2. Diatonic fit — % da duração na escala de T
             fit = _diatonic_fit(pc_weights, root, quality)
 
-            # Hard cutoff: tom que explica < 65% das notas é descartado
-            # (não zeramos — apenas penalizamos fortemente na score)
-            if fit < 0.65:
-                fit_component = fit * 0.5  # penalidade linear
+            # F3. Final compatibility — última nota é 1, 3 ou 5 de (T, Q)?
+            final_compat = 0.0
+            if last_pc is not None:
+                third_pc = (root + (4 if quality == 'major' else 3)) % 12
+                if last_pc == root:
+                    final_compat = 1.0       # termina na tônica (mais forte)
+                elif last_pc == third_pc:
+                    final_compat = 0.85      # termina na 3ª do modo (típico)
+                elif last_pc == fifth_pc:
+                    final_compat = 0.80      # termina na 5ª (típico)
+                elif last_pc == (root + 2) % 12:
+                    final_compat = 0.30      # termina em ii (raro mas possível)
+                elif last_pc == (root + 9) % 12 and quality == 'major':
+                    final_compat = 0.25      # 6ª maior — pode acontecer
+                # Senão, last_pc não combina com (T,Q) → 0.0
+
+                # Bônus pela duração sustentada da última nota
+                dur_boost = min(1.0, last_dur / 600.0)
+                final_compat *= (0.5 + 0.5 * dur_boost)
+
+            # Bônus por phrase endings que caem na tônica
+            phrase_compat = 0.0
+            if phrase_end_pcs:
+                ends_on_tonic = sum(1 for pc in phrase_end_pcs if pc == root)
+                phrase_compat = ends_on_tonic / len(phrase_end_pcs)
+
+            # F4. Third match — terça presente bate com o modo?
+            maj3_w = float(pc_weights[(root + 4) % 12])
+            min3_w = float(pc_weights[(root + 3) % 12])
+            third_total = maj3_w + min3_w
+            if third_total < 1e-6:
+                third_match = 0.4   # neutro: sem evidência de 3ª nenhuma
+                third_mode = 'unknown'
             else:
-                fit_component = fit
+                maj_ratio = maj3_w / third_total
+                if quality == 'major':
+                    third_match = maj_ratio   # quanto mais a 3ª maior domina, melhor
+                else:
+                    third_match = 1.0 - maj_ratio
+                if maj_ratio >= 0.65:
+                    third_mode = 'major'
+                elif maj_ratio <= 0.35:
+                    third_mode = 'minor'
+                else:
+                    third_mode = 'ambiguous'
 
-            # Afinidade da tônica
-            aff = float(tonic_aff[root])
-
-            # Terça: se a terça presente contradiz a qualidade, penaliza
-            if tc['mode'] == 'unknown':
-                third_component = 0.4  # neutro (sem info)
-            elif tc['mode'] == quality:
-                third_component = tc['strength']   # bônus (0.6..1.0)
-            elif tc['mode'] == 'ambiguous':
-                third_component = 0.5
-            else:
-                third_component = 0.15  # penalidade: terça errada pro modo
-
-            # 5ª justa presente?
-            fifth_weight = float(pc_weights[(root + 7) % 12])
-            fifth_component = min(1.0, fifth_weight / (pc_weights.max() or 1.0))
-
-            # Score final ponderado — soma explicável
+            # ── Score combinado (pesos somam 1.0) ──
+            # Pesos calibrados via teste universal 12×2×3 = 72 casos.
+            # `fit` (encaixe diatônico) é o critério MAIS forte: tom errado
+            # tipicamente tem 1-2 notas fora da escala, perdendo 5-10% de fit.
+            # `fifth_support` é o desempate entre tônica e suas funções.
             score = (
-                0.35 * aff +
-                0.30 * fit_component +
-                0.20 * third_component +
-                0.15 * fifth_component
+                0.20 * recurrence +       # tônica é a nota mais cantada
+                0.30 * fit +              # encaixe no campo harmônico (peso forte)
+                0.13 * final_compat +     # final é 1, 3, ou 5
+                0.15 * third_match +      # terça do modo presente
+                0.20 * fifth_support +    # 5ª justa: o desempate universal
+                0.02 * phrase_compat      # peso baixo (já capturado em final_compat)
             )
 
             candidates.append({
                 'root': root,
                 'quality': quality,
                 'score': score,
-                'affinity': aff,
+                'recurrence': recurrence,
                 'fit': fit,
-                'third_mode': tc['mode'],
-                'third_strength': tc['strength'],
-                'fifth_support': fifth_component,
+                'final_compat': final_compat,
+                'third_match': third_match,
+                'third_mode': third_mode,
+                'fifth_support': fifth_support,
+                'phrase_compat': phrase_compat,
             })
 
     candidates.sort(key=lambda c: c['score'], reverse=True)
     top = candidates[0]
     runner = candidates[1] if len(candidates) > 1 else None
 
-    # ═══ Confidence honesta ═══
-    # 1) Margem relativa (50%) — quanto o top derrota o runner-up
+    # Confidence honesta — margem + fit absoluto + clareza terça
     top_s = max(top['score'], 1e-6)
     margin = (top_s - (runner['score'] if runner else 0)) / top_s
-    margin_component = min(1.0, margin / 0.15)
-
-    # 2) Encaixe diatônico absoluto (30%) — tom precisa explicar o áudio
-    fit_abs = top['fit']
-    # fit 0.70 → 0.0, fit 1.0 → 1.0 (linear acima de 0.70)
-    fit_conf = max(0.0, min(1.0, (fit_abs - 0.70) / 0.30))
-
-    # 3) Clareza da terça (20%)
-    third_conf = 0.0
-    if top['third_mode'] == top['quality']:
-        third_conf = (top['third_strength'] - 0.5) * 2.0  # 0.5→0.0, 1.0→1.0
-    elif top['third_mode'] == 'ambiguous':
-        third_conf = 0.3
-    third_conf = max(0.0, min(1.0, third_conf))
+    margin_component = min(1.0, margin / 0.10)
+    fit_conf = max(0.0, min(1.0, (top['fit'] - 0.70) / 0.30))
+    third_conf = top['third_match'] if top['third_mode'] != 'unknown' else 0.3
 
     confidence = 0.50 * margin_component + 0.30 * fit_conf + 0.20 * third_conf
     confidence = float(min(1.0, max(0.0, confidence)))
 
-    # Flags honestas
     flags = []
     if len(notes) < 5:
         flags.append('few_notes')
-    if fit_abs < 0.75:
-        flags.append('poor_scale_fit')   # notas fora da escala → ambiente instável
-    if margin < 0.05:
+    if top['fit'] < 0.75:
+        flags.append('poor_scale_fit')
+    if margin < 0.03:
         flags.append('close_call')
     if top['third_mode'] == 'ambiguous':
         flags.append('ambiguous_third')
     if top['third_mode'] == 'unknown':
         flags.append('no_third_evidence')
+    if top['final_compat'] == 0.0 and last_pc is not None:
+        flags.append('odd_ending')   # final não é 1/3/5 do top — suspeito
 
-    # Recomendação
     if confidence < 0.35:
         recommendation = 'keep_analyzing'
     elif confidence < 0.60:
@@ -1035,19 +1073,20 @@ def detect_key_theory_first(
             {
                 'key': f"{NOTE_NAMES_BR[c['root']]} {'Maior' if c['quality'] == 'major' else 'menor'}",
                 'score': round(c['score'], 4),
-                'affinity': round(c['affinity'], 3),
+                'recurrence': round(c['recurrence'], 3),
                 'fit': round(c['fit'], 3),
+                'final_compat': round(c['final_compat'], 3),
+                'third_match': round(c['third_match'], 3),
                 'third_mode': c['third_mode'],
-                'third_strength': round(c['third_strength'], 3),
                 'fifth': round(c['fifth_support'], 3),
             }
             for c in candidates[:5]
         ],
         'diag': {
-            'last_note': aff_diag['last_note_name'],
-            'last_note_pc': aff_diag['last_note_pc'],
-            'last_note_dur_ms': aff_diag['last_note_dur_ms'],
+            'last_note': NOTE_NAMES_BR[last_pc] if last_pc is not None else None,
+            'last_note_pc': last_pc,
+            'last_note_dur_ms': last_dur,
         },
         'histogram': pc_weights.tolist(),
-        'method_version': 'theory-first-v4',
+        'method_version': 'theory-first-v4.1-universal',
     }
