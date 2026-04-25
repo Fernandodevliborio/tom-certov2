@@ -196,12 +196,33 @@ async def revalidate_session(body: RevalidateRequest):
         "expires_at": expires_at_str,
     })
 
-# ─── Analyze Key (CREPE + Theory-First v4) ─────────────────────────
+# ─── Analyze Key (CREPE + Krumhansl-Aarden + acumulador de sessão) ─────
+# Acumulador de PCP por device — ATIVO durante uma sessão, zerado pelo
+# endpoint /reset (chamado pelo frontend quando usuário clica START).
+# Cada análise sucessiva soma o PCP atual, deixando a detecção mais
+# estável a cada clipe (sem precisar esperar consenso entre clipes).
+import numpy as _np
+from collections import defaultdict as _dd
+_pcp_session: dict = _dd(lambda: {'pcp': _np.zeros(12), 'count': 0})
+
+
+@api_router.post("/analyze-key/reset")
+async def reset_session(request: Request):
+    """Zera o acumulador de PCP — chamado quando usuário inicia nova sessão."""
+    device_id = request.headers.get('X-Device-Id', 'anon')
+    if device_id in _pcp_session:
+        _pcp_session.pop(device_id, None)
+    logger.info(f"[AnalyzeKey] sessão resetada dev={device_id[:8]}")
+    return {'reset': True, 'device': device_id[:8]}
+
+
 @api_router.post("/analyze-key")
 async def analyze_key(request: Request):
     """
-    Pipeline: CREPE → notas → frases → detect_key_theory_first (v4).
-    Análise INDIVIDUAL por clipe, sem acumulador entre músicas.
+    Pipeline: CREPE → notas → PCP do clipe → SOMA no acumulador da sessão →
+    Krumhansl-Schmuckler com Aarden-Essen sobre o PCP acumulado.
+
+    O acumulador zera quando frontend chama /analyze-key/reset (no START).
     """
     audio_bytes = await request.body()
     device_id = request.headers.get('X-Device-Id', 'anon')
@@ -242,17 +263,33 @@ async def analyze_key(request: Request):
                 'duration_s': duration_s,
             })
 
-        # ── ANÁLISE THEORY-FIRST v4 (individual por clipe) ──
-        # Pilar 1: Afinidade de tônica (finalização com 3 hipóteses: tônica/5ª/3ª)
-        # Pilar 2: Encaixe de escala (% da duração dentro do campo harmônico)
-        # Pilar 3: Clareza da terça (maior vs menor)
+        # ── Acumulador de PCP da SESSÃO ──
+        # Calcula PCP do clipe atual (com suavização 12% nos vizinhos),
+        # SOMA no acumulador da sessão deste device.
+        # Detecção é feita sobre o PCP TOTAL acumulado — fica mais estável
+        # a cada clipe sucessivo. Reseta com /analyze-key/reset.
+        SMOOTH = 0.12
+        clip_pcp = _np.zeros(12, dtype=_np.float64)
+        for n in notes:
+            w = n['dur_ms'] * n.get('rms_conf', 1.0)
+            pc = n['pitch_class']
+            clip_pcp[pc]              += w * (1 - 2 * SMOOTH)
+            clip_pcp[(pc - 1) % 12]   += w * SMOOTH
+            clip_pcp[(pc + 1) % 12]   += w * SMOOTH
+
+        sess = _pcp_session[device_id]
+        sess['pcp'] = sess['pcp'] + clip_pcp
+        sess['count'] += 1
+
+        # Detecção sobre PCP ACUMULADO (não só o do clipe)
         from key_detection import detect_key_theory_first
-        result = detect_key_theory_first(notes, phrases)
+        result = detect_key_theory_first(notes, phrases, pcp_override=sess['pcp'])
         result['success'] = True
         result['duration_s'] = duration_s
         result['notes_count'] = len(notes)
         result['phrases_count'] = len(phrases)
-        result['method'] = 'torchcrepe-tiny+theory-first-v4'
+        result['session_clips'] = int(sess['count'])
+        result['method'] = f'krumhansl-aarden+session-accum(N={int(sess["count"])})'
 
         # Logging detalhado do novo algoritmo Krumhansl-Aarden
         hist = result.get('histogram', [])

@@ -125,3 +125,21 @@ export async function analyzeKeyML(
     return { success: false, error: 'network', message: err?.message || 'Erro de rede.' };
   }
 }
+
+
+/**
+ * Reseta o acumulador de PCP da sessão atual no backend.
+ * Chamado quando usuário inicia nova captura (botão START).
+ */
+export async function resetKeyAnalysisSession(deviceId?: string): Promise<boolean> {
+  const base = getBackendUrl();
+  if (!base) return false;
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (deviceId) headers['X-Device-Id'] = deviceId;
+    const res = await fetch(`${base}/api/analyze-key/reset`, { method: 'POST', headers });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

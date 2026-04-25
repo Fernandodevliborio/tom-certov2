@@ -21,7 +21,7 @@ import {
   NoteSample,
 } from '../utils/tonalScorer';
 import { usePitchEngine } from '../audio/usePitchEngine';
-import { analyzeKeyML, MLAnalysisResult } from '../utils/mlKeyAnalyzer';
+import { analyzeKeyML, MLAnalysisResult, resetKeyAnalysisSession } from '../utils/mlKeyAnalyzer';
 import type { PitchEvent, PitchErrorReason } from '../audio/types';
 import { frequencyToMidi, midiToPitchClass } from '../utils/noteUtils';
 import { getDeviceId } from '../auth/deviceId';
@@ -297,6 +297,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     phraseStartTimeRef.current = 0;
     tempBufferRef.current.clear();
     setAgreementMul(1.0);
+    // Zera o acumulador de PCP da sessão no backend (nova sessão = clean slate)
+    try { await resetKeyAnalysisSession(deviceIdRef.current ?? undefined); } catch { /* offline tolerated */ }
     const ok = await engine.start(onPitch, onError);
     if (ok) setIsRunning(true);
     return ok;

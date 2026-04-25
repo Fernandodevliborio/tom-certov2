@@ -942,34 +942,35 @@ def _pearson_correlation(x: np.ndarray, y: np.ndarray) -> float:
 def detect_key_theory_first(
     notes: List[Dict[str, Any]],
     phrases: List[List[Dict[str, Any]]],
+    pcp_override: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     """
     Detecção de tom — Krumhansl-Schmuckler clássico com Aarden-Essen profiles.
 
     Algoritmo PURO, determinístico, sem heurísticas:
       1. PCP = histograma de pitch classes ponderado por duração
+         (ou pcp_override se fornecido — útil pra acumulador de sessão)
       2. Pra 24 candidatos: correlação de Pearson com perfil rotacionado
       3. Maior correlação = tom
 
     Confidence = margem entre top e runner-up (escala 0..1).
-
-    Mesmo áudio → mesmo resultado. Validado em literatura desde 1982.
     """
-    if not notes:
+    if not notes and pcp_override is None:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'no_notes'}
 
-    # 1. Pitch Class Profile (PCP) com SUAVIZAÇÃO por vizinhos.
-    #    Cantores reais têm vibrato e desafinação leve, e o CREPE espalha
-    #    energia entre pitch classes adjacentes. Suavizar 12% pra cada
-    #    vizinho aumenta a margem de decisão em ~12% (validado em testes).
-    SMOOTH = 0.12
-    pcp = np.zeros(12, dtype=np.float64)
-    for n in notes:
-        w = n['dur_ms'] * n.get('rms_conf', 1.0)
-        pc = n['pitch_class']
-        pcp[pc]              += w * (1 - 2 * SMOOTH)
-        pcp[(pc - 1) % 12]   += w * SMOOTH
-        pcp[(pc + 1) % 12]   += w * SMOOTH
+    if pcp_override is not None:
+        # Usa PCP pré-calculado (acumulador de sessão)
+        pcp = np.asarray(pcp_override, dtype=np.float64)
+    else:
+        # 1. Pitch Class Profile (PCP) com SUAVIZAÇÃO por vizinhos.
+        SMOOTH = 0.12
+        pcp = np.zeros(12, dtype=np.float64)
+        for n in notes:
+            w = n['dur_ms'] * n.get('rms_conf', 1.0)
+            pc = n['pitch_class']
+            pcp[pc]              += w * (1 - 2 * SMOOTH)
+            pcp[(pc - 1) % 12]   += w * SMOOTH
+            pcp[(pc + 1) % 12]   += w * SMOOTH
 
     if pcp.sum() < 200:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'too_little_audio'}
