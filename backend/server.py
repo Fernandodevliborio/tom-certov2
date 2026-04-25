@@ -310,7 +310,9 @@ async def analyze_key(request: Request):
         )
         logger.info(f"[AnalyzeKey]   PCP top5: {hist_str}")
         logger.info(
-            f"[AnalyzeKey]   top3: {tops_str}  margem={diag.get('margin', 0):.3f}"
+            f"[AnalyzeKey]   top3: {tops_str}  "
+            f"score_margin={diag.get('score_margin', 0):.3f} "
+            f"corr_margin={diag.get('corr_margin', 0):.3f}"
         )
 
         return JSONResponse(result)
@@ -322,14 +324,6 @@ async def analyze_key(request: Request):
             "message": str(e),
         }, status_code=500)
 
-
-@api_router.post("/analyze-key/reset")
-async def analyze_key_reset(request: Request):
-    """Reseta acumulador do device (quando usuário recomeça)."""
-    device_id = request.headers.get('X-Device-Id', 'anon')
-    if device_id in _accum_store:
-        del _accum_store[device_id]
-    return JSONResponse({'ok': True, 'device': device_id[:8]})
 
 # ─── Admin: Criar Token (sem auth — proteger em produção) ──────────────
 @api_router.post("/admin/tokens")

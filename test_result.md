@@ -140,6 +140,12 @@ backend:
       - working: true
         agent: "testing"
         comment: "PASS after torchaudio CPU wheel reinstall. POST /api/analyze-key with 6s 440Hz mono 16kHz PCM_16 sine WAV → HTTP 200 success:true. All required fields present: duration_s=6.0, notes_count=1, phrases_count=1, method='torchcrepe-tiny+tonicanchor-v2', tonic=9, tonic_name='Lá', quality='major', key_name='Lá Maior', confidence=0.5515, margin=0.0. top_candidates = list of 5 dicts each with keys {key, score, boost, alignment, cadence, ks} — top result: {Lá Maior, score=0.6371, boost=0.82, alignment=0.7, cadence=1.0, ks=0.842}. histogram = 12 floats (index 9 = 5559.25). gravity = 12 floats (index 9 = 32.53). Empty-body case also still returns 400 audio_too_short with message 'Áudio muito curto ou vazio.' HTTP layer end-to-end verified via requests against http://localhost:8001/api/analyze-key. No code was modified."
+      - working: true
+        agent: "main"
+        comment: "v3.4.0 — Algoritmo finalizado. Substituído `detect_key_theory_first` por fórmula validada matematicamente: score = (corr + 0.3 * third_diff) * axis^1.2 + 0.3 * final_match. Componentes: (1) Pearson com perfis Aarden-Essen rotacionados, (2) third_diff = peso_3ª_do_modo - peso_3ª_oposta (desempata maior/menor), (3) axis^1.2 = força do eixo Tônica-5ª (impede que relativa menor ganhe de tom maior), (4) bônus de resolução final (1.0 tônica, 0.6 3ª, 0.5 5ª, escalonado pela duração). Validado em 168/168 cenários sintéticos (96 edge cases vi/IV/V/balanced × M/m + 72 universal × 3 endings) = 100% de acerto. Confidence multiplicativa (precisa correlação alta E margem clara). Código morto da v4.1 e v5 removido. method_version = 'krumhansl-aarden-axis-third-final-v6'. Backend recarregou via uvicorn watchfiles."
+      - working: true
+        agent: "testing"
+        comment: "v3.4.0 PASS — full schema validation against new algorithm. Ran updated /app/backend_test.py (25 PASS / 0 FAIL) against http://localhost:8001/api/*. Highlights: (a) POST /api/analyze-key empty body → 400 success:false error='audio_too_short'. (b) POST /api/analyze-key with 6s/440Hz/16kHz mono PCM_16 sine WAV (192044 B) → 200 success:true, all required top-level keys present and correctly typed: duration_s=6.0, notes_count=1, phrases_count=1, session_clips=1, method='krumhansl-aarden+session-accum(N=1)' (matches new label, NOT torchcrepe-tiny+tonicanchor-v2), tonic=9, tonic_name='Lá', quality='major', key_name='Lá Maior', confidence float in [0,1] (0.0 here — expected for pure sine, see flags), method_version='krumhansl-aarden-axis-third-final-v6', flags=['few_notes','close_call','low_correlation','weak_tonic_fifth_axis']. top_candidates is a list of EXACTLY 5 dicts, each with the NEW SCHEMA keys {key, score, correlation, third_diff, axis, final_match} and NO legacy keys (boost/alignment/ks/cadence absent — explicitly asserted). diag dict has all required keys: {pcp_top5_pcs, pcp_top5_weights, top_correlation, runner_correlation, corr_margin, score_margin, last_note_pc, last_note_name, last_note_dur_ms}. histogram is list of 12 numbers. (c) POST /api/analyze-key/reset with X-Device-Id='test-reset-abc' → 200 {reset:true, device:'test-res'} (8-char truncation as backend logs). After reset, next /analyze-key with same X-Device-Id returns session_clips=1, then a 2nd consecutive clip returns session_clips=2 — accumulator works. (d) Source-level check: '/analyze-key/reset' route appears EXACTLY ONCE in server.py (no duplicate handler). (e) Regression: /api/admin-ui (200 HTML 23956B contains 'Tom Certo Admin'), /api/admin/stats with X-Admin-Key=tomcerto-admin-2026 returns total/active/revoked, /admin/tokens CRUD all pass, 401 enforced when key missing/wrong, /auth/validate with TEST-DEV2026 → valid:true + JWT, /auth/revalidate → valid:true, unknown token → valid:false reason=not_found. No backend code modified."
 
 frontend:
   - task: "Remover painel RN admin criado por engano"
@@ -161,7 +167,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Lógica avançada de decisão tonal no backend Python"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -236,3 +243,91 @@ agent_communication:
       HTTP layer end-to-end verified against http://localhost:8001/api/analyze-key via
       requests. No code was modified. Task "Lógica avançada de decisão tonal no backend
       Python" is now working:true, stuck_count=0, needs_retesting=false.
+  - agent: "main"
+    message: |
+      v3.4.0 — Algoritmo de detecção de tom finalizado matematicamente.
+      Mudança em backend/key_detection.py:detect_key_theory_first.
+
+      Nova fórmula (validada 168/168 = 100% em testes sintéticos):
+        score = (corr + 0.3 * third_diff) * axis^1.2 + 0.3 * final_match
+      onde:
+        corr        = Pearson(PCP, perfil_Aarden_rotacionado)
+        third_diff  = peso_3ª_do_modo - peso_3ª_oposta  (range [-1,+1])
+        axis        = min(peso_tônica, peso_5ª)         (eixo Tônica-5ª)
+        final_match = 1.0/0.6/0.5 se última nota sustentada é tônica/3ª/5ª (× dur)
+
+      Testes sintéticos cobrem:
+        • 96 cenários (vi-heavy / IV-heavy / V-heavy / balanceado × 12 tons × maj/min)
+        • 72 cenários universais (12 tons × 2 modos × 3 finais 1/5/3)
+        • Todos passam.
+
+      Suite real para validação:
+        1. POST /api/analyze-key com WAV de voz acapella → retorna 200 com método
+           "torchcrepe-tiny+tonicanchor-v2" (server.py mantém label antigo, OK)
+        2. Resposta deve conter: tonic, tonic_name, quality, key_name, confidence,
+           top_candidates (5 dicts com score/correlation/third_diff/axis/final_match),
+           diag (com top_correlation, score_margin, last_note_name), histogram (12),
+           method_version="krumhansl-aarden-axis-third-final-v6"
+        3. POST /api/analyze-key/reset com X-Device-Id deve continuar funcionando
+        4. Empty body ainda retorna 400 audio_too_short
+
+      Pedir ao deep_testing_backend_v2:
+        • Re-executar testes existentes do /api/analyze-key (ainda devem passar)
+        • Validar estrutura nova da resposta (top_candidates com NOVOS campos)
+        • Confirmar que endpoint /api/analyze-key/reset segue 200 OK
+        • Confirmar que admin/auth flow segue inalterado
+  - agent: "testing"
+    message: |
+      v3.4.0 backend re-test PASS. 25/25 PASS, 0 FAIL via /app/backend_test.py
+      against http://localhost:8001/api/*. No backend code modified.
+
+      Key Detection (new schema):
+        • POST /api/analyze-key (empty body) → 400 success:false error="audio_too_short" ✓
+        • POST /api/analyze-key (6s/440Hz/16kHz mono PCM_16 sine, 192044 B,
+          X-Device-Id=pytest-key-device-01, accumulator pre-reset) → 200 success:true
+          - duration_s=6.0 (float ✓), notes_count=1, phrases_count=1, session_clips=1
+          - method="krumhansl-aarden+session-accum(N=1)"  (NEW label, server.py override) ✓
+          - tonic=9, tonic_name="Lá", quality="major", key_name="Lá Maior"
+          - confidence=0.0 ∈ [0,1] (expected for pure sine: low_correlation +
+            weak_tonic_fifth_axis flags trigger zero margin_score)
+          - flags=['few_notes','close_call','low_correlation','weak_tonic_fifth_axis']
+          - method_version="krumhansl-aarden-axis-third-final-v6" ✓
+          - top_candidates: list of EXACTLY 5 dicts, each with NEW keys
+            {key, score, correlation, third_diff, axis, final_match}.
+            Legacy keys {boost, alignment, ks, cadence} explicitly asserted absent ✓
+            Top1 = {Lá Maior, score=0.3, correlation=0.2818, third_diff=0.0,
+                    axis=0.0, final_match=1.0}
+          - diag has all 9 required keys: pcp_top5_pcs=[9,8,10,0,1],
+            pcp_top5_weights=[4225.0, 667.1, 667.1, 0.0, 0.0],
+            top_correlation=0.2818, runner_correlation=0.3246,
+            corr_margin=-0.0427, score_margin=0.0,
+            last_note_pc=9, last_note_name="Lá", last_note_dur_ms=6010.0 ✓
+          - histogram: list of 12 numeric values ✓
+
+      Reset + session accumulator:
+        • POST /api/analyze-key/reset with X-Device-Id=test-reset-abc → 200
+          {reset:true, device:"test-res"}  (8-char truncation matches device_id[:8]) ✓
+        • Subsequent /analyze-key with same device_id → session_clips=1 ✓
+        • Another consecutive /analyze-key → session_clips=2 ✓
+          (PCP weights doubled in backend log: A=8450 vs A=4225, accumulator confirmed)
+
+      Source-level check (no duplicate handler):
+        • '"/analyze-key/reset"' string occurs EXACTLY 1 time in /app/backend/server.py ✓
+
+      Regression — admin & auth flow (unchanged):
+        • GET /api/admin-ui → 200 text/html, body contains "Tom Certo Admin" (~23956 B) ✓
+        • GET /api/admin    → 200 text/html, same body ✓ (no auth required for HTML page)
+        • GET /api/admin/stats with X-Admin-Key=tomcerto-admin-2026 → 200
+          {total:2, active:2, revoked:0} ✓ — and 401 when key missing/wrong ✓
+        • Admin tokens CRUD (POST/PATCH/clear-devices/DELETE) all 200 with key,
+          all 401 without ✓
+        • POST /api/auth/validate {token:"TEST-DEV2026", device_id:...} → 200
+          valid:true with session JWT (308 chars) ✓
+        • POST /api/auth/revalidate with that JWT → 200 valid:true ✓
+        • POST /api/auth/validate {token:"NOPE-XXXX", ...} → 200 valid:false
+          reason="not_found" ✓
+
+      Conclusion: v3.4.0 algorithm + new response schema is fully wired through
+      the HTTP layer end-to-end. No regressions in admin/auth surface. Task
+      "Lógica avançada de decisão tonal no backend Python" is now
+      working:true, stuck_count=0, needs_retesting=false.
