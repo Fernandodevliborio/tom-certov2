@@ -524,7 +524,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           <View style={ss.brandTextWrap}>
             <Text style={ss.headerBrand} numberOfLines={1}>Tom Certo</Text>
             <Text style={ss.headerVersion} numberOfLines={1}>
-              v3.2.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+              v3.2.1 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
             </Text>
           </View>
         </View>

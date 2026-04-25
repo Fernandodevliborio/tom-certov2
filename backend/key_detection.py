@@ -993,19 +993,23 @@ def detect_key_theory_first(
     top = candidates[0]
     runner = candidates[1] if len(candidates) > 1 else None
 
-    # 4. Confidence = margem normalizada
-    #    Margem ≥ 0.10 → 100% confiança
-    #    Margem ≤ 0.00 → 0% confiança (empate técnico)
+    # 4. Confidence HONESTA — multiplicativa: precisa correlação alta E margem
+    #    Antes: conf = margin/0.10 → poderia dar 100% mesmo com top fraco (0.42)
+    #    Agora: abs_score * margin_score → ambos precisam ser bons
+    #
+    #    abs_score: 0 quando top<0.30 (PCP não casa com nenhum perfil)
+    #               1 quando top>=0.70 (encaixe excelente)
+    #    margin_score: 0 quando margem<0.01 (empate)
+    #                  1 quando margem>=0.10 (decisão clara)
+    top_corr = float(top['correlation'])
     if runner:
-        margin = top['correlation'] - runner['correlation']
+        margin = top_corr - float(runner['correlation'])
     else:
-        margin = top['correlation']
-    confidence = float(min(1.0, max(0.0, margin / 0.10)))
+        margin = top_corr
 
-    # Adicionalmente, top precisa ter correlação positiva mínima (>0.3)
-    # senão o resultado é desconfiável (PCP não casa com nenhum perfil)
-    if top['correlation'] < 0.3:
-        confidence = min(confidence, 0.4)
+    abs_score = max(0.0, min(1.0, (top_corr - 0.30) / 0.40))
+    margin_score = max(0.0, min(1.0, (margin - 0.01) / 0.09))
+    confidence = float(abs_score * margin_score)
 
     flags = []
     if len(notes) < 5:
