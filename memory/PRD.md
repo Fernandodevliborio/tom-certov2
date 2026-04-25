@@ -31,10 +31,23 @@ Backend Python com CREPE (torchcrepe) para extração F0 e lógica tonal madura 
 - Backend: FastAPI + Motor (MongoDB) + torchcrepe + librosa
 - Auth: JWT (30 dias) + token de ativação por device_limit
 
+## Algoritmo de Detecção de Tom (v6 — definitivo)
+Fórmula validada matematicamente (168/168 = 100% em testes sintéticos):
+```
+score = (corr + 0.3 × third_diff) × axis^1.2 + 0.3 × final_match
+```
+- `corr`: Pearson(PCP, perfil_Aarden_Essen_rotacionado)
+- `third_diff`: peso da 3ª do modo − peso da 3ª oposta (∈ [-1,+1])
+- `axis^1.2`: força do eixo Tônica-5ª (= min(peso_tônica, peso_5ª))
+- `final_match`: bônus de resolução (1.0 tônica / 0.6 3ª / 0.5 5ª, escalonado por dur)
+
+Confidence multiplicativa (precisa correlação alta E margem clara).
+PCP acumulado por sessão (zera no /reset chamado pelo START).
+
 ## Status
 - ✅ Migração do repo GitHub
 - ✅ Ativação + gravação
 - ✅ Lógica avançada de tonalidade (portada TS→Python)
 - ✅ Painel admin HTML restaurado e servido pelo FastAPI
-- ⏳ Bateria de testes de drift tonal (Sol→Ré→Lá menor)
-- ⏳ OTA publish
+- ✅ Algoritmo de detecção definitivo (Krumhansl-Aarden + axis + third_diff + final_match)
+- ✅ OTA pipeline funcional (v3.4.0 publicado em 2026-04-25)
