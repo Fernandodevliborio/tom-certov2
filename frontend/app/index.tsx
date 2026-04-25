@@ -323,14 +323,78 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     }
   }, [isRunning]);
 
+  // ── Estabilização do "Tom Provável" — modo estatístico das últimas 3 análises ──
+  // Em vez de mostrar cada resultado bruto (causando flicker), guardamos um
+  // "best guess provisional" que só muda se as evidências recentes forem mais
+  // consistentes que o atual.
+  const recentResultsRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
+  const probableKeyRef = useRef<{ tonic: number; quality: 'major' | 'minor'; confidence: number } | null>(null);
+
+  useEffect(() => {
+    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
+    const conf = mlResult.confidence ?? 0;
+    if (conf < MIN_DISPLAY_CONF) return; // ignora resultados muito fracos
+
+    // Adiciona ao histórico (mantém apenas últimos 3)
+    const tonic = mlResult.tonic;
+    const quality = mlResult.quality as 'major' | 'minor';
+    recentResultsRef.current = [
+      ...recentResultsRef.current.slice(-2),
+      { tonic, quality, confidence: conf },
+    ];
+
+    // Calcula o "modo" — tom mais frequente nas últimas 3 análises
+    const counts = new Map<string, { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' }>();
+    for (const r of recentResultsRef.current) {
+      const key = `${r.tonic}-${r.quality}`;
+      const c = counts.get(key) || { count: 0, sumConf: 0, tonic: r.tonic, quality: r.quality };
+      c.count += 1;
+      c.sumConf += r.confidence;
+      counts.set(key, c);
+    }
+    // Vencedor: maior contagem; em empate, maior confidence média
+    let winner: { tonic: number; quality: 'major' | 'minor'; confidence: number } | null = null;
+    let bestScore = -1;
+    for (const c of counts.values()) {
+      const score = c.count * 1000 + (c.sumConf / c.count);
+      if (score > bestScore) {
+        bestScore = score;
+        winner = { tonic: c.tonic, quality: c.quality, confidence: c.sumConf / c.count };
+      }
+    }
+
+    // Só atualiza o probable se: ainda não tem nenhum, OU é o mesmo, OU
+    // o novo vencedor tem mais ocorrências/confidence que o atual.
+    if (winner) {
+      const cur = probableKeyRef.current;
+      if (!cur) {
+        probableKeyRef.current = winner;
+      } else if (cur.tonic === winner.tonic && cur.quality === winner.quality) {
+        cur.confidence = winner.confidence;
+      } else {
+        // Tom diferente: só troca se vencedor aparece em >= 2 das últimas 3 análises
+        const winnerKey = `${winner.tonic}-${winner.quality}`;
+        const winnerCount = counts.get(winnerKey)?.count ?? 0;
+        if (winnerCount >= 2) {
+          probableKeyRef.current = winner;
+        }
+      }
+    }
+  }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
+
+  // Reset do histórico quando para de gravar
+  useEffect(() => {
+    if (!isRunning) {
+      recentResultsRef.current = [];
+      probableKeyRef.current = null;
+    }
+  }, [isRunning]);
+
   // ── Estado visível: "confirmed" SÓ se passou pela trava (confirmação dupla) ──
   const mlStage: 'none' | 'analyzing' | 'probable' | 'confirmed' = useMemo(() => {
-    // Confirmed = só se efetivamente travado (após confirmação dupla ou conf>=80%)
     if (lockedKeyRef.current) return 'confirmed';
+    if (probableKeyRef.current) return 'probable';
     if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return 'none';
-    const conf = mlResult.confidence ?? 0;
-    // Sem trava: nunca afirma "Detectado". No máximo "Provável".
-    if (conf >= MIN_DISPLAY_CONF) return 'probable';
     return 'analyzing';
   }, [mlResult?.success, mlResult?.tonic, mlResult?.quality, mlResult?.confidence, lockedKeyTick]);
 
@@ -338,12 +402,11 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     if (lockedKeyRef.current) {
       return { root: lockedKeyRef.current.tonic, quality: lockedKeyRef.current.quality };
     }
-    if (mlStage === 'none' || mlStage === 'analyzing') return null;
-    return {
-      root: mlResult!.tonic!,
-      quality: mlResult!.quality as 'major' | 'minor',
-    };
-  }, [mlStage, mlResult?.tonic, mlResult?.quality, lockedKeyTick]);
+    if (probableKeyRef.current) {
+      return { root: probableKeyRef.current.tonic, quality: probableKeyRef.current.quality };
+    }
+    return null;
+  }, [mlStage, lockedKeyTick]);
 
   // IMPORTANTE: detector LOCAL foi desativado como fallback visual —
   // ele tende a confirmar com baixa confiança (12%) e criar flip-flop.
@@ -464,7 +527,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
         <View style={{ flex: 1 }}>
           <Text style={ss.headerBrand}>Tom Certo</Text>
           <Text style={ss.headerVersion} numberOfLines={1}>
-            v2.4.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            v2.4.1 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
             {lastAnalysisAgoTxt ? ` · ${lastAnalysisAgoTxt}` : ''}
           </Text>
         </View>
