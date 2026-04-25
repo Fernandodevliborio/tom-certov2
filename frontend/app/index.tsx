@@ -513,46 +513,57 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
 
   return (
     <View testID="active-screen" style={ss.activeRoot}>
-      {/* Header */}
+      {/* ───── Header: linha 1 (brand + close) ───── */}
       <View style={ss.activeHeader}>
-        <Image
-          source={require('../assets/images/logo.png')}
-          style={ss.headerLogo}
-          resizeMode="contain"
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={ss.headerBrand}>Tom Certo</Text>
-          <Text style={ss.headerVersion} numberOfLines={1}>
-            v3.1.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
-            {lastAnalysisAgoTxt ? ` · ${lastAnalysisAgoTxt}` : ''}
-          </Text>
+        <View style={ss.brandRow}>
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={ss.headerLogo}
+            resizeMode="contain"
+          />
+          <View style={ss.brandTextWrap}>
+            <Text style={ss.headerBrand} numberOfLines={1}>Tom Certo</Text>
+            <Text style={ss.headerVersion} numberOfLines={1}>
+              v3.1.1 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            </Text>
+          </View>
         </View>
-        <View style={ss.headerStatusRow}>
-          <Animated.View style={[ss.statusDot, { backgroundColor: statusDotColor, opacity: statusDot }]} />
-          <Text style={ss.headerStatusTxt}>{statusLabel}</Text>
-        </View>
-        <TouchableOpacity testID="stop-btn" onPress={reset} style={ss.headerCloseBtn}>
-          <Ionicons name="close" size={16} color={C.text2} />
+        <TouchableOpacity testID="stop-btn" onPress={reset} style={ss.headerCloseBtn} activeOpacity={0.7}>
+          <Ionicons name="close" size={18} color={C.text2} />
         </TouchableOpacity>
       </View>
 
+      {/* ───── Header: linha 2 (status discreto) ───── */}
+      <View style={ss.statusBar}>
+        <Animated.View style={[ss.statusDot, { backgroundColor: statusDotColor, opacity: statusDot }]} />
+        <Text style={ss.statusBarTxt} numberOfLines={1}>{statusLabel}</Text>
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ss.scrollPad}>
-        {/* Note Hero */}
+        {/* ───── Note Hero (altura fixa pra evitar reflow) ───── */}
         <View style={ss.noteHero}>
           <View style={ss.noteHeroTopRow}>
             <Text style={ss.noteHeroLabel}>NOTA EM TEMPO REAL</Text>
-            <AudioVisualizer level={audioLevel} active={isRunning} height={28} bars={5} />
+            <AudioVisualizer level={audioLevel} active={isRunning} height={24} bars={5} />
           </View>
           <Animated.View style={[ss.noteHeroBox, { opacity: noteOpacity }]}>
             {currentNote !== null ? (
               <>
-                <Text testID="current-note" style={ss.noteHeroTxt}>{NOTES_BR[currentNote]}</Text>
+                <Text
+                  testID="current-note"
+                  style={ss.noteHeroTxt}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.55}
+                >
+                  {NOTES_BR[currentNote]}
+                </Text>
                 <Text style={ss.noteHeroIntl}>{NOTES_INTL[currentNote]}</Text>
               </>
             ) : (
               <View style={ss.listeningHero}>
                 <Text style={ss.listeningTitle}>
-                  {detectionState === 'analyzing' ? 'Analisando...' : 'Ouvindo'}
+                  {detectionState === 'analyzing' ? 'Analisando' : 'Ouvindo'}
                 </Text>
                 <Text style={ss.listeningSub}>
                   Cante ou toque — o app já começou a captar
@@ -562,10 +573,15 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           </Animated.View>
         </View>
 
-        {/* History */}
+        {/* ───── História (scroll horizontal — não muda altura) ───── */}
         <View style={ss.section}>
           <Text style={ss.sectionLabel}>HISTÓRICO</Text>
-          <View style={ss.historyRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={ss.historyRow}
+            style={ss.historyScroll}
+          >
             {recentNotes.length === 0
               ? <Text style={ss.historyEmpty}>— aguardando primeiras notas —</Text>
               : recentNotes.map((pc, i) => {
@@ -579,58 +595,55 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   );
                 })
             }
-          </View>
+          </ScrollView>
         </View>
 
-        {/* Key Card */}
-        {displayKey && (
-          <View testID="key-card" style={[ss.keyCard, confirmedKey ? ss.keyCardConfirmed : ss.keyCardProv]}>
-            <View style={ss.keyCardHeader}>
-              <View style={[
-                ss.keyCardBadge,
-                { borderColor: confirmedKey ? 'rgba(34,197,94,0.35)' : C.amberBorder },
-              ]}>
-                <Ionicons
-                  name={confirmedKey ? 'checkmark-circle' : 'radio-button-on'}
-                  size={11}
-                  color={confirmedKey ? C.green : C.amber}
-                />
-                <Text style={[ss.keyCardBadgeTxt, { color: confirmedKey ? C.green : C.amber }]}>
-                  {confirmedKey ? 'TOM DETECTADO' : 'TOM PROVÁVEL'}
-                </Text>
+        {/* ───── Key Card / Analyzing — minHeight reservado ───── */}
+        <View style={ss.keyCardSlot}>
+          {displayKey ? (
+            <View testID="key-card" style={[ss.keyCard, confirmedKey ? ss.keyCardConfirmed : ss.keyCardProv]}>
+              <View style={ss.keyCardHeader}>
+                <View style={[
+                  ss.keyCardBadge,
+                  { borderColor: confirmedKey ? 'rgba(34,197,94,0.35)' : C.amberBorder },
+                ]}>
+                  <Ionicons
+                    name={confirmedKey ? 'checkmark-circle' : 'radio-button-on'}
+                    size={11}
+                    color={confirmedKey ? C.green : C.amber}
+                  />
+                  <Text style={[ss.keyCardBadgeTxt, { color: confirmedKey ? C.green : C.amber }]}>
+                    {confirmedKey ? 'TOM DETECTADO' : 'TOM PROVÁVEL'}
+                  </Text>
+                </View>
+                <Text style={[ss.keyCardConfPct, { color: confColor }]}>{confPct}%</Text>
               </View>
-              <Text style={[ss.keyCardConfPct, { color: confColor }]}>{confPct}%</Text>
+              <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={!confirmedKey} />
+              <ConfidenceBar pct={confPct} color={confColor} />
+              {!confirmedKey && friendlyHint ? (
+                <View style={ss.hintRow}>
+                  <Ionicons name="ellipsis-horizontal-circle-outline" size={13} color={C.amber} />
+                  <Text style={ss.hintTxt}>{friendlyHint}</Text>
+                </View>
+              ) : null}
             </View>
-            <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={!confirmedKey} />
-            <ConfidenceBar pct={confPct} color={confColor} />
-            {!confirmedKey && friendlyHint ? (
-              <View style={ss.hintRow}>
-                <Ionicons name="ellipsis-horizontal-circle-outline" size={13} color={C.amber} />
-                <Text style={ss.hintTxt}>{friendlyHint}</Text>
+          ) : isRunning ? (
+            <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
+              <View style={ss.keyCardHeader}>
+                <View style={[ss.keyCardBadge, { borderColor: C.amberBorder }]}>
+                  <Ionicons name="sync" size={11} color={C.amber} />
+                  <Text style={[ss.keyCardBadgeTxt, { color: C.amber }]}>ANALISANDO</Text>
+                </View>
               </View>
-            ) : null}
-          </View>
-        )}
-
-        {/* Analyzing placeholder (sem tom ainda, mas já rodando) */}
-        {!displayKey && isRunning && (mlStage === 'analyzing' || friendlyHint) && (
-          <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
-            <View style={ss.keyCardHeader}>
-              <View style={[ss.keyCardBadge, { borderColor: C.amberBorder }]}>
-                <Ionicons name="sync" size={11} color={C.amber} />
-                <Text style={[ss.keyCardBadgeTxt, { color: C.amber }]}>ANALISANDO</Text>
-              </View>
+              <Text style={ss.analyzingTitle}>Continue cantando…</Text>
+              <Text style={ss.analyzingSub}>
+                {friendlyHint || 'Precisamos de mais alguns segundos para identificar o tom.'}
+              </Text>
             </View>
-            <Text style={ss.analyzingTitle}>Continue cantando…</Text>
-            {friendlyHint ? (
-              <Text style={ss.analyzingSub}>{friendlyHint}</Text>
-            ) : (
-              <Text style={ss.analyzingSub}>Precisamos de mais alguns segundos para identificar o tom.</Text>
-            )}
-          </View>
-        )}
+          ) : null}
+        </View>
 
-        {/* Change Banner */}
+        {/* ───── Change Banner ───── */}
         {changeSuggestion && (
           <View style={ss.changeBanner}>
             <Ionicons name="swap-horizontal-outline" size={14} color={C.blue} />
@@ -644,7 +657,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           </View>
         )}
 
-        {/* Harmonic Field (só quando TOM CONFIRMADO, nunca provisório) */}
+        {/* ───── Campo Harmônico (só quando confirmado) ───── */}
         {confirmedKey && harmonicField.length > 0 && (
           <View style={ss.section}>
             <Text style={ss.sectionLabel}>CAMPO HARMÔNICO</Text>
@@ -659,14 +672,6 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
             </View>
           </View>
         )}
-
-        {/* Soft Info — oculta pro usuário (só logs técnicos internos) */}
-        {/* {softInfo ? (
-          <View style={ss.softBar}>
-            <Ionicons name="information-circle-outline" size={14} color={C.amber} />
-            <Text style={ss.softBarTxt}>{softInfo}</Text>
-          </View>
-        ) : null} */}
       </ScrollView>
     </View>
   );
@@ -775,7 +780,7 @@ const ss = StyleSheet.create({
     }),
   },
   logoImgMain: { width: 170, height: 170 },
-  headerLogo: { width: 28, height: 28 },
+  headerLogoLanding: { width: 28, height: 28 },
   brandTitle: { fontFamily: 'Outfit_800ExtraBold', fontSize: 28, color: C.white, letterSpacing: -0.8 },
   brandSub: { fontFamily: 'Manrope_500Medium', fontSize: 10, color: C.text3, letterSpacing: 3 },
 
@@ -812,74 +817,108 @@ const ss = StyleSheet.create({
   logoutTxt: { fontFamily: 'Manrope_500Medium', fontSize: 11, color: C.text3, letterSpacing: 0.4 },
 
   // ACTIVE
-  activeRoot: { flex: 1, paddingHorizontal: 16, paddingTop: 6 },
+  activeRoot: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
   activeHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: 8, paddingBottom: 10,
   },
-  headerBrand: { fontFamily: 'Outfit_700Bold', fontSize: 15, color: C.white, letterSpacing: -0.3 },
-  headerVersion: { fontFamily: 'Manrope_500Medium', fontSize: 9, color: C.text3, letterSpacing: 0.3, marginTop: 1 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  headerLogo: { width: 32, height: 32 },
+  brandTextWrap: { flexShrink: 1 },
+  headerBrand: {
+    fontFamily: 'Outfit_700Bold', fontSize: 18, color: C.white, letterSpacing: -0.4,
+    includeFontPadding: false,
+  },
+  headerVersion: {
+    fontFamily: 'Manrope_500Medium', fontSize: 9.5, color: C.text3,
+    letterSpacing: 0.6, marginTop: 1, includeFontPadding: false,
+  },
+  statusBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 11, paddingVertical: 7,
+    backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border,
+    marginBottom: 12, alignSelf: 'flex-start',
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusBarTxt: {
+    fontFamily: 'Manrope_600SemiBold', fontSize: 10.5, color: C.text2, letterSpacing: 1.6,
+  },
   headerStatusRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: C.surface, borderRadius: 10, borderWidth: 1, borderColor: C.border,
     paddingHorizontal: 9, paddingVertical: 5,
   },
-  statusDot: { width: 7, height: 7, borderRadius: 4 },
   headerStatusTxt: { fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text2, letterSpacing: 1.5 },
   headerCloseBtn: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, marginLeft: 4,
+    width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
   },
   scrollPad: { paddingBottom: 24, gap: 14 },
 
+  // Note Hero — altura FIXA, evita reflow
   noteHero: {
-    backgroundColor: C.surface, borderRadius: 18, borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.surface, borderRadius: 20, borderWidth: 1, borderColor: C.border,
     overflow: 'hidden',
+    minHeight: 240,                         // ← altura mínima fixa
   },
   noteHeroTopRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 18, paddingTop: 14, paddingBottom: 2,
+    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4,
   },
-  noteHeroLabel: { fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text3, letterSpacing: 2.5 },
-  noteHeroBox: { alignItems: 'center', paddingBottom: 16 },
+  noteHeroLabel: { fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text3, letterSpacing: 2.4 },
+  noteHeroBox: {
+    alignItems: 'center', justifyContent: 'center',
+    flex: 1,                                // ocupa o resto do hero
+    paddingHorizontal: 20, paddingBottom: 18, paddingTop: 4,
+    minHeight: 175,                         // garante altura mesmo sem nota
+  },
   noteHeroTxt: {
-    fontFamily: 'Outfit_800ExtraBold', fontSize: 112, color: C.white,
-    letterSpacing: -5, lineHeight: 120,
+    fontFamily: 'Outfit_800ExtraBold', fontSize: 96, color: C.white,
+    letterSpacing: -3.5, lineHeight: 110, textAlign: 'center',
+    includeFontPadding: false,
     ...Platform.select({
-      ios: { textShadowColor: C.amberGlow, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 32 },
+      ios: { textShadowColor: C.amberGlow, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 28 },
       default: {},
     }),
   },
   noteHeroIntl: {
-    fontFamily: 'Manrope_500Medium', fontSize: 14, color: C.text2, letterSpacing: 1, marginTop: -8,
+    fontFamily: 'Manrope_500Medium', fontSize: 13, color: C.text2,
+    letterSpacing: 1, marginTop: 4,
   },
-  listeningHero: { alignItems: 'center', paddingVertical: 30, paddingHorizontal: 20 },
+  listeningHero: { alignItems: 'center', justifyContent: 'center', flex: 1, paddingHorizontal: 20 },
   listeningTitle: {
-    fontFamily: 'Outfit_800ExtraBold', fontSize: 30, color: C.white, letterSpacing: -1, marginBottom: 4,
+    fontFamily: 'Outfit_800ExtraBold', fontSize: 32, color: C.white, letterSpacing: -1, marginBottom: 6,
   },
   listeningSub: {
-    fontFamily: 'Manrope_400Regular', fontSize: 13, color: C.text2, textAlign: 'center', maxWidth: 260,
+    fontFamily: 'Manrope_400Regular', fontSize: 13, color: C.text2, textAlign: 'center', maxWidth: 280,
   },
 
   section: { gap: 8 },
   sectionLabel: {
-    fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text3, letterSpacing: 2.5, paddingHorizontal: 2,
+    fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text3, letterSpacing: 2.4, paddingHorizontal: 2,
+  },
+  // Histórico em scroll horizontal — altura fixa, sem wrap
+  historyScroll: {
+    backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border,
+    minHeight: 48, maxHeight: 48,
   },
   historyRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
-    paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border,
-    minHeight: 44, alignItems: 'center',
+    flexDirection: 'row', gap: 6,
+    paddingVertical: 9, paddingHorizontal: 12,
+    alignItems: 'center',
   },
   historyEmpty: { fontFamily: 'Manrope_400Regular', fontSize: 11, color: C.text3, fontStyle: 'italic' },
   historyChip: {
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10,
+    paddingHorizontal: 11, paddingVertical: 5, borderRadius: 11,
     backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
-    minWidth: 32, alignItems: 'center',
+    minWidth: 38, alignItems: 'center',
   },
   historyChipActive: { backgroundColor: 'rgba(255,176,32,0.14)', borderColor: 'rgba(255,176,32,0.50)' },
-  historyChipTxt: { fontFamily: 'Outfit_700Bold', fontSize: 12, color: C.text2, letterSpacing: 0.3 },
+  historyChipTxt: { fontFamily: 'Outfit_700Bold', fontSize: 13, color: C.text2, letterSpacing: 0.3 },
   historyChipTxtActive: { color: C.amber },
+
+  // Slot reservado pro key card — minHeight evita pulos
+  keyCardSlot: { minHeight: 168 },
 
   keyCard: {
     backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, padding: 14, gap: 10,
