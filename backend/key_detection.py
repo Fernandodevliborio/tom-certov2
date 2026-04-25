@@ -894,28 +894,142 @@ def _third_clarity_v2(pc_weights: np.ndarray, root: int) -> Dict[str, float]:
     return {'mode': mode, 'strength': strength, 'maj3': maj3, 'min3': min3, 'ratio': maj_ratio}
 
 
+# ═══════════════════════════════════════════════════════════════════════
+# ALGORITMO DEFINITIVO — Krumhansl-Schmuckler com perfis Aarden-Essen
+# ═══════════════════════════════════════════════════════════════════════
+# Padrão acadêmico desde Krumhansl (1982). Profiles Aarden-Essen (2003)
+# derivados de 8.000+ melodias folclóricas (música tonal monofônica como
+# hinos e canto coral). Algoritmo:
+#   1. Pitch Class Profile (PCP) = soma da duração × rms_conf por pc
+#   2. Pra cada um dos 24 candidatos (root × mode):
+#        rotated_profile = roll(profile, root)
+#        score = pearson_correlation(PCP, rotated_profile)
+#   3. Maior correlação = tom detectado.
+# Sem heurísticas. Sem patches. Sem regras especiais.
+# Determinístico: mesmo áudio → mesmo resultado, sempre.
+# ═══════════════════════════════════════════════════════════════════════
+
+# Aarden-Essen profiles (Aarden 2003) — derivados estatisticamente de 8.000+
+# melodias do Essen Folksong Collection. Otimizados pra música tonal vocal
+# monofônica (perfeito pra hinos, canto a cappella).
+AARDEN_MAJOR = np.array([
+    17.7661, 0.145624, 14.9265, 0.160186, 19.8049,
+    11.3587, 0.291248, 22.062,  0.145624, 8.15494,
+    0.232998, 4.95122,
+])
+AARDEN_MINOR = np.array([
+    18.2648, 0.737619, 14.0499, 16.8599, 0.702494,
+    14.4362, 0.702494, 18.6161, 4.56621, 1.93186,
+    7.37619, 1.75623,
+])
+
+
+def _pearson_correlation(x: np.ndarray, y: np.ndarray) -> float:
+    """Coeficiente de correlação de Pearson entre dois vetores de 12 elementos."""
+    if len(x) != len(y) or len(x) == 0:
+        return 0.0
+    mx = np.mean(x)
+    my = np.mean(y)
+    dx = x - mx
+    dy = y - my
+    num = float(np.sum(dx * dy))
+    den = float(np.sqrt(np.sum(dx ** 2) * np.sum(dy ** 2)))
+    if den < 1e-10:
+        return 0.0
+    return num / den
+
+
 def detect_key_theory_first(
     notes: List[Dict[str, Any]],
     phrases: List[List[Dict[str, Any]]],
 ) -> Dict[str, Any]:
     """
-    Detecção de tom v4.1 — "Universal Per-Candidate Scoring".
+    Detecção de tom — Krumhansl-Schmuckler clássico com Aarden-Essen profiles.
 
-    Para cada um dos 24 candidatos (12 tônicas × 2 modos), calculamos
-    5 features INDEPENDENTES, cada uma normalizada [0..1]:
+    Algoritmo PURO, determinístico, sem heurísticas:
+      1. PCP = histograma de pitch classes ponderado por duração
+      2. Pra 24 candidatos: correlação de Pearson com perfil rotacionado
+      3. Maior correlação = tom
 
-      F1. recurrence_score    — quanto a tônica candidata aparece no canto
-      F2. fit_score           — quanto da duração total cabe na escala
-      F3. final_compat        — última nota é 1, 3 ou 5 do candidato?
-      F4. third_match         — terça presente bate com o modo (maior/menor)?
-      F5. fifth_support       — 5ª justa do candidato presente?
+    Confidence = margem entre top e runner-up (escala 0..1).
 
-    Score final = soma ponderada. Sem regras especiais por caso.
-    Ganha o candidato mais bem suportado pelos 5 sinais simultaneamente.
-
-    Esta abordagem é UNIVERSAL: vale para qualquer dos 12 tons em qualquer
-    finalização (1, 3, 5).
+    Mesmo áudio → mesmo resultado. Validado em literatura desde 1982.
     """
+    if not notes:
+        return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'no_notes'}
+
+    # 1. Pitch Class Profile — duração ponderada × confiança
+    pcp = np.zeros(12, dtype=np.float64)
+    for n in notes:
+        pcp[n['pitch_class']] += n['dur_ms'] * n.get('rms_conf', 1.0)
+
+    if pcp.sum() < 200:
+        return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'too_little_audio'}
+
+    # 2. Pra cada um dos 24 candidatos (12 tônicas × 2 modos), Pearson contra
+    #    o perfil Aarden-Essen rotacionado pra essa tônica.
+    candidates = []
+    for root in range(12):
+        for quality, profile in (('major', AARDEN_MAJOR), ('minor', AARDEN_MINOR)):
+            rotated = np.roll(profile, root)
+            corr = _pearson_correlation(pcp, rotated)
+            candidates.append({
+                'root': root,
+                'quality': quality,
+                'correlation': corr,
+            })
+
+    # 3. Ordenar por correlação descendente
+    candidates.sort(key=lambda c: c['correlation'], reverse=True)
+    top = candidates[0]
+    runner = candidates[1] if len(candidates) > 1 else None
+
+    # 4. Confidence = margem normalizada
+    #    Margem ≥ 0.10 → 100% confiança
+    #    Margem ≤ 0.00 → 0% confiança (empate técnico)
+    if runner:
+        margin = top['correlation'] - runner['correlation']
+    else:
+        margin = top['correlation']
+    confidence = float(min(1.0, max(0.0, margin / 0.10)))
+
+    # Adicionalmente, top precisa ter correlação positiva mínima (>0.3)
+    # senão o resultado é desconfiável (PCP não casa com nenhum perfil)
+    if top['correlation'] < 0.3:
+        confidence = min(confidence, 0.4)
+
+    flags = []
+    if len(notes) < 5:
+        flags.append('few_notes')
+    if margin < 0.03:
+        flags.append('close_call')
+    if top['correlation'] < 0.3:
+        flags.append('low_correlation')
+
+    return {
+        'tonic': top['root'],
+        'tonic_name': NOTE_NAMES_BR[top['root']],
+        'quality': top['quality'],
+        'key_name': f"{NOTE_NAMES_BR[top['root']]} {'Maior' if top['quality'] == 'major' else 'menor'}",
+        'confidence': confidence,
+        'flags': flags,
+        'top_candidates': [
+            {
+                'key': f"{NOTE_NAMES_BR[c['root']]} {'Maior' if c['quality'] == 'major' else 'menor'}",
+                'correlation': round(c['correlation'], 4),
+            }
+            for c in candidates[:5]
+        ],
+        'diag': {
+            'pcp_top5_pcs': [int(i) for i in np.argsort(-pcp)[:5]],
+            'pcp_top5_weights': [round(float(pcp[i]), 1) for i in np.argsort(-pcp)[:5]],
+            'top_correlation': round(top['correlation'], 4),
+            'runner_correlation': round(runner['correlation'], 4) if runner else None,
+            'margin': round(margin, 4),
+        },
+        'histogram': pcp.tolist(),
+        'method_version': 'krumhansl-aarden-essen-v5',
+    }
     if not notes:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'no_notes'}
 

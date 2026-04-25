@@ -254,14 +254,14 @@ async def analyze_key(request: Request):
         result['phrases_count'] = len(phrases)
         result['method'] = 'torchcrepe-tiny+theory-first-v4'
 
-        # Logging detalhado do novo algoritmo
+        # Logging detalhado do novo algoritmo Krumhansl-Aarden
         hist = result.get('histogram', [])
         note_names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
         hist_sorted = sorted(range(12), key=lambda i: hist[i], reverse=True) if len(hist) == 12 else []
         hist_str = ' '.join(f"{note_names[i]}={hist[i]:.0f}" for i in hist_sorted[:5]) if hist_sorted else 'n/a'
         tops = result.get('top_candidates', [])[:3]
         tops_str = ' | '.join(
-            f"{t['key']}(s={t['score']:.3f} rec={t['recurrence']:.2f} fit={t['fit']:.2f} fc={t['final_compat']:.2f} 5ª={t['fifth']:.2f} 3ª={t['third_mode'][:3]})"
+            f"{t['key']}(corr={t['correlation']:.3f})"
             for t in tops
         )
         diag = result.get('diag', {})
@@ -271,14 +271,10 @@ async def analyze_key(request: Request):
             f"notes={len(notes)} phrases={len(phrases)} "
             f"flags={result.get('flags', [])}"
         )
+        logger.info(f"[AnalyzeKey]   PCP top5: {hist_str}")
         logger.info(
-            f"[AnalyzeKey]   última_nota={diag.get('last_note')} ({diag.get('last_note_dur_ms', 0):.0f}ms) "
-            f"— 3 hipóteses: tônica={diag.get('last_note')}, "
-            f"5ª→{note_names[((diag.get('last_note_pc') or 0) - 7) % 12] if diag.get('last_note_pc') is not None else '-'}, "
-            f"3ª→{note_names[((diag.get('last_note_pc') or 0) - 4) % 12] if diag.get('last_note_pc') is not None else '-'}"
+            f"[AnalyzeKey]   top3: {tops_str}  margem={diag.get('margin', 0):.3f}"
         )
-        logger.info(f"[AnalyzeKey]   hist top5: {hist_str}")
-        logger.info(f"[AnalyzeKey]   top3 keys: {tops_str}")
 
         return JSONResponse(result)
     except Exception as e:
