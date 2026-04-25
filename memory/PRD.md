@@ -49,5 +49,6 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
 - ✅ Ativação + gravação
 - ✅ Lógica avançada de tonalidade (portada TS→Python)
 - ✅ Painel admin HTML restaurado e servido pelo FastAPI
-- ✅ Algoritmo de detecção definitivo (Krumhansl-Aarden + axis + third_diff + final_match)
-- ✅ OTA pipeline funcional (v3.4.0 publicado em 2026-04-25)
+- ✅ Algoritmo de detecção definitivo (Krumhansl-Aarden + axis + third_diff + final_match) — 168/168
+- ✅ OTA pipeline funcional (v3.4.0 e v4.0.0 publicados)
+- ✅ **Visual Premium v4.0.0** — Apple/Tesla style com fonte Poppins, big mic com glow dourado animado, brain vortex com partículas (estado analisando), bottom nav Histórico/Detectar/Configurações, AICard premium, GoldWaveform reativo, AsyncStorage para histórico persistente.
