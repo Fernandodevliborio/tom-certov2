@@ -523,7 +523,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
         <View style={{ flex: 1 }}>
           <Text style={ss.headerBrand}>Tom Certo</Text>
           <Text style={ss.headerVersion} numberOfLines={1}>
-            v3.0.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            v3.1.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
             {lastAnalysisAgoTxt ? ` · ${lastAnalysisAgoTxt}` : ''}
           </Text>
         </View>
