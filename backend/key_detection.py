@@ -977,19 +977,39 @@ def detect_key_theory_first(
 
     # 2. Pra cada um dos 24 candidatos (12 tônicas × 2 modos), Pearson contra
     #    o perfil Aarden-Essen rotacionado pra essa tônica.
+    #    AJUSTE CRÍTICO: multiplicar pela "força do eixo tônica-5ª" — um tom só
+    #    é um tom se TÔNICA e 5ª estiverem ambas fortes na melodia. Usa o MÍNIMO
+    #    dos dois pesos pra forçar AMBOS estarem presentes (sem isso, melodia
+    #    com 6ª super-cantada confunde com IV ou V do tom certo).
+    pcp_max = float(pcp.max() or 1.0)
     candidates = []
     for root in range(12):
         for quality, profile in (('major', AARDEN_MAJOR), ('minor', AARDEN_MINOR)):
             rotated = np.roll(profile, root)
             corr = _pearson_correlation(pcp, rotated)
+
+            # Peso da tônica e da 5ª justa do candidato (normalizados)
+            tonic_w = float(pcp[root]) / pcp_max
+            fifth_w = float(pcp[(root + 7) % 12]) / pcp_max
+            # Eixo tônica-5ª: o MENOR dos dois (precisam ambos estarem fortes)
+            axis_strength = min(tonic_w, fifth_w)
+
+            # Score combinado: correlação × axis_strength^1.2
+            # Expoente 1.2 calibrado em áudios reais (Vem Cear, Vanessa Ferreira)
+            # + 144 testes universais. Penaliza candidatos com tônica/5ª fracas
+            # (ex: relativa menor escolhida no lugar do tom maior).
+            score = corr * (axis_strength ** 1.2)
+
             candidates.append({
                 'root': root,
                 'quality': quality,
                 'correlation': corr,
+                'axis_strength': axis_strength,
+                'score': score,
             })
 
-    # 3. Ordenar por correlação descendente
-    candidates.sort(key=lambda c: c['correlation'], reverse=True)
+    # 3. Ordenar por score combinado (correlação + eixo tônica-5ª)
+    candidates.sort(key=lambda c: c['score'], reverse=True)
     top = candidates[0]
     runner = candidates[1] if len(candidates) > 1 else None
 
