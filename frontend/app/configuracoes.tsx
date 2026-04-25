@@ -80,7 +80,7 @@ export default function ConfiguracoesScreen() {
               <Ionicons name="refresh-outline" size={22} color={Colors.gold} />
               <View>
                 <Text style={s.rowTitle}>Buscar atualização</Text>
-                <Text style={s.rowSub}>v4.0.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}</Text>
+                <Text style={s.rowSub}>v4.0.1 · {(Updates.updateId ?? 'embedded').slice(0, 8)}</Text>
               </View>
             </View>
             {checking ? <ActivityIndicator size="small" color={Colors.gold} /> : <Ionicons name="chevron-forward" size={18} color={Colors.text2} />}

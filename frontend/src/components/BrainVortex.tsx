@@ -1,10 +1,13 @@
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
-import Svg, { Circle, Defs, RadialGradient, Stop, G, Path } from 'react-native-svg';
+import { View, StyleSheet, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/tokens';
 
-const AnimatedG = Animated.createAnimatedComponent(G);
+/**
+ * BrainVortex sem SVG: ícone Ionicons "musical-notes" (cérebro substituído por
+ * um símbolo de IA/notas) com 2 anéis de partículas em órbita (Views animadas)
+ * e camadas de halo dourado.
+ */
 
 function Particle({ angle, radius, size, delay, duration }: {
   angle: number; radius: number; size: number; delay: number; duration: number;
@@ -92,8 +95,18 @@ export function BrainVortex({ size = 220 }: { size?: number }) {
     duration: 3600,
   }));
 
+  // 3 halo layers (gold gradient simulation)
+  const haloA = size * 0.95;
+  const haloB = size * 0.75;
+  const haloC = size * 0.55;
+
   return (
     <View style={[s.container, { width: size, height: size }]}>
+      {/* Halos para simular gradiente radial */}
+      <View style={[s.halo, { width: haloA, height: haloA, borderRadius: haloA / 2, opacity: 0.10 }]} />
+      <View style={[s.halo, { width: haloB, height: haloB, borderRadius: haloB / 2, opacity: 0.18 }]} />
+      <View style={[s.halo, { width: haloC, height: haloC, borderRadius: haloC / 2, opacity: 0.30 }]} />
+
       {/* Outer rotating particle ring */}
       <Animated.View style={[StyleSheet.absoluteFill, s.center, { transform: [{ rotate: rotate2 }] }]}>
         {particles2.map((p, i) => <Particle key={`p2-${i}`} {...p} />)}
@@ -102,51 +115,23 @@ export function BrainVortex({ size = 220 }: { size?: number }) {
       <Animated.View style={[StyleSheet.absoluteFill, s.center, { transform: [{ rotate: rotate1 }] }]}>
         {particles1.map((p, i) => <Particle key={`p1-${i}`} {...p} />)}
       </Animated.View>
-      {/* SVG glow circle behind brain */}
-      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <Defs>
-          <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor="#FFB020" stopOpacity="0.45" />
-            <Stop offset="55%" stopColor="#FFB020" stopOpacity="0.10" />
-            <Stop offset="100%" stopColor="#FFB020" stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
-        <Circle cx={size / 2} cy={size / 2} r={size * 0.32} fill="url(#glow)" />
-      </Svg>
       {/* Brain icon center */}
       <Animated.View style={[s.center, StyleSheet.absoluteFill, { opacity: brainPulse, transform: [{ scale: brainPulse }] }]}>
         <View style={s.brainBox}>
-          <BrainIcon size={size * 0.28} />
+          <Ionicons name="sparkles" size={size * 0.30} color={Colors.gold} />
         </View>
       </Animated.View>
     </View>
   );
 }
 
-function BrainIcon({ size }: { size: number }) {
-  // Custom brain SVG path
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M9 5C7.5 5 6 6.5 6 8C5 8.5 4 9.5 4 11C4 12 4.5 13 5 13.5C4.5 14 4 15 4 16C4 17.5 5.5 19 7 19C7.5 19.5 8.5 20 9.5 20C10.5 20 11.5 19.5 12 18.5C12.5 19.5 13.5 20 14.5 20C15.5 20 16.5 19.5 17 19C18.5 19 20 17.5 20 16C20 15 19.5 14 19 13.5C19.5 13 20 12 20 11C20 9.5 19 8.5 18 8C18 6.5 16.5 5 15 5C14 5 13 5.5 12.5 6.5C12 5.5 10 5 9 5Z"
-        stroke={Colors.gold}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <Path
-        d="M12 6.5V18.5M9 9C9 9 9.5 11 11 11M15 9C15 9 14.5 11 13 11M9 14C9 14 10 16 12 16C14 16 15 14 15 14"
-        stroke={Colors.goldLight}
-        strokeWidth={1}
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
-}
-
 const s = StyleSheet.create({
   container: { alignItems: 'center', justifyContent: 'center' },
   center: { alignItems: 'center', justifyContent: 'center' },
+  halo: {
+    position: 'absolute',
+    backgroundColor: Colors.gold,
+  },
   particle: {
     position: 'absolute',
     backgroundColor: Colors.gold,
@@ -159,10 +144,15 @@ const s = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 176, 32, 0.10)',
+    backgroundColor: 'rgba(255, 176, 32, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 176, 32, 0.32)',
+    borderColor: 'rgba(255, 176, 32, 0.40)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: Colors.gold,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 8,
   },
 });

@@ -1,9 +1,16 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity, Easing } from 'react-native';
+import { View, StyleSheet, Animated, Easing, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import { Colors } from '../theme/tokens';
 
+/**
+ * Big golden mic button — sem SVG, apenas Views + Animated nativo.
+ * Camadas:
+ *  - 3 glow rings concêntricos (View com borderRadius e opacity decrescente)
+ *  - 3 ondas pulsantes (anel borderColor com scale/opacity loop)
+ *  - botão circular dourado (com box-shadow gold)
+ *  - inner circle + ícone mic
+ */
 export function BigMicButton({
   onPress,
   size = 168,
@@ -58,23 +65,41 @@ export function BigMicButton({
 
   const breathScale = breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
   const breathOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
+  const haloScale = breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] });
+
+  const haloSize = size * 1.85;
+  const halo2Size = size * 1.55;
+  const halo3Size = size * 1.30;
 
   return (
     <View style={[s.wrap, { width: size + 60, height: size + 60 }]}>
-      {/* Background radial glow SVG */}
-      <Svg width={size * 2.1} height={size * 2.1} style={[StyleSheet.absoluteFill, s.center]}>
-        <Defs>
-          <RadialGradient id="micglow" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor="#FFB020" stopOpacity="0.55" />
-            <Stop offset="40%" stopColor="#FFB020" stopOpacity="0.18" />
-            <Stop offset="100%" stopColor="#FFB020" stopOpacity="0" />
-          </RadialGradient>
-        </Defs>
-        <Circle cx={size * 1.05} cy={size * 1.05} r={size * 0.95} fill="url(#micglow)" />
-      </Svg>
+      {/* Glow halos (camadas com opacity decrescente — simula gradient radial) */}
+      <Animated.View style={[
+        s.halo,
+        {
+          width: haloSize, height: haloSize, borderRadius: haloSize / 2,
+          opacity: 0.05, transform: [{ scale: haloScale }],
+        },
+      ]} />
+      <Animated.View style={[
+        s.halo,
+        {
+          width: halo2Size, height: halo2Size, borderRadius: halo2Size / 2,
+          opacity: 0.08, transform: [{ scale: haloScale }],
+        },
+      ]} />
+      <Animated.View style={[
+        s.halo,
+        {
+          width: halo3Size, height: halo3Size, borderRadius: halo3Size / 2,
+          opacity: 0.14, transform: [{ scale: haloScale }],
+        },
+      ]} />
+      {/* Ondas pulsantes */}
       {renderRing(ring3, 'r3')}
       {renderRing(ring2, 'r2')}
       {renderRing(ring1, 'r1')}
+      {/* Botão */}
       <TouchableOpacity
         testID="start-btn"
         onPress={onPress}
@@ -108,7 +133,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  center: { alignItems: 'center', justifyContent: 'center' },
+  halo: {
+    position: 'absolute',
+    backgroundColor: Colors.gold,
+  },
   ring: {
     position: 'absolute',
     borderWidth: 1.5,

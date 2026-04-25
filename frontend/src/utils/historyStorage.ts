@@ -1,10 +1,11 @@
 /**
  * Persistent storage for detected keys (last N).
- * Uses AsyncStorage. Schema: list of { key_name, root, quality, confidence, at }.
+ * Uses expo-secure-store (já compilado no APK existente). Fallback p/ memória no web.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
-const KEY = '@tom_certo:detection_history_v1';
+const KEY = 'tom_certo_history_v1';
 const MAX_ITEMS = 50;
 
 export interface DetectionEntry {
@@ -15,34 +16,72 @@ export interface DetectionEntry {
   at: number;
 }
 
-export async function loadHistory(): Promise<DetectionEntry[]> {
+let memCache: DetectionEntry[] | null = null;
+
+async function readRaw(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    try {
+      const v = (globalThis as any).localStorage?.getItem(KEY);
+      return v ?? null;
+    } catch {
+      return null;
+    }
+  }
   try {
-    const raw = await AsyncStorage.getItem(KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return await SecureStore.getItemAsync(KEY);
   } catch {
-    return [];
+    return null;
+  }
+}
+
+async function writeRaw(v: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    try { (globalThis as any).localStorage?.setItem(KEY, v); } catch { /* noop */ }
+    return;
+  }
+  try {
+    await SecureStore.setItemAsync(KEY, v);
+  } catch { /* noop */ }
+}
+
+async function deleteRaw(): Promise<void> {
+  if (Platform.OS === 'web') {
+    try { (globalThis as any).localStorage?.removeItem(KEY); } catch { /* noop */ }
+    return;
+  }
+  try {
+    await SecureStore.deleteItemAsync(KEY);
+  } catch { /* noop */ }
+}
+
+export async function loadHistory(): Promise<DetectionEntry[]> {
+  if (memCache) return memCache;
+  try {
+    const raw = await readRaw();
+    if (!raw) { memCache = []; return memCache; }
+    const parsed = JSON.parse(raw);
+    memCache = Array.isArray(parsed) ? parsed : [];
+    return memCache;
+  } catch {
+    memCache = [];
+    return memCache;
   }
 }
 
 export async function pushHistory(entry: DetectionEntry): Promise<void> {
   try {
     const cur = await loadHistory();
-    // Evita duplicar o mesmo tom em sequência (< 30s)
     const last = cur[0];
     if (last && last.key_name === entry.key_name && (entry.at - last.at) < 30_000) return;
     const next = [entry, ...cur].slice(0, MAX_ITEMS);
-    await AsyncStorage.setItem(KEY, JSON.stringify(next));
-  } catch {
-    /* swallow */
-  }
+    memCache = next;
+    await writeRaw(JSON.stringify(next));
+  } catch { /* swallow */ }
 }
 
 export async function clearHistory(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(KEY);
-  } catch {
-    /* swallow */
-  }
+    memCache = [];
+    await deleteRaw();
+  } catch { /* swallow */ }
 }
