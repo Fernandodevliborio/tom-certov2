@@ -224,76 +224,112 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════
-  // HISTERESE + FLOOR DE CONFIANÇA HONESTO (v3.1 — thresholds relaxados)
+  // HISTERESE COM CONFIRMAÇÃO DUPLA v4 — honestidade primeiro
   // ═══════════════════════════════════════════════════════════════
-  // Thresholds: abaixo de 25% = nada, 25-50% = provável, >=50% = confirmado.
-  const MIN_DISPLAY_CONF = 0.25;       // mostra "provável" a partir daqui
-  const MIN_CONFIRM_CONF = 0.50;       // cava como "confirmado" a partir daqui
-  const LOCK_REPLACE_CONF = 0.55;      // para trocar tom confirmado
-  const LOCK_REPLACE_MARGIN = 0.08;    // e superar o atual em pelo menos 8pp
+  // - Abaixo de 25% : "analisando..." (não mostra tom)
+  // - 25-65%        : "Tom Provável: X" (NÃO afirma certeza)
+  // - Trava como "Tom Detectado" SÓ APÓS:
+  //     • 2 análises consecutivas com MESMO tom E conf média ≥ 0.55, OU
+  //     • 1 análise com conf ≥ 0.80 (muito alta)
+  // - Pra trocar tom já travado: 2 análises consecutivas com novo tom
+  //   + nova conf ≥ atual + 0.08
+  const MIN_DISPLAY_CONF = 0.25;
+  const MIN_CONFIRM_CONF = 0.55;       // confidence média mínima pra travar
+  const HIGH_CONF_INSTANT = 0.80;      // conf alta única → trava imediato
+  const LOCK_REPLACE_MARGIN = 0.08;
 
-  // Tom travado (último ML result com conf >= 0.60) — mantém estável
+  // Última análise vista (pra detectar "duas iguais consecutivas")
+  const lastAnalysisRef = useRef<{
+    tonic: number; quality: 'major' | 'minor'; confidence: number;
+  } | null>(null);
+
+  // Candidato a troca (precisa de 2x igual pra trocar tom travado)
+  const replaceCandRef = useRef<{
+    tonic: number; quality: 'major' | 'minor'; count: number; sumConf: number;
+  } | null>(null);
+
+  // Tom travado
   const lockedKeyRef = useRef<{
     tonic: number; quality: 'major' | 'minor'; key_name: string; confidence: number; at: number;
   } | null>(null);
-  const [lockedKeyTick, setLockedKeyTick] = useState(0); // força re-render
+  const [lockedKeyTick, setLockedKeyTick] = useState(0);
 
   useEffect(() => {
     if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
     const conf = mlResult.confidence ?? 0;
     const tonic = mlResult.tonic;
     const quality = mlResult.quality as 'major' | 'minor';
+    const keyName = mlResult.key_name || '';
+    const prev = lastAnalysisRef.current;
 
-    // Se nada travado ainda, trava se conf >= 0.60
+    // Caminho 1: nada travado ainda → tenta travar
     if (!lockedKeyRef.current) {
-      if (conf >= MIN_CONFIRM_CONF) {
-        lockedKeyRef.current = {
-          tonic, quality,
-          key_name: mlResult.key_name || '',
-          confidence: conf,
-          at: Date.now(),
-        };
+      // Conf muito alta → trava imediato
+      if (conf >= HIGH_CONF_INSTANT) {
+        lockedKeyRef.current = { tonic, quality, key_name: keyName, confidence: conf, at: Date.now() };
         setLockedKeyTick(t => t + 1);
+        lastAnalysisRef.current = { tonic, quality, confidence: conf };
+        return;
       }
+      // Confirmação dupla: análise atual = anterior + média conf >= 0.55
+      if (prev && prev.tonic === tonic && prev.quality === quality) {
+        const avgConf = (prev.confidence + conf) / 2;
+        if (avgConf >= MIN_CONFIRM_CONF) {
+          lockedKeyRef.current = { tonic, quality, key_name: keyName, confidence: avgConf, at: Date.now() };
+          setLockedKeyTick(t => t + 1);
+        }
+      }
+      lastAnalysisRef.current = { tonic, quality, confidence: conf };
       return;
     }
 
-    // Se já tem travado, só troca se:
-    // (1) mesmo tom → só atualiza confidence (sem "trocar")
+    // Caminho 2: já tem travado
     const cur = lockedKeyRef.current;
+    // Mesmo tom → atualiza confidence (sem "trocar")
     if (cur.tonic === tonic && cur.quality === quality) {
       cur.confidence = Math.max(cur.confidence, conf);
       cur.at = Date.now();
+      replaceCandRef.current = null; // descarta candidato a troca anterior
+      lastAnalysisRef.current = { tonic, quality, confidence: conf };
       return;
     }
-    // (2) tom diferente → só troca com conf superior + margem significativa
-    if (conf >= LOCK_REPLACE_CONF && conf >= cur.confidence + LOCK_REPLACE_MARGIN) {
-      lockedKeyRef.current = {
-        tonic, quality,
-        key_name: mlResult.key_name || '',
-        confidence: conf,
-        at: Date.now(),
-      };
-      setLockedKeyTick(t => t + 1);
+    // Tom diferente do travado → acumula candidato a troca
+    const cand = replaceCandRef.current;
+    if (cand && cand.tonic === tonic && cand.quality === quality) {
+      cand.count += 1;
+      cand.sumConf += conf;
+      // Trocar SOMENTE com 2x consecutivas + conf média >= cur + margem
+      if (cand.count >= 2) {
+        const avgConf = cand.sumConf / cand.count;
+        if (avgConf >= cur.confidence + LOCK_REPLACE_MARGIN && avgConf >= MIN_CONFIRM_CONF) {
+          lockedKeyRef.current = { tonic, quality, key_name: keyName, confidence: avgConf, at: Date.now() };
+          setLockedKeyTick(t => t + 1);
+          replaceCandRef.current = null;
+        }
+      }
+    } else {
+      replaceCandRef.current = { tonic, quality, count: 1, sumConf: conf };
     }
-    // Senão: ignora, mantém o tom travado (evita flip-flop)
+    lastAnalysisRef.current = { tonic, quality, confidence: conf };
   }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
 
-  // Limpa tom travado se parar de gravar
+  // Limpa tudo se parar de gravar
   useEffect(() => {
     if (!isRunning) {
       lockedKeyRef.current = null;
+      lastAnalysisRef.current = null;
+      replaceCandRef.current = null;
       setLockedKeyTick(t => t + 1);
     }
   }, [isRunning]);
 
-  // ── Estado visível baseado em tom travado + último ML ────────────
+  // ── Estado visível: "confirmed" SÓ se passou pela trava (confirmação dupla) ──
   const mlStage: 'none' | 'analyzing' | 'probable' | 'confirmed' = useMemo(() => {
-    // Se há tom travado, ele domina
+    // Confirmed = só se efetivamente travado (após confirmação dupla ou conf>=80%)
     if (lockedKeyRef.current) return 'confirmed';
     if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return 'none';
     const conf = mlResult.confidence ?? 0;
-    if (conf >= MIN_CONFIRM_CONF) return 'confirmed';
+    // Sem trava: nunca afirma "Detectado". No máximo "Provável".
     if (conf >= MIN_DISPLAY_CONF) return 'probable';
     return 'analyzing';
   }, [mlResult?.success, mlResult?.tonic, mlResult?.quality, mlResult?.confidence, lockedKeyTick]);
@@ -428,7 +464,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
         <View style={{ flex: 1 }}>
           <Text style={ss.headerBrand}>Tom Certo</Text>
           <Text style={ss.headerVersion} numberOfLines={1}>
-            v2.3.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            v2.4.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
             {lastAnalysisAgoTxt ? ` · ${lastAnalysisAgoTxt}` : ''}
           </Text>
         </View>

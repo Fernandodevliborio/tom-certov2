@@ -323,10 +323,10 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     return () => { cancelled = true; };
   }, []);
 
-  const ML_CAPTURE_DURATION_MS = 8000;     // 8s — mais rápido que 10s
-  const ML_START_DELAY_MS = 2000;
-  const ML_REANALYZE_INTERVAL_MS = 6000;   // re-análise a cada 6s em vez de 12s
-  const ML_MIN_CLIP_SAMPLES = 16000 * 2;   // 2s mínimo (era 3s)
+  const ML_CAPTURE_DURATION_MS = 5000;     // 5s — mais rápido (era 8s)
+  const ML_START_DELAY_MS = 1000;
+  const ML_REANALYZE_INTERVAL_MS = 4000;   // re-análise a cada 4s (era 6s)
+  const ML_MIN_CLIP_SAMPLES = 16000 * 2;   // 2s mínimo
 
   const runMLAnalysis = useCallback(async () => {
     if (!isRunning) return;
