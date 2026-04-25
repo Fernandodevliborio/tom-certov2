@@ -226,16 +226,17 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   // ═══════════════════════════════════════════════════════════════
   // HISTERESE COM CONFIRMAÇÃO DUPLA v4 — honestidade primeiro
   // ═══════════════════════════════════════════════════════════════
-  // - Abaixo de 25% : "analisando..." (não mostra tom)
-  // - 25-65%        : "Tom Provável: X" (NÃO afirma certeza)
-  // - Trava como "Tom Detectado" SÓ APÓS:
-  //     • 2 análises consecutivas com MESMO tom E conf média ≥ 0.55, OU
-  //     • 1 análise com conf ≥ 0.80 (muito alta)
+  // - SEMPRE precisa 2 análises consecutivas com mesmo tom (sem fast-path).
+  //   Mesmo se uma análise vier com 99%, esperamos a 2ª pra confirmar.
+  //   Isso evita travar errado quando 1 chunk de 5s casualmente bate alto
+  //   numa interpretação errada.
+  // - Ambas precisam ter conf >= 0.50 individualmente (não só média)
+  // - Conf média ≥ 0.55 para travar
   // - Pra trocar tom já travado: 2 análises consecutivas com novo tom
   //   + nova conf ≥ atual + 0.08
   const MIN_DISPLAY_CONF = 0.25;
   const MIN_CONFIRM_CONF = 0.55;       // confidence média mínima pra travar
-  const HIGH_CONF_INSTANT = 0.80;      // conf alta única → trava imediato
+  const MIN_INDIVIDUAL_CONF = 0.50;    // cada análise precisa passar disso
   const LOCK_REPLACE_MARGIN = 0.08;
 
   // Última análise vista (pra detectar "duas iguais consecutivas")
@@ -262,19 +263,13 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     const keyName = mlResult.key_name || '';
     const prev = lastAnalysisRef.current;
 
-    // Caminho 1: nada travado ainda → tenta travar
+    // Caminho 1: nada travado ainda → sempre exige 2 análises consecutivas
     if (!lockedKeyRef.current) {
-      // Conf muito alta → trava imediato
-      if (conf >= HIGH_CONF_INSTANT) {
-        lockedKeyRef.current = { tonic, quality, key_name: keyName, confidence: conf, at: Date.now() };
-        setLockedKeyTick(t => t + 1);
-        lastAnalysisRef.current = { tonic, quality, confidence: conf };
-        return;
-      }
-      // Confirmação dupla: análise atual = anterior + média conf >= 0.55
+      // Confirmação dupla obrigatória — sem fast-path por conf alta
       if (prev && prev.tonic === tonic && prev.quality === quality) {
         const avgConf = (prev.confidence + conf) / 2;
-        if (avgConf >= MIN_CONFIRM_CONF) {
+        const bothPassMin = prev.confidence >= MIN_INDIVIDUAL_CONF && conf >= MIN_INDIVIDUAL_CONF;
+        if (bothPassMin && avgConf >= MIN_CONFIRM_CONF) {
           lockedKeyRef.current = { tonic, quality, key_name: keyName, confidence: avgConf, at: Date.now() };
           setLockedKeyTick(t => t + 1);
         }
@@ -527,7 +522,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
         <View style={{ flex: 1 }}>
           <Text style={ss.headerBrand}>Tom Certo</Text>
           <Text style={ss.headerVersion} numberOfLines={1}>
-            v2.4.1 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            v2.4.2 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
             {lastAnalysisAgoTxt ? ` · ${lastAnalysisAgoTxt}` : ''}
           </Text>
         </View>
