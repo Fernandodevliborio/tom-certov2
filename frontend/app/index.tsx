@@ -224,32 +224,21 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════
-  // HISTERESE COM CONFIRMAÇÃO DUPLA v4 — honestidade primeiro
+  // HISTERESE COM JANELA DE 3 ANÁLISES v5 — rápido E honesto
   // ═══════════════════════════════════════════════════════════════
-  // - SEMPRE precisa 2 análises consecutivas com mesmo tom (sem fast-path).
-  //   Mesmo se uma análise vier com 99%, esperamos a 2ª pra confirmar.
-  //   Isso evita travar errado quando 1 chunk de 5s casualmente bate alto
-  //   numa interpretação errada.
-  // - Ambas precisam ter conf >= 0.50 individualmente (não só média)
-  // - Conf média ≥ 0.55 para travar
-  // - Pra trocar tom já travado: 2 análises consecutivas com novo tom
-  //   + nova conf ≥ atual + 0.08
+  // - Mantém uma janela com as últimas 3 análises de qualidade (conf >= 0.50)
+  // - Trava como "Tom Detectado" se ALGUM tom aparecer ≥ 2 vezes na janela
+  //   E a conf média desse tom ≥ 0.55
+  // - Permite 1 outlier entre as boas (não exige estritamente consecutivas)
+  // - Análises com conf < 0.50 não entram na janela (ruído ignorado)
+  // - Pra trocar tom travado: novo tom precisa dominar janela + margem
   const MIN_DISPLAY_CONF = 0.25;
-  const MIN_CONFIRM_CONF = 0.55;       // confidence média mínima pra travar
-  const MIN_INDIVIDUAL_CONF = 0.50;    // cada análise precisa passar disso
+  const MIN_CONFIRM_CONF = 0.55;
+  const MIN_INDIVIDUAL_CONF = 0.50;
   const LOCK_REPLACE_MARGIN = 0.08;
+  const LOCK_WINDOW_SIZE = 3;
 
-  // Última análise vista (pra detectar "duas iguais consecutivas")
-  const lastAnalysisRef = useRef<{
-    tonic: number; quality: 'major' | 'minor'; confidence: number;
-  } | null>(null);
-
-  // Candidato a troca (precisa de 2x igual pra trocar tom travado)
-  const replaceCandRef = useRef<{
-    tonic: number; quality: 'major' | 'minor'; count: number; sumConf: number;
-  } | null>(null);
-
-  // Tom travado
+  const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
   const lockedKeyRef = useRef<{
     tonic: number; quality: 'major' | 'minor'; key_name: string; confidence: number; at: number;
   } | null>(null);
@@ -261,59 +250,71 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     const tonic = mlResult.tonic;
     const quality = mlResult.quality as 'major' | 'minor';
     const keyName = mlResult.key_name || '';
-    const prev = lastAnalysisRef.current;
 
-    // Caminho 1: nada travado ainda → sempre exige 2 análises consecutivas
+    // Só entra na janela se passou do mínimo
+    if (conf < MIN_INDIVIDUAL_CONF) return;
+
+    // Adiciona à janela (mantém últimas N)
+    lockWindowRef.current = [
+      ...lockWindowRef.current.slice(-(LOCK_WINDOW_SIZE - 1)),
+      { tonic, quality, confidence: conf },
+    ];
+
+    // Conta ocorrências de cada tom na janela
+    const counts = new Map<string, { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' }>();
+    for (const r of lockWindowRef.current) {
+      const k = `${r.tonic}-${r.quality}`;
+      const e = counts.get(k) || { count: 0, sumConf: 0, tonic: r.tonic, quality: r.quality };
+      e.count += 1;
+      e.sumConf += r.confidence;
+      counts.set(k, e);
+    }
+
+    // Tom mais frequente (desempate por sumConf)
+    let bestEntry: { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' } | null = null;
+    for (const v of counts.values()) {
+      if (!bestEntry || v.count > bestEntry.count ||
+          (v.count === bestEntry.count && v.sumConf > bestEntry.sumConf)) {
+        bestEntry = v;
+      }
+    }
+    if (!bestEntry) return;
+    const avgConf = bestEntry.sumConf / bestEntry.count;
+
+    // Caminho 1: nada travado ainda
     if (!lockedKeyRef.current) {
-      // Confirmação dupla obrigatória — sem fast-path por conf alta
-      if (prev && prev.tonic === tonic && prev.quality === quality) {
-        const avgConf = (prev.confidence + conf) / 2;
-        const bothPassMin = prev.confidence >= MIN_INDIVIDUAL_CONF && conf >= MIN_INDIVIDUAL_CONF;
-        if (bothPassMin && avgConf >= MIN_CONFIRM_CONF) {
-          lockedKeyRef.current = { tonic, quality, key_name: keyName, confidence: avgConf, at: Date.now() };
-          setLockedKeyTick(t => t + 1);
-        }
+      if (bestEntry.count >= 2 && avgConf >= MIN_CONFIRM_CONF) {
+        lockedKeyRef.current = {
+          tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
+          confidence: avgConf, at: Date.now(),
+        };
+        setLockedKeyTick(t => t + 1);
       }
-      lastAnalysisRef.current = { tonic, quality, confidence: conf };
       return;
     }
 
-    // Caminho 2: já tem travado
+    // Caminho 2: já travado
     const cur = lockedKeyRef.current;
-    // Mesmo tom → atualiza confidence (sem "trocar")
-    if (cur.tonic === tonic && cur.quality === quality) {
-      cur.confidence = Math.max(cur.confidence, conf);
+    if (cur.tonic === bestEntry.tonic && cur.quality === bestEntry.quality) {
+      cur.confidence = Math.max(cur.confidence, avgConf);
       cur.at = Date.now();
-      replaceCandRef.current = null; // descarta candidato a troca anterior
-      lastAnalysisRef.current = { tonic, quality, confidence: conf };
       return;
     }
-    // Tom diferente do travado → acumula candidato a troca
-    const cand = replaceCandRef.current;
-    if (cand && cand.tonic === tonic && cand.quality === quality) {
-      cand.count += 1;
-      cand.sumConf += conf;
-      // Trocar SOMENTE com 2x consecutivas + conf média >= cur + margem
-      if (cand.count >= 2) {
-        const avgConf = cand.sumConf / cand.count;
-        if (avgConf >= cur.confidence + LOCK_REPLACE_MARGIN && avgConf >= MIN_CONFIRM_CONF) {
-          lockedKeyRef.current = { tonic, quality, key_name: keyName, confidence: avgConf, at: Date.now() };
-          setLockedKeyTick(t => t + 1);
-          replaceCandRef.current = null;
-        }
-      }
-    } else {
-      replaceCandRef.current = { tonic, quality, count: 1, sumConf: conf };
+    // Tom diferente: troca se novo dominou janela com margem
+    if (bestEntry.count >= 2 && avgConf >= cur.confidence + LOCK_REPLACE_MARGIN && avgConf >= MIN_CONFIRM_CONF) {
+      lockedKeyRef.current = {
+        tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
+        confidence: avgConf, at: Date.now(),
+      };
+      setLockedKeyTick(t => t + 1);
     }
-    lastAnalysisRef.current = { tonic, quality, confidence: conf };
   }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
 
-  // Limpa tudo se parar de gravar
+  // Reset quando para de gravar
   useEffect(() => {
     if (!isRunning) {
       lockedKeyRef.current = null;
-      lastAnalysisRef.current = null;
-      replaceCandRef.current = null;
+      lockWindowRef.current = [];
       setLockedKeyTick(t => t + 1);
     }
   }, [isRunning]);
@@ -522,7 +523,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
         <View style={{ flex: 1 }}>
           <Text style={ss.headerBrand}>Tom Certo</Text>
           <Text style={ss.headerVersion} numberOfLines={1}>
-            v2.4.2 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            v2.5.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
             {lastAnalysisAgoTxt ? ` · ${lastAnalysisAgoTxt}` : ''}
           </Text>
         </View>
