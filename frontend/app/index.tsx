@@ -222,10 +222,10 @@ function PremiumScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
 
   return (
     <Animated.View style={[ss.root, { opacity: fadeIn }]}>
-      {/* Background gradient subtle */}
+      {/* Background — preto profundo com leve gradiente vertical sutil */}
       <LinearGradient
-        colors={['#0A0A0A', '#0F0A05', '#0A0A0A']}
-        locations={[0, 0.5, 1]}
+        colors={['#0A0A0A', '#0A0A0A', '#080604']}
+        locations={[0, 0.6, 1]}
         style={StyleSheet.absoluteFill}
       />
 
@@ -348,18 +348,18 @@ function MicButton({
   const scale = useRef(new Animated.Value(1)).current;
   const breathe = useRef(new Animated.Value(0)).current;
 
-  // Breathe loop (mais intenso quando ativo)
+  // Breathe loop muito sutil (Apple-style)
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
-      Animated.timing(breathe, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(breathe, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 1, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 0, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
     ]));
     loop.start();
     return () => loop.stop();
   }, []);
 
-  const breatheScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, stage === 'idle' ? 1.04 : 1.07] });
-  const audioBoost = 1 + Math.min(audioLevel * 0.18, 0.18);
+  const breatheScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, stage === 'idle' ? 1.015 : 1.03] });
+  const audioBoost = 1 + Math.min(audioLevel * 0.10, 0.10);
 
   const onPressIn = () => Animated.spring(scale, { toValue: 0.93, useNativeDriver: true }).start();
   const onPressOut = () => Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }).start();
@@ -420,14 +420,13 @@ function KeyLetterDisplay({ confirmedKey }: { confirmedKey: { root: number; qual
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// PULSE RINGS — 3 anéis concêntricos expandindo continuamente
+// PULSE RINGS — anéis sutis, lentos, quase imperceptíveis (refinado)
 // ═════════════════════════════════════════════════════════════════════════
 function PulseRings({ stage }: { stage: 'idle' | 'listening' | 'analyzing' | 'needs_more' | 'confirmed' }) {
   const r1 = useRef(new Animated.Value(0)).current;
   const r2 = useRef(new Animated.Value(0)).current;
-  const r3 = useRef(new Animated.Value(0)).current;
-  // Mais rápido quando ativo, mais lento quando idle, parado quando confirmado
-  const dur = stage === 'confirmed' ? 0 : (stage === 'idle' ? 2400 : 1700);
+  // Apenas 2 anéis, mais lentos (era 3 anéis com 1700-2400ms)
+  const dur = stage === 'confirmed' ? 0 : (stage === 'idle' ? 4000 : 3000);
   useEffect(() => {
     if (stage === 'confirmed') return;
     const make = (val: Animated.Value, delay: number) =>
@@ -436,9 +435,9 @@ function PulseRings({ stage }: { stage: 'idle' | 'listening' | 'analyzing' | 'ne
         Animated.timing(val, { toValue: 1, duration: dur, easing: Easing.out(Easing.ease), useNativeDriver: true }),
         Animated.timing(val, { toValue: 0, duration: 0, useNativeDriver: true }),
       ]));
-    const a1 = make(r1, 0), a2 = make(r2, dur / 3), a3 = make(r3, (dur * 2) / 3);
-    a1.start(); a2.start(); a3.start();
-    return () => { a1.stop(); a2.stop(); a3.stop(); };
+    const a1 = make(r1, 0), a2 = make(r2, dur / 2);
+    a1.start(); a2.start();
+    return () => { a1.stop(); a2.stop(); };
   }, [stage, dur]);
 
   if (stage === 'confirmed') return null;
@@ -446,15 +445,16 @@ function PulseRings({ stage }: { stage: 'idle' | 'listening' | 'analyzing' | 'ne
     <Animated.View style={[
       ss.pulseRing,
       {
-        opacity: val.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.6, 0.3, 0] }),
-        transform: [{ scale: val.interpolate({ inputRange: [0, 1], outputRange: [1, 2.4] }) }],
+        // Opacity muito menor (era 0.6 → agora 0.18 max)
+        opacity: val.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0.18, 0.10, 0] }),
+        // Scale menor (era 1→2.4, agora 1→1.55)
+        transform: [{ scale: val.interpolate({ inputRange: [0, 1], outputRange: [1, 1.55] }) }],
       },
     ]} />
   );
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <View style={ss.pulseCenter}>
-        {renderRing(r3)}
         {renderRing(r2)}
         {renderRing(r1)}
       </View>
@@ -463,15 +463,15 @@ function PulseRings({ stage }: { stage: 'idle' | 'listening' | 'analyzing' | 'ne
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// SIDE WAVES — barras animadas nas laterais (efeito de áudio)
+// SIDE WAVES — barras laterais quase invisíveis, refinadas
 // ═════════════════════════════════════════════════════════════════════════
-const WAVE_BARS = 14;
+const WAVE_BARS = 10;                  // ↓ era 14
 function SideWaves({ side, active }: { side: 'left' | 'right'; active: boolean }) {
   const anims = useRef(Array.from({ length: WAVE_BARS }, () => new Animated.Value(Math.random()))).current;
 
   useEffect(() => {
-    const loops = anims.map((val, i) => {
-      const dur = 600 + Math.random() * 800;
+    const loops = anims.map((val) => {
+      const dur = 1200 + Math.random() * 1000;   // ↑ mais lento (era 600-1400)
       return Animated.loop(Animated.sequence([
         Animated.timing(val, { toValue: 1, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
         Animated.timing(val, { toValue: 0, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
@@ -484,15 +484,14 @@ function SideWaves({ side, active }: { side: 'left' | 'right'; active: boolean }
   return (
     <View style={[ss.sideWaves, side === 'left' ? ss.sideWavesLeft : ss.sideWavesRight]} pointerEvents="none">
       {anims.map((val, i) => {
-        // Onda senoidal de altura (mais alta no centro)
         const centerWeight = 1 - Math.abs((i - WAVE_BARS / 2) / (WAVE_BARS / 2));
         const height = val.interpolate({
           inputRange: [0, 1],
-          outputRange: [3 + centerWeight * 8, 18 + centerWeight * 38],
+          outputRange: [3 + centerWeight * 4, 8 + centerWeight * 16],   // ↓ menores
         });
         const opacity = val.interpolate({
           inputRange: [0, 1],
-          outputRange: [active ? 0.18 : 0.10, active ? 0.55 : 0.28],
+          outputRange: [active ? 0.10 : 0.06, active ? 0.32 : 0.18],   // ↓ muito mais sutis
         });
         return (
           <Animated.View
@@ -506,17 +505,17 @@ function SideWaves({ side, active }: { side: 'left' | 'right'; active: boolean }
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// PARTICLES — pontos luminosos que orbitam o mic button (efeito IA)
+// PARTICLES — minimalistas, quase invisíveis (refinado Apple-style)
 // ═════════════════════════════════════════════════════════════════════════
-const PARTICLE_COUNT = 14;
+const PARTICLE_COUNT = 6;            // ↓ era 14 (mais discreto)
 function Particles({ active }: { active: boolean }) {
   const items = useRef(
     Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
-      angle: (i / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.4,
-      radius: 130 + Math.random() * 28,
+      angle: (i / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.3,
+      radius: 100 + Math.random() * 18,
       val: new Animated.Value(Math.random()),
-      size: 2 + Math.random() * 2.5,
-      dur: 1800 + Math.random() * 1600,
+      size: 1.5 + Math.random() * 1.2,        // ↓ menores
+      dur: 3000 + Math.random() * 2000,        // ↑ mais lentos
     }))
   ).current;
 
@@ -537,15 +536,17 @@ function Particles({ active }: { active: boolean }) {
         {items.map((p, i) => {
           const x = Math.cos(p.angle) * p.radius;
           const y = Math.sin(p.angle) * p.radius;
-          const opacity = p.val.interpolate({ inputRange: [0, 0.5, 1], outputRange: [active ? 0.2 : 0.12, active ? 0.85 : 0.45, active ? 0.2 : 0.12] });
-          const tx = p.val.interpolate({ inputRange: [0, 1], outputRange: [x, x * 1.06] });
-          const ty = p.val.interpolate({ inputRange: [0, 1], outputRange: [y, y * 1.06] });
+          // Opacity muito mais discreta (era 0.12-0.85, agora 0.05-0.30)
+          const opacity = p.val.interpolate({
+            inputRange: [0, 0.5, 1],
+            outputRange: [active ? 0.08 : 0.04, active ? 0.30 : 0.16, active ? 0.08 : 0.04],
+          });
           return (
             <Animated.View
               key={i}
               style={[
                 ss.particle,
-                { width: p.size, height: p.size, opacity, transform: [{ translateX: tx }, { translateY: ty }] },
+                { width: p.size, height: p.size, opacity, transform: [{ translateX: x }, { translateY: y }] },
               ]}
             />
           );
@@ -720,8 +721,8 @@ function InfoModal({ visible, onClose }: { visible: boolean; onClose: () => void
 }
 
 // ─── Styles ──────────────────────────────────────────────────────────────
-const MIC_OUTER = 220;
-const MIC_INNER = MIC_OUTER - 14;
+const MIC_OUTER = 164;          // ↓ 25% (era 220)
+const MIC_INNER = MIC_OUTER - 10;
 
 const ss = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
@@ -730,26 +731,27 @@ const ss = StyleSheet.create({
   // HEADER
   header: {
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: 24,
     paddingBottom: 4,
   },
   logoTop: {
-    width: 92, height: 92,
-    marginBottom: 6,
+    width: 56, height: 56,        // ↓ menor (era 92)
+    marginBottom: 14,
+    opacity: 0.85,
   },
   brandTitle: {
-    fontSize: 36, letterSpacing: -0.8,
+    fontSize: 26, letterSpacing: -0.4,  // ↓ era 36
     color: C.white,
   },
-  brandTitleThin: { fontFamily: 'Outfit_400Regular', fontWeight: '300', color: '#E0E0E0' },
-  brandTitleBold: { fontFamily: 'Outfit_700Bold', fontWeight: '800', color: C.white },
+  brandTitleThin: { fontFamily: 'Outfit_400Regular', fontWeight: '200', color: '#D8D8D8' },
+  brandTitleBold: { fontFamily: 'Outfit_700Bold', fontWeight: '600', color: C.white },
   brandSub: {
     fontFamily: 'Manrope_500Medium',
-    fontSize: 11,
-    letterSpacing: 4,
-    color: C.amber,
-    marginTop: 6,
-    opacity: 0.85,
+    fontSize: 9.5,
+    letterSpacing: 5,
+    color: C.text2,              // ↓ menos destaque (era amber)
+    marginTop: 12,
+    opacity: 0.55,
   },
 
   // MIC SECTION
@@ -758,25 +760,27 @@ const ss = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
+    paddingVertical: 24,
   },
   micGlow: {
     position: 'absolute',
-    top: -40, bottom: -40, left: -100, right: -100,
+    top: -18, bottom: -18, left: -50, right: -50,    // halo mais discreto
     borderRadius: 200,
     overflow: 'hidden',
+    opacity: 0.55,
   },
   micOuter: {
     width: MIC_OUTER, height: MIC_OUTER,
     borderRadius: MIC_OUTER / 2,
-    borderWidth: 3,
-    borderColor: C.amber,
+    borderWidth: 1.5,                // ↓ era 3
+    borderColor: 'rgba(255,176,32,0.55)',
     alignItems: 'center', justifyContent: 'center',
-    // Glow via shadow (iOS) e elevation (Android)
+    // Glow muito mais sutil
     shadowColor: C.amber,
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 22,
-    elevation: 18,
+    shadowOpacity: 0.22,             // ↓ era 0.6
+    shadowRadius: 14,                // ↓ era 22
+    elevation: 8,                    // ↓ era 18
   },
   micInner: {
     width: MIC_INNER, height: MIC_INNER,
@@ -793,8 +797,8 @@ const ss = StyleSheet.create({
     width: MIC_OUTER,
     height: MIC_OUTER,
     borderRadius: MIC_OUTER / 2,
-    borderWidth: 1.5,
-    borderColor: C.amber,
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,32,0.30)',  // mais discreto
   },
   particlesCenter: {
     flex: 1,
@@ -803,29 +807,26 @@ const ss = StyleSheet.create({
   },
   particle: {
     position: 'absolute',
-    borderRadius: 4,
+    borderRadius: 2,
     backgroundColor: C.amberSoft,
-    shadowColor: C.amber,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 4,
   },
 
-  // SIDE WAVES
+  // SIDE WAVES — quase invisíveis
   sideWaves: {
     position: 'absolute',
     top: '50%',
-    height: 80,
-    width: SW * 0.42,
+    height: 60,
+    width: SW * 0.30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    transform: [{ translateY: -40 }],
+    transform: [{ translateY: -30 }],
+    opacity: 0.35,                   // ↓ muito mais discreto
   },
-  sideWavesLeft: { left: 0 },
-  sideWavesRight: { right: 0 },
+  sideWavesLeft: { left: 4 },
+  sideWavesRight: { right: 4 },
   waveBar: {
-    width: 2,
+    width: 1.2,                      // ↓ era 2
     backgroundColor: C.amber,
     borderRadius: 1,
   },
@@ -848,20 +849,23 @@ const ss = StyleSheet.create({
 
   // STATUS AREA (below mic)
   statusArea: {
-    minHeight: 100,
+    minHeight: 90,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingTop: 22,                 // mais respiro
   },
   statusBig: {
-    fontFamily: 'Manrope_600SemiBold',
-    fontSize: 15,
-    letterSpacing: 5,
-    color: C.amber,
+    fontFamily: 'Manrope_400Regular',  // ↓ mais fino
+    fontSize: 12.5,                     // ↓ menor
+    fontWeight: '300',
+    letterSpacing: 7,                   // ↑ muito mais letter-spacing
+    color: C.text2,                     // ↓ menos destaque
     textAlign: 'center',
+    opacity: 0.75,
   },
-  statusBigIdle: { color: C.amberSoft },
-  statusBigAmber: { color: C.amber, opacity: 0.9 },
+  statusBigIdle: { color: '#C8C8C8', opacity: 0.85 },
+  statusBigAmber: { color: C.amber, opacity: 0.7 },
 
   // CONFIRMED BLOCK
   confirmedBlock: {
@@ -926,39 +930,41 @@ const ss = StyleSheet.create({
   // BOTTOM TAGLINE
   bottomBlock: {
     alignItems: 'center',
-    paddingBottom: 16,
-    paddingHorizontal: 24,
+    paddingBottom: 22,
+    paddingHorizontal: 32,
+    paddingTop: 12,
   },
   goldLine: {
-    width: 60, height: 1.5,
+    width: 28, height: 1,
     backgroundColor: C.amber,
-    opacity: 0.6,
-    marginBottom: 12,
+    opacity: 0.35,
+    marginBottom: 18,
     borderRadius: 1,
   },
   tagline: {
     fontFamily: 'Outfit_400Regular',
-    fontSize: 16,
+    fontSize: 13.5,
     textAlign: 'center',
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
+    opacity: 0.78,
   },
-  taglineWhite: { color: C.white, fontWeight: '300' },
-  taglineGold: { color: C.amber, fontWeight: '500' },
+  taglineWhite: { color: '#D8D8D8', fontWeight: '300' },
+  taglineGold: { color: C.amber, fontWeight: '400', opacity: 0.85 },
 
-  // FOOTER ICONS
+  // FOOTER ICONS — extremamente discretos (10-15% opacidade)
   footerIcons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 28,
-    paddingBottom: 18,
-    paddingTop: 4,
+    paddingHorizontal: 32,
+    paddingBottom: 22,
+    paddingTop: 0,
+    opacity: 0.32,
   },
   footerIconBtn: {
-    width: 44, height: 44,
-    borderRadius: 22,
+    width: 36, height: 36,
+    borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: C.amberBorder,
-    backgroundColor: 'rgba(255,176,32,0.06)',
+    // sem borda, sem background — só o ícone
   },
 
   // MODAL
