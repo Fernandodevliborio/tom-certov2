@@ -1,15 +1,27 @@
-# Tom Certo — Credenciais de Teste
+# Tom Certo · Test Credentials
 
-## App Token (Ativação)
-- **Código:** `TEST-DEV2026`
-- **Descrição:** Token de desenvolvimento/teste (idempotente)
-- **Device limit:** 10
+## 🔐 Admin Panel (PRODUÇÃO)
+URL: https://tom-certov2-production.up.railway.app/api/admin
+- **Usuário:** `Admin01`
+- **Senha:** `adminfernando`
+- (Legacy backup) X-Admin-Key: `tomcerto-admin-2026`
 
-## Painel Admin (HTML servido pelo FastAPI)
-- **URL:** `https://tom-certo-v2.preview.emergentagent.com/api/admin-ui`
-- **URL alternativa:** `/api/admin`
-- **Chave Admin:** `tomcerto-admin-2026` (env var `ADMIN_KEY` no backend)
+## 🎫 Tokens de teste no MongoDB Atlas
+- `TESTE` (Fernando 2 — sem expiração — 3 devices)
+- `TEST-DEV2026` (Dev/Tester — sem expiração — 10 devices)
 
-## API base
-- **Backend:** `https://tom-certo-v2.preview.emergentagent.com` (prefixo `/api`)
-- **Admin auth header:** `X-Admin-Key: tomcerto-admin-2026`
+## 🔑 EAS / Expo
+- EXPO_TOKEN: `BgyiRbQ57L3VE6_vfUULhB8NkycJCjja_f9t7YeA`
+- Project: `fernandosliborio/tom-certo-v2`
+- Channel ativo: `production`
+- Runtime version: `2.0.0`
+
+## ☁️ MongoDB Atlas
+- Username: `tomcerto`
+- Password: `JErN86dGd7EwSrR5`
+- Database: `tom_certo_db`
+
+## 🚀 Railway
+- Service: `tom-certov2`
+- URL: https://tom-certov2-production.up.railway.app
+- Build: Dockerfile

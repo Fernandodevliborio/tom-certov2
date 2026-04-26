@@ -234,10 +234,14 @@
     <h2>Tom Certo · Admin</h2>
     <p>Painel de gerenciamento de tokens</p>
     <div class="form-row" style="text-align: left;">
-      <label>CHAVE DE ACESSO</label>
-      <input type="password" id="admin-key" placeholder="Digite sua chave admin" autocomplete="current-password" />
+      <label>USUÁRIO</label>
+      <input type="text" id="admin-user" placeholder="Digite seu usuário" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" />
     </div>
-    <button class="btn btn-primary" id="login-btn" style="width: 100%; margin-top: 8px;">Entrar</button>
+    <div class="form-row" style="text-align: left; margin-top: 10px;">
+      <label>SENHA</label>
+      <input type="password" id="admin-pass" placeholder="Digite sua senha" autocomplete="current-password" />
+    </div>
+    <button class="btn btn-primary" id="login-btn" style="width: 100%; margin-top: 14px;">Entrar</button>
     <div id="login-error" style="color: var(--red); font-size: 12px; margin-top: 12px; display: none;"></div>
   </div>
 </div>
@@ -374,7 +378,8 @@
 
 <script>
 const BASE = '/api';
-let ADMIN_KEY = '';
+let ADMIN_TOKEN = '';   // JWT do login
+let ADMIN_USER = '';    // username do admin logado
 let TOKENS = [];
 
 const $ = (id) => document.getElementById(id);
@@ -387,7 +392,8 @@ const showToast = (msg, type = '') => {
 };
 
 async function api(path, opts = {}) {
-  const headers = Object.assign({ 'X-Admin-Key': ADMIN_KEY }, opts.headers || {});
+  const headers = Object.assign({}, opts.headers || {});
+  if (ADMIN_TOKEN) headers['Authorization'] = 'Bearer ' + ADMIN_TOKEN;
   if (opts.body && typeof opts.body !== 'string') {
     headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(opts.body);
@@ -396,6 +402,10 @@ async function api(path, opts = {}) {
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json() : await res.text();
   if (!res.ok) {
+    // Sessão expirada → força logout
+    if (res.status === 401 && ADMIN_TOKEN) {
+      doLogout(true);
+    }
     const detail = (data && (data.detail || data.message)) || res.statusText || 'Erro';
     throw new Error(detail);
   }
@@ -404,48 +414,86 @@ async function api(path, opts = {}) {
 
 // ─── Login ────────────────────────────────────────────────────────────
 async function doLogin() {
-  const key = $('admin-key').value.trim();
-  if (!key) { $('login-error').textContent = 'Informe a chave admin.'; $('login-error').style.display = 'block'; return; }
-  ADMIN_KEY = key;
+  const username = $('admin-user').value.trim();
+  const password = $('admin-pass').value;
+  if (!username || !password) {
+    $('login-error').textContent = 'Informe usuário e senha.';
+    $('login-error').style.display = 'block';
+    return;
+  }
   $('login-error').style.display = 'none';
+  $('login-btn').disabled = true;
+  $('login-btn').textContent = 'Entrando...';
   try {
-    await api('/admin/stats');
-    localStorage.setItem('tc_admin_key', key);
+    const res = await fetch(BASE + '/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Falha no login');
+    ADMIN_TOKEN = data.token;
+    ADMIN_USER = data.username;
+    localStorage.setItem('tc_admin_jwt', ADMIN_TOKEN);
+    localStorage.setItem('tc_admin_user', ADMIN_USER);
+    // limpa chaves antigas (legacy)
+    localStorage.removeItem('tc_admin_key');
+    $('admin-pass').value = '';
     $('login-view').style.display = 'none';
     $('app-view').style.display = 'block';
     await refresh();
   } catch (e) {
-    $('login-error').textContent = 'Chave inválida ou erro de conexão: ' + e.message;
+    $('login-error').textContent = e.message || 'Usuário ou senha inválidos.';
     $('login-error').style.display = 'block';
+  } finally {
+    $('login-btn').disabled = false;
+    $('login-btn').textContent = 'Entrar';
   }
 }
 $('login-btn').addEventListener('click', doLogin);
-$('admin-key').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+$('admin-user').addEventListener('keydown', e => { if (e.key === 'Enter') $('admin-pass').focus(); });
+$('admin-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-// Auto-login
+// Auto-login com JWT salvo
 window.addEventListener('DOMContentLoaded', async () => {
-  const saved = localStorage.getItem('tc_admin_key');
+  const saved = localStorage.getItem('tc_admin_jwt');
+  const savedUser = localStorage.getItem('tc_admin_user');
   if (saved) {
-    $('admin-key').value = saved;
-    ADMIN_KEY = saved;
+    ADMIN_TOKEN = saved;
+    ADMIN_USER = savedUser || '';
     try {
-      await api('/admin/stats');
+      await api('/admin/me');
       $('login-view').style.display = 'none';
       $('app-view').style.display = 'block';
       await refresh();
     } catch {
-      // chave salva inválida — mantém na tela de login
+      // JWT expirado/inválido — limpa e mostra login
+      ADMIN_TOKEN = '';
+      ADMIN_USER = '';
+      localStorage.removeItem('tc_admin_jwt');
+      localStorage.removeItem('tc_admin_user');
     }
   }
 });
 
-$('logout-btn').addEventListener('click', () => {
+function doLogout(silent) {
+  localStorage.removeItem('tc_admin_jwt');
+  localStorage.removeItem('tc_admin_user');
   localStorage.removeItem('tc_admin_key');
-  ADMIN_KEY = '';
+  ADMIN_TOKEN = '';
+  ADMIN_USER = '';
   $('app-view').style.display = 'none';
   $('login-view').style.display = 'flex';
-  $('admin-key').value = '';
-});
+  $('admin-user').value = '';
+  $('admin-pass').value = '';
+  if (silent) {
+    $('login-error').textContent = 'Sessão expirada. Faça login novamente.';
+    $('login-error').style.display = 'block';
+  } else {
+    $('login-error').style.display = 'none';
+  }
+}
+$('logout-btn').addEventListener('click', () => doLogout(false));
 
 // ─── Refresh ──────────────────────────────────────────────────────────
 async function refresh() {
@@ -705,7 +753,7 @@ $('e-save').addEventListener('click', async () => {
 
 // Auto-refresh a cada 30s pra detectar mudanças (devices conectando, etc)
 setInterval(() => {
-  if (ADMIN_KEY && $('app-view').style.display !== 'none') {
+  if (ADMIN_TOKEN && $('app-view').style.display !== 'none') {
     refresh().catch(() => {});
   }
 }, 30000);

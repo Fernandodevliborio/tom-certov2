@@ -66,13 +66,48 @@ class TokenUpdate(BaseModel):
     device_limit: Optional[int] = None
     notes: Optional[str] = None
 
-# ─── Admin Key ──────────────────────────────────────────────────────────
-ADMIN_KEY = os.environ.get('ADMIN_KEY', 'tomcerto-admin-2026')
+# ─── Admin Auth (Username + Password + JWT) ─────────────────────────────
+ADMIN_KEY = os.environ.get('ADMIN_KEY', 'tomcerto-admin-2026')  # legacy fallback
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'Admin01')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'adminfernando')
+ADMIN_JWT_DURATION_HOURS = 24 * 7  # 7 dias logado
+
+def create_admin_jwt(username: str) -> str:
+    payload = {
+        'role': 'admin',
+        'username': username,
+        'iat': datetime.now(timezone.utc),
+        'exp': datetime.now(timezone.utc) + timedelta(hours=ADMIN_JWT_DURATION_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def _decode_admin_jwt(token: str) -> Optional[dict]:
+    try:
+        data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if data.get('role') == 'admin':
+            return data
+    except Exception:
+        return None
+    return None
 
 def verify_admin(request: Request):
+    """Aceita 3 modos de autenticação (em ordem de preferência):
+    1) Authorization: Bearer <jwt>     (login com usuário/senha — recomendado)
+    2) X-Admin-Key: <key>              (legacy, mantido para compatibilidade)
+    3) ?admin_key= na querystring      (legacy)
+    """
+    # 1) JWT Bearer
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        token = auth[7:].strip()
+        data = _decode_admin_jwt(token)
+        if data:
+            return
+    # 2) X-Admin-Key
     key = request.headers.get('X-Admin-Key') or request.query_params.get('admin_key')
-    if key != ADMIN_KEY:
-        raise HTTPException(401, "Admin key inválida")
+    if key and key == ADMIN_KEY:
+        return
+    raise HTTPException(401, "Não autenticado")
 
 # ─── Helpers JWT ────────────────────────────────────────────────────────
 def create_session_token(token_id: str, device_id: str, customer_name: Optional[str] = None,
@@ -494,6 +529,36 @@ async def seed_test_token():
     }
     result = await db.tokens.insert_one(doc)
     return JSONResponse({"ok": True, "already_exists": False, "code": code, "token_id": str(result.inserted_id)})
+
+# ─── Admin Login ────────────────────────────────────────────────────────
+class AdminLogin(BaseModel):
+    username: str
+    password: str
+
+@api_router.post("/admin/login")
+async def admin_login(body: AdminLogin):
+    if body.username != ADMIN_USERNAME or body.password != ADMIN_PASSWORD:
+        # Pequeno delay para mitigar timing attack
+        import asyncio as _asyncio
+        await _asyncio.sleep(0.4)
+        raise HTTPException(401, "Usuário ou senha inválidos")
+    token = create_admin_jwt(body.username)
+    return {
+        "ok": True,
+        "token": token,
+        "username": body.username,
+        "expires_in_hours": ADMIN_JWT_DURATION_HOURS,
+    }
+
+@api_router.get("/admin/me")
+async def admin_me(request: Request, _=Depends(verify_admin)):
+    """Retorna info do admin logado (útil para frontend validar JWT)."""
+    auth = request.headers.get('Authorization', '')
+    if auth.startswith('Bearer '):
+        data = _decode_admin_jwt(auth[7:].strip())
+        if data:
+            return {"username": data.get('username'), "role": data.get('role')}
+    return {"username": "legacy", "role": "admin"}
 
 # ─── Health ─────────────────────────────────────────────────────────────
 @api_router.get("/health")
