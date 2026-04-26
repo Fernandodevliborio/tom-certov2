@@ -307,6 +307,11 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     tempBufferRef.current.clear();
     setAgreementMul(1.0);
     
+    // CRÍTICO: Reset do estado ML para iniciar novo loop de análise
+    setMlState('idle');
+    setMlResult(null);
+    setMlProgress(0);
+    
     // Reset PCP em background — NÃO aguarda para não bloquear o start do microfone
     resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
     
@@ -345,9 +350,24 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const ML_MIN_CLIP_SAMPLES = 16000 * 1.0; // 1.0s mínimo (era 1.5s)
 
   const runMLAnalysis = useCallback(async () => {
-    if (!isRunning) return;
-    if (!engine.captureClip) return;
-    if (mlState === 'listening' || mlState === 'analyzing') return;
+    // eslint-disable-next-line no-console
+    console.log(`[ML] runMLAnalysis chamado. isRunning=${isRunning} mlState=${mlState} hasCaptureClip=${!!engine.captureClip}`);
+    
+    if (!isRunning) {
+      // eslint-disable-next-line no-console
+      console.log('[ML] Abortando: não está rodando');
+      return;
+    }
+    if (!engine.captureClip) {
+      // eslint-disable-next-line no-console
+      console.warn('[ML] ERRO CRÍTICO: engine.captureClip não existe! Plataforma web?');
+      return;
+    }
+    if (mlState === 'listening' || mlState === 'analyzing') {
+      // eslint-disable-next-line no-console
+      console.log(`[ML] Abortando: já em ${mlState}`);
+      return;
+    }
 
     try {
       setMlState('listening');
@@ -387,6 +407,9 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       // eslint-disable-next-line no-console
       console.log('[ML] Enviando pro backend...');
       const result = await analyzeKeyML(clip, undefined, deviceIdRef.current ?? undefined);
+      // eslint-disable-next-line no-console
+      console.log('[ML] Resposta do backend:', JSON.stringify(result).slice(0, 200));
+      
       if (result.success) {
         // eslint-disable-next-line no-console
         console.log(`[ML] ✓ ${result.key_name} conf=${(result.confidence ?? 0).toFixed(2)} flags=${result.flags?.join(',') ?? ''}`);
@@ -455,8 +478,19 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   // Meta: resultado em menos de 15 segundos com áudio claro
   // ═══════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!isRunning) return;
-    if (mlState === 'listening' || mlState === 'analyzing') return;
+    // eslint-disable-next-line no-console
+    console.log(`[ML-LOOP] Effect disparado: isRunning=${isRunning} mlState=${mlState}`);
+    
+    if (!isRunning) {
+      // eslint-disable-next-line no-console
+      console.log('[ML-LOOP] Não rodando, ignorando');
+      return;
+    }
+    if (mlState === 'listening' || mlState === 'analyzing') {
+      // eslint-disable-next-line no-console
+      console.log(`[ML-LOOP] Já em ${mlState}, aguardando`);
+      return;
+    }
 
     // Delays TURBO para detecção rápida
     let delay: number;
@@ -474,7 +508,11 @@ export function useKeyDetection(): UseKeyDetectionReturn {
         delay = 500;
     }
 
+    // eslint-disable-next-line no-console
+    console.log(`[ML-LOOP] Agendando runMLAnalysis em ${delay}ms`);
     const timer = setTimeout(() => {
+      // eslint-disable-next-line no-console
+      console.log('[ML-LOOP] Timer disparou, chamando runMLAnalysis');
       runMLAnalysisRef.current?.();
     }, delay);
     return () => clearTimeout(timer);
