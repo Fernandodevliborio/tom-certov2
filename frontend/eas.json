@@ -20,7 +20,7 @@
       },
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://tom-certo-v2.preview.emergentagent.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://tom-certov2-production.up.railway.app"
       }
     },
     "production": {
@@ -29,7 +29,7 @@
       },
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://tom-certo-v2.preview.emergentagent.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://tom-certov2-production.up.railway.app"
       }
     },
     "production-apk": {
@@ -38,7 +38,7 @@
       },
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://tom-certo-v2.preview.emergentagent.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://tom-certov2-production.up.railway.app"
       }
     }
   },
