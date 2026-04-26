@@ -344,15 +344,16 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       }, 100);
 
       // eslint-disable-next-line no-console
-      console.log('[ML] Iniciando captura de 10s...');
+      console.log('[ML] Iniciando captura...');
       const clip = await engine.captureClip(ML_CAPTURE_DURATION_MS);
       clearInterval(progTimer);
       setMlProgress(1);
 
       if (!clip) {
+        // Ring buffer ainda enchendo — aguarda antes de tentar novamente
         // eslint-disable-next-line no-console
-        console.warn('[ML] captureClip retornou NULL — engine não acumulou samples');
-        setMlState('idle');
+        console.log('[ML] Aguardando ring buffer encher...');
+        setMlState('waiting');
         return;
       }
       const durS = clip.samples.length / (clip.sampleRate || 16000);
@@ -360,9 +361,10 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       console.log(`[ML] Clip capturado: ${clip.samples.length} samples (${durS.toFixed(1)}s)`);
 
       if (clip.samples.length < ML_MIN_CLIP_SAMPLES) {
+        // Clip ainda curto — aguarda mais áudio
         // eslint-disable-next-line no-console
-        console.warn(`[ML] Clip muito curto (${durS.toFixed(1)}s < 2s) — descartado`);
-        setMlState('idle');
+        console.log(`[ML] Clip curto (${durS.toFixed(1)}s) — aguardando mais áudio`);
+        setMlState('waiting');
         return;
       }
 
@@ -378,12 +380,12 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       } else {
         // eslint-disable-next-line no-console
         console.warn(`[ML] ✗ Backend rejeitou: ${result.error} — ${result.message}`);
-        setMlState('idle');
+        setMlState('waiting');
       }
     } catch (e: any) {
       // eslint-disable-next-line no-console
       console.warn('[ML] Exceção na análise:', e?.message || e);
-      setMlState('idle');
+      setMlState('waiting');
     }
   }, [isRunning, engine, mlState]);
 
@@ -430,21 +432,35 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   // Sem setInterval fixo: elimina o gap desnecessário entre análises
   //
   // Comportamento por estado:
-  //   'idle'      → áudio insuficiente ou falha → tenta de novo em 300ms
-  //   'done'      → backend respondeu           → inicia nova análise em 0ms
-  //   'listening' → capturando clip             → aguarda (sem ação)
-  //   'analyzing' → backend processando         → aguarda (sem ação)
+  //   'idle'      → início da sessão           → tenta após 500ms (ring enchendo)
+  //   'waiting'   → áudio insuficiente         → tenta novamente em 1.5s
+  //   'done'      → backend respondeu          → inicia nova análise em 100ms
+  //   'listening' → capturando clip            → aguarda (sem ação)
+  //   'analyzing' → backend processando        → aguarda (sem ação)
   //
-  // Isso garante throughput máximo: assim que o backend responde,
-  // já enviamos o próximo clip sem nenhum gap de espera.
+  // Isso garante throughput máximo sem criar loops infinitos quando
+  // o ring buffer ainda está enchendo.
   // ═══════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!isRunning) return;
     if (mlState === 'listening' || mlState === 'analyzing') return;
 
-    // 'idle'  → mic pode estar aquecendo, espera 300ms antes de tentar
-    // 'done'  → backend respondeu, dispara nova análise imediatamente (0ms)
-    const delay = mlState === 'idle' ? 300 : 0;
+    // Delays calibrados para evitar loop infinito durante warmup
+    let delay: number;
+    switch (mlState) {
+      case 'idle':
+        delay = 500;    // início — dá tempo pro ring buffer começar a encher
+        break;
+      case 'waiting':
+        delay = 1500;   // áudio insuficiente — espera mais antes de tentar
+        break;
+      case 'done':
+        delay = 100;    // sucesso — próxima análise rápida
+        break;
+      default:
+        delay = 1000;
+    }
+
     const timer = setTimeout(() => {
       runMLAnalysisRef.current?.();
     }, delay);
@@ -517,7 +533,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     if (mlState === 'analyzing') return 'analyzing';
     if (mlState === 'listening') return 'listening';
     if (mlState === 'waiting' || mlState === 'idle') return 'warming';
-    return 'listening';
+    return 'warming';
   })();
 
   return {

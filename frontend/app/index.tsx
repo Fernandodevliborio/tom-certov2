@@ -569,16 +569,32 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const isProvisional = displayKey !== null && confirmedKey === null;
 
   // Status text amigável (mostrado no card de análise quando sem displayKey)
-  const statusInfo = useMemo(() => {
-    switch (mlStage) {
-      case 'listening':
-        return { icon: 'mic', label: 'OUVINDO', sub: 'Cante ou toque — o resultado aparece logo…' };
-      case 'analyzing':
-        return { icon: 'pulse', label: 'ANALISANDO', sub: 'IA detectando o tom da sua música…' };
-      default:
-        return { icon: 'mic', label: 'OUVINDO', sub: 'Cante ou toque — o resultado aparece logo…' };
+  // Mensagens dinâmicas que rotacionam a cada 2.5s para dar sensação de progresso
+  const DYNAMIC_MESSAGES = [
+    { icon: 'mic', label: 'OUVINDO', sub: 'Cante ou toque — estamos captando o áudio…' },
+    { icon: 'musical-notes', label: 'CAPTANDO', sub: 'Continue cantando ou tocando…' },
+    { icon: 'ear', label: 'ANALISANDO', sub: 'Processando as notas que você tocou…' },
+    { icon: 'pulse', label: 'DETECTANDO', sub: 'Identificando a tonalidade da música…' },
+  ];
+
+  const [dynamicMsgIndex, setDynamicMsgIndex] = useState(0);
+  useEffect(() => {
+    if (!isRunning || mlStage === 'confirmed') {
+      setDynamicMsgIndex(0);
+      return;
     }
-  }, [mlStage]);
+    const interval = setInterval(() => {
+      setDynamicMsgIndex(prev => (prev + 1) % DYNAMIC_MESSAGES.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [isRunning, mlStage]);
+
+  const statusInfo = useMemo(() => {
+    if (mlStage === 'confirmed') {
+      return { icon: 'checkmark-circle', label: 'DETECTADO', sub: 'Tom identificado!' };
+    }
+    return DYNAMIC_MESSAGES[dynamicMsgIndex];
+  }, [mlStage, dynamicMsgIndex]);
 
   // (friendlyHint removido — agora a UI usa statusInfo da máquina de estados)
 
