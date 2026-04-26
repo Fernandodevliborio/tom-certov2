@@ -315,8 +315,9 @@ export function usePitchEngine(): PitchEngineHandle {
       captureRingFilledRef.current,
       Math.round((durationMs / 1000) * SAMPLE_RATE)
     );
-    if (wantSamples < SAMPLE_RATE * 2) {
-      // menos de 2s disponíveis ainda — ring ainda enchendo
+    // TURBO: reduzido para 1s mínimo (era 2s) para detecção mais rápida
+    if (wantSamples < SAMPLE_RATE * 1) {
+      // menos de 1s disponíveis ainda — ring ainda enchendo
       return null;
     }
     const cap = captureRingRef.current;
