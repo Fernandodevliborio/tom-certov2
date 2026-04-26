@@ -278,8 +278,16 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     if (engine.setSoftInfoHandler) engine.setSoftInfoHandler(setSoftInfo);
   }, [engine]);
 
+  // Flag para evitar cliques duplos durante inicialização
+  const isStartingRef = useRef(false);
+
   const start = useCallback(async (): Promise<boolean> => {
-    if (isRunning) return true;
+    // Evita duplo clique - se já está rodando ou iniciando, retorna
+    if (isRunning || isStartingRef.current) return true;
+    
+    // Marca que está iniciando IMEDIATAMENTE (antes de qualquer await)
+    isStartingRef.current = true;
+    
     setErrorMessage(null);
     setErrorReason(null);
     setSoftInfo(null);
@@ -298,11 +306,18 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     phraseStartTimeRef.current = 0;
     tempBufferRef.current.clear();
     setAgreementMul(1.0);
+    
     // Reset PCP em background — NÃO aguarda para não bloquear o start do microfone
     resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
-    const ok = await engine.start(onPitch, onError);
-    if (ok) setIsRunning(true);
-    return ok;
+    
+    try {
+      const ok = await engine.start(onPitch, onError);
+      if (ok) setIsRunning(true);
+      return ok;
+    } finally {
+      // Libera o flag após conclusão (sucesso ou erro)
+      isStartingRef.current = false;
+    }
   }, [engine, isRunning, onError, onPitch]);
 
   const stop = useCallback(() => {
@@ -326,8 +341,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     return () => { cancelled = true; };
   }, []);
 
-  const ML_CAPTURE_DURATION_MS = 4000;     // 4s — janela de captura (progride naturalmente)
-  const ML_MIN_CLIP_SAMPLES = 16000 * 1.5; // 1.5s mínimo para primeira análise
+  const ML_CAPTURE_DURATION_MS = 2500;     // 2.5s — captura mais curta para resultado rápido
+  const ML_MIN_CLIP_SAMPLES = 16000 * 1.0; // 1.0s mínimo (era 1.5s)
 
   const runMLAnalysis = useCallback(async () => {
     if (!isRunning) return;
@@ -428,37 +443,35 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   useEffect(() => { runMLAnalysisRef.current = runMLAnalysis; }, [runMLAnalysis]);
 
   // ═══════════════════════════════════════════════════════════════
-  // LOOP REATIVO — inicia nova análise imediatamente após a anterior terminar
-  // Sem setInterval fixo: elimina o gap desnecessário entre análises
+  // LOOP REATIVO TURBO — análises mais frequentes para resultado rápido
   //
   // Comportamento por estado:
-  //   'idle'      → início da sessão           → tenta após 500ms (ring enchendo)
-  //   'waiting'   → áudio insuficiente         → tenta novamente em 1.5s
-  //   'done'      → backend respondeu          → inicia nova análise em 100ms
+  //   'idle'      → início da sessão           → tenta após 300ms
+  //   'waiting'   → áudio insuficiente         → tenta novamente em 500ms
+  //   'done'      → backend respondeu          → próxima análise em 50ms
   //   'listening' → capturando clip            → aguarda (sem ação)
   //   'analyzing' → backend processando        → aguarda (sem ação)
   //
-  // Isso garante throughput máximo sem criar loops infinitos quando
-  // o ring buffer ainda está enchendo.
+  // Meta: resultado em menos de 15 segundos com áudio claro
   // ═══════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!isRunning) return;
     if (mlState === 'listening' || mlState === 'analyzing') return;
 
-    // Delays calibrados para evitar loop infinito durante warmup
+    // Delays TURBO para detecção rápida
     let delay: number;
     switch (mlState) {
       case 'idle':
-        delay = 500;    // início — dá tempo pro ring buffer começar a encher
+        delay = 300;    // início — começa rápido
         break;
       case 'waiting':
-        delay = 1500;   // áudio insuficiente — espera mais antes de tentar
+        delay = 500;    // áudio insuficiente — tenta logo
         break;
       case 'done':
-        delay = 100;    // sucesso — próxima análise rápida
+        delay = 50;     // sucesso — próxima análise imediata
         break;
       default:
-        delay = 1000;
+        delay = 500;
     }
 
     const timer = setTimeout(() => {
