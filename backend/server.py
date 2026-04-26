@@ -567,6 +567,7 @@ async def health():
 
 # ─── Admin UI (HTML Panel) ──────────────────────────────────────────────
 ADMIN_HTML_PATH = ROOT_DIR / "admin_ui.html"
+LANDING_HTML_PATH = ROOT_DIR / "landing.html"
 LOGO_PATH = ROOT_DIR.parent / "frontend" / "assets" / "images" / "logo.png"
 
 @api_router.get("/admin-logo")
@@ -593,6 +594,21 @@ async def admin_redirect_to_ui():
 
 # ─── Include router ─────────────────────────────────────────────────────
 app.include_router(api_router)
+
+# ─── Landing page — serve no root "/" e em "/landing" ───────────────────
+@app.get("/", response_class=HTMLResponse)
+async def landing_root():
+    """Página de vendas do Tom Certo (root)."""
+    if not LANDING_HTML_PATH.exists():
+        return HTMLResponse("<h1>landing.html não encontrado</h1>", status_code=500)
+    return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
+
+@app.get("/landing", response_class=HTMLResponse)
+async def landing_page():
+    """Página de vendas do Tom Certo."""
+    if not LANDING_HTML_PATH.exists():
+        return HTMLResponse("<h1>landing.html não encontrado</h1>", status_code=500)
+    return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
