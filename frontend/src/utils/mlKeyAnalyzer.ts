@@ -89,7 +89,7 @@ export interface MLAnalysisResult {
 
 export async function analyzeKeyML(
   clip: CapturedClip,
-  timeoutMs: number = 15000,
+  timeoutMs: number = 30000,
   deviceId?: string,
 ): Promise<MLAnalysisResult> {
   const wav = float32ToWav(clip.samples, clip.sampleRate);

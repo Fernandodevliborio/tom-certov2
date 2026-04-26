@@ -28,6 +28,22 @@ const C = {
 export default function HomeScreen() {
   const det = useKeyDetection();
   const screen: 'initial' | 'active' = det.isRunning ? 'active' : 'initial';
+
+  // Warmup silencioso: acorda o servidor Railway quando o usuário chega na tela
+  // Reduz o cold-start delay quando ele pressionar o botão de detectar
+  useEffect(() => {
+    const base = (process.env.EXPO_PUBLIC_BACKEND_URL as string) ?? '';
+    if (!base) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    fetch(`${base}/api/analyze-key/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+    }).catch(() => {}).finally(() => clearTimeout(t));
+    return () => { ctrl.abort(); clearTimeout(t); };
+  }, []);
+
   return (
     <SafeAreaView testID="home-screen" style={ss.safe}>
       {screen === 'initial'
@@ -552,15 +568,15 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   // isProvisional: tem chave para exibir mas ainda não travou no lock
   const isProvisional = displayKey !== null && confirmedKey === null;
 
-  // Status text técnico (mostrado no card de análise quando sem displayKey)
+  // Status text amigável (mostrado no card de análise quando sem displayKey)
   const statusInfo = useMemo(() => {
     switch (mlStage) {
       case 'listening':
-        return { icon: 'mic', label: 'OUVINDO', sub: 'Capturando áudio — primeira análise em ~3s…' };
+        return { icon: 'mic', label: 'OUVINDO', sub: 'Cante ou toque — o resultado aparece logo…' };
       case 'analyzing':
-        return { icon: 'pulse', label: 'PROCESSANDO', sub: 'Analisando padrão tonal (CREPE + KS)…' };
+        return { icon: 'pulse', label: 'ANALISANDO', sub: 'IA detectando o tom da sua música…' };
       default:
-        return { icon: 'mic', label: 'OUVINDO', sub: 'Capturando áudio — primeira análise em ~3s…' };
+        return { icon: 'mic', label: 'OUVINDO', sub: 'Cante ou toque — o resultado aparece logo…' };
     }
   }, [mlStage]);
 
@@ -766,8 +782,8 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               <Text style={ss.analyzingTitle}>{statusInfo.sub}</Text>
               <Text style={ss.analyzingSub}>
                 {analysisCount > 0
-                  ? `${analysisCount} análise${analysisCount !== 1 ? 's' : ''} — aguardando confiança mínima…`
-                  : 'Cante 1.5s+ para obter o primeiro resultado.'}
+                  ? 'Ouvindo mais… refinando o resultado.'
+                  : 'Cante ou toque por alguns segundos.'}
               </Text>
             </View>
           ) : null}

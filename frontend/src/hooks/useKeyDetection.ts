@@ -326,10 +326,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     return () => { cancelled = true; };
   }, []);
 
-  const ML_CAPTURE_DURATION_MS = 4000;     // 4s — janela de captura (era 5s)
-  const ML_START_DELAY_MS = 500;           // 0.5s warmup — mic precisa de tempo (era 1s)
-  const ML_REANALYZE_INTERVAL_MS = 2500;   // re-análise a cada 2.5s (era 4s)
-  const ML_MIN_CLIP_SAMPLES = 16000 * 1.5; // 1.5s mínimo (era 2s)
+  const ML_CAPTURE_DURATION_MS = 4000;     // 4s — janela de captura (progride naturalmente)
+  const ML_MIN_CLIP_SAMPLES = 16000 * 1.5; // 1.5s mínimo para primeira análise
 
   const runMLAnalysis = useCallback(async () => {
     if (!isRunning) return;
@@ -371,7 +369,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       setMlState('analyzing');
       // eslint-disable-next-line no-console
       console.log('[ML] Enviando pro backend...');
-      const result = await analyzeKeyML(clip, 30000, deviceIdRef.current ?? undefined);
+      const result = await analyzeKeyML(clip, undefined, deviceIdRef.current ?? undefined);
       if (result.success) {
         // eslint-disable-next-line no-console
         console.log(`[ML] ✓ ${result.key_name} conf=${(result.confidence ?? 0).toFixed(2)} flags=${result.flags?.join(',') ?? ''}`);
@@ -423,30 +421,35 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
   }, []);
 
-  // ── Ref estável para runMLAnalysis (evita reset do interval em mudanças de state)
+  // ── Ref estável para runMLAnalysis (evita capturas stale em closures)
   const runMLAnalysisRef = useRef(runMLAnalysis);
   useEffect(() => { runMLAnalysisRef.current = runMLAnalysis; }, [runMLAnalysis]);
 
-  // Único timer ESTÁVEL — não depende de mlState, tenta a cada 6s independente
+  // ═══════════════════════════════════════════════════════════════
+  // LOOP REATIVO — inicia nova análise imediatamente após a anterior terminar
+  // Sem setInterval fixo: elimina o gap desnecessário entre análises
+  //
+  // Comportamento por estado:
+  //   'idle'      → áudio insuficiente ou falha → tenta de novo em 300ms
+  //   'done'      → backend respondeu           → inicia nova análise em 0ms
+  //   'listening' → capturando clip             → aguarda (sem ação)
+  //   'analyzing' → backend processando         → aguarda (sem ação)
+  //
+  // Isso garante throughput máximo: assim que o backend responde,
+  // já enviamos o próximo clip sem nenhum gap de espera.
+  // ═══════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!isRunning) return;
-    let cancelled = false;
+    if (mlState === 'listening' || mlState === 'analyzing') return;
 
-    const tryRun = async () => {
-      if (cancelled) return;
-      const fn = runMLAnalysisRef.current;
-      if (fn) await fn();
-    };
-
-    const initial = setTimeout(tryRun, ML_START_DELAY_MS);
-    const interval = setInterval(tryRun, ML_REANALYZE_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(initial);
-      clearInterval(interval);
-    };
-  }, [isRunning]); // SÓ isRunning — não reseta com state
+    // 'idle'  → mic pode estar aquecendo, espera 300ms antes de tentar
+    // 'done'  → backend respondeu, dispara nova análise imediatamente (0ms)
+    const delay = mlState === 'idle' ? 300 : 0;
+    const timer = setTimeout(() => {
+      runMLAnalysisRef.current?.();
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [isRunning, mlState]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
