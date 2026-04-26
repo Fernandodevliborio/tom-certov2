@@ -224,18 +224,16 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════
-  // HISTERESE COM JANELA DE 3 ANÁLISES v5 — rápido E honesto
+  // ESTRATÉGIA "TOM SEGURO" v6 — só mostra tom quando há ALTA confiança
   // ═══════════════════════════════════════════════════════════════
-  // - Mantém uma janela com as últimas 3 análises de qualidade (conf >= 0.50)
-  // - Trava como "Tom Detectado" se ALGUM tom aparecer ≥ 2 vezes na janela
-  //   E a conf média desse tom ≥ 0.55
-  // - Permite 1 outlier entre as boas (não exige estritamente consecutivas)
-  // - Análises com conf < 0.50 não entram na janela (ruído ignorado)
-  // - Pra trocar tom travado: novo tom precisa dominar janela + margem
-  const MIN_DISPLAY_CONF = 0.25;
-  const MIN_CONFIRM_CONF = 0.55;
-  const MIN_INDIVIDUAL_CONF = 0.50;
-  const LOCK_REPLACE_MARGIN = 0.08;
+  // - NUNCA exibe tom provisório (eliminado o flicker de "Lá menor → Sol menor")
+  // - Caminho RÁPIDO: 1 análise muito confiante (conf ≥ FAST_CONFIRM_CONF) → trava
+  // - Caminho NORMAL: 2 de 3 análises mesmo tom + conf média ≥ MIN_CONFIRM_CONF
+  // - Uma vez TRAVADO, o tom NÃO muda mais até o usuário parar/reiniciar
+  // - Antes de travar: só status ("Ouvindo...", "Analisando...", "Cante mais...")
+  const MIN_INDIVIDUAL_CONF = 0.60; // entrada na janela
+  const MIN_CONFIRM_CONF = 0.70;    // confirma com 2 de 3
+  const FAST_CONFIRM_CONF = 0.80;   // confirma com 1 análise super confiante
   const LOCK_WINDOW_SIZE = 3;
 
   const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
@@ -251,7 +249,20 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     const quality = mlResult.quality as 'major' | 'minor';
     const keyName = mlResult.key_name || '';
 
-    // Só entra na janela se passou do mínimo
+    // 🔒 Já travado? Não muda mais até reset (regra do produto).
+    if (lockedKeyRef.current) return;
+
+    // ⚡ CAMINHO RÁPIDO: 1 análise super confiante → trava direto (~4s)
+    if (conf >= FAST_CONFIRM_CONF) {
+      lockedKeyRef.current = {
+        tonic, quality, key_name: keyName,
+        confidence: conf, at: Date.now(),
+      };
+      setLockedKeyTick(t => t + 1);
+      return;
+    }
+
+    // 🐢 CAMINHO NORMAL: só entra na janela se passou do mínimo individual
     if (conf < MIN_INDIVIDUAL_CONF) return;
 
     // Adiciona à janela (mantém últimas N)
@@ -281,27 +292,8 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     if (!bestEntry) return;
     const avgConf = bestEntry.sumConf / bestEntry.count;
 
-    // Caminho 1: nada travado ainda
-    if (!lockedKeyRef.current) {
-      if (bestEntry.count >= 2 && avgConf >= MIN_CONFIRM_CONF) {
-        lockedKeyRef.current = {
-          tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
-          confidence: avgConf, at: Date.now(),
-        };
-        setLockedKeyTick(t => t + 1);
-      }
-      return;
-    }
-
-    // Caminho 2: já travado
-    const cur = lockedKeyRef.current;
-    if (cur.tonic === bestEntry.tonic && cur.quality === bestEntry.quality) {
-      cur.confidence = Math.max(cur.confidence, avgConf);
-      cur.at = Date.now();
-      return;
-    }
-    // Tom diferente: troca se novo dominou janela com margem
-    if (bestEntry.count >= 2 && avgConf >= cur.confidence + LOCK_REPLACE_MARGIN && avgConf >= MIN_CONFIRM_CONF) {
+    // Trava se 2 de 3 análises concordam E a média de confiança é alta
+    if (bestEntry.count >= 2 && avgConf >= MIN_CONFIRM_CONF) {
       lockedKeyRef.current = {
         tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
         confidence: avgConf, at: Date.now(),
@@ -319,112 +311,67 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     }
   }, [isRunning]);
 
-  // ── Estabilização do "Tom Provável" — modo estatístico das últimas 3 análises ──
-  // Em vez de mostrar cada resultado bruto (causando flicker), guardamos um
-  // "best guess provisional" que só muda se as evidências recentes forem mais
-  // consistentes que o atual.
-  const recentResultsRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
-  const probableKeyRef = useRef<{ tonic: number; quality: 'major' | 'minor'; confidence: number } | null>(null);
+  // ═══════════════════════════════════════════════════════════════
+  // MÁQUINA DE ESTADOS DE STATUS — só status, nunca tom provisório
+  // ═══════════════════════════════════════════════════════════════
+  // Estados visuais (antes do tom ser exibido):
+  //   - 'idle'        : não está gravando
+  //   - 'listening'   : gravando, sem nenhuma análise ainda
+  //   - 'analyzing'   : tem análises, mas confiança ainda baixa
+  //   - 'needs_more'  : backend sinaliza few_notes/single_phrase
+  //   - 'confirmed'   : tom travado (único caso onde tom é exibido)
+  type Stage = 'idle' | 'listening' | 'analyzing' | 'needs_more' | 'confirmed';
+
+  // Conta análises recebidas na sessão (zera ao parar)
+  const [analysisCount, setAnalysisCount] = useState(0);
+  const [lastAnalysisAt, setLastAnalysisAt] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
-    const conf = mlResult.confidence ?? 0;
-    if (conf < MIN_DISPLAY_CONF) return; // ignora resultados muito fracos
-
-    // Adiciona ao histórico (mantém apenas últimos 3)
-    const tonic = mlResult.tonic;
-    const quality = mlResult.quality as 'major' | 'minor';
-    recentResultsRef.current = [
-      ...recentResultsRef.current.slice(-2),
-      { tonic, quality, confidence: conf },
-    ];
-
-    // Calcula o "modo" — tom mais frequente nas últimas 3 análises
-    const counts = new Map<string, { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' }>();
-    for (const r of recentResultsRef.current) {
-      const key = `${r.tonic}-${r.quality}`;
-      const c = counts.get(key) || { count: 0, sumConf: 0, tonic: r.tonic, quality: r.quality };
-      c.count += 1;
-      c.sumConf += r.confidence;
-      counts.set(key, c);
+    if (mlResult?.success) {
+      setLastAnalysisAt(Date.now());
+      setAnalysisCount(c => c + 1);
     }
-    // Vencedor: maior contagem; em empate, maior confidence média
-    let winner: { tonic: number; quality: 'major' | 'minor'; confidence: number } | null = null;
-    let bestScore = -1;
-    for (const c of counts.values()) {
-      const score = c.count * 1000 + (c.sumConf / c.count);
-      if (score > bestScore) {
-        bestScore = score;
-        winner = { tonic: c.tonic, quality: c.quality, confidence: c.sumConf / c.count };
-      }
-    }
+  }, [mlResult]);
 
-    // Só atualiza o probable se: ainda não tem nenhum, OU é o mesmo, OU
-    // o novo vencedor tem mais ocorrências/confidence que o atual.
-    if (winner) {
-      const cur = probableKeyRef.current;
-      if (!cur) {
-        probableKeyRef.current = winner;
-      } else if (cur.tonic === winner.tonic && cur.quality === winner.quality) {
-        cur.confidence = winner.confidence;
-      } else {
-        // Tom diferente: só troca se vencedor aparece em >= 2 das últimas 3 análises
-        const winnerKey = `${winner.tonic}-${winner.quality}`;
-        const winnerCount = counts.get(winnerKey)?.count ?? 0;
-        if (winnerCount >= 2) {
-          probableKeyRef.current = winner;
-        }
-      }
-    }
-  }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
-
-  // Reset do histórico quando para de gravar
   useEffect(() => {
     if (!isRunning) {
-      recentResultsRef.current = [];
-      probableKeyRef.current = null;
+      setAnalysisCount(0);
+      setLastAnalysisAt(null);
     }
   }, [isRunning]);
 
-  // ── Estado visível: "confirmed" SÓ se passou pela trava (confirmação dupla) ──
-  const mlStage: 'none' | 'analyzing' | 'probable' | 'confirmed' = useMemo(() => {
+  const mlStage: Stage = useMemo(() => {
     if (lockedKeyRef.current) return 'confirmed';
-    if (probableKeyRef.current) return 'probable';
-    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return 'none';
+    if (!isRunning) return 'idle';
+    // Backend sinaliza poucas notas / frase única → "Cante mais..."
+    const flags = mlResult?.flags || [];
+    if (flags.includes('few_notes') || flags.includes('single_phrase')) return 'needs_more';
+    if (analysisCount === 0) return 'listening';
     return 'analyzing';
-  }, [mlResult?.success, mlResult?.tonic, mlResult?.quality, mlResult?.confidence, lockedKeyTick]);
+  }, [isRunning, analysisCount, mlResult?.flags, lockedKeyTick]);
 
-  const mlKey = useMemo(() => {
-    if (lockedKeyRef.current) {
-      return { root: lockedKeyRef.current.tonic, quality: lockedKeyRef.current.quality };
+  const confirmedKey = lockedKeyRef.current
+    ? { root: lockedKeyRef.current.tonic, quality: lockedKeyRef.current.quality }
+    : null;
+
+  // ⚠️ NUNCA exibir tom provisório — eliminada a fonte do "tom errado intermediário"
+  const displayKey = confirmedKey;
+
+  // Status text amigável (mostrado no card de análise)
+  const statusInfo = useMemo(() => {
+    switch (mlStage) {
+      case 'listening':
+        return { icon: 'mic', label: 'OUVINDO', sub: 'Cante uma melodia ou um trecho da música…' };
+      case 'analyzing':
+        return { icon: 'pulse', label: 'ANALISANDO TOM', sub: 'Procurando o centro tonal com segurança…' };
+      case 'needs_more':
+        return { icon: 'musical-notes', label: 'CANTE MAIS', sub: 'Cante mais alguns segundos para confirmar o tom.' };
+      default:
+        return { icon: 'mic', label: 'OUVINDO', sub: 'Cante uma melodia ou um trecho da música…' };
     }
-    if (probableKeyRef.current) {
-      return { root: probableKeyRef.current.tonic, quality: probableKeyRef.current.quality };
-    }
-    return null;
-  }, [mlStage, lockedKeyTick]);
+  }, [mlStage]);
 
-  // IMPORTANTE: detector LOCAL foi desativado como fallback visual —
-  // ele tende a confirmar com baixa confiança (12%) e criar flip-flop.
-  // A partir daqui, SÓ o ML backend manda no display.
-  const confirmedKey = mlStage === 'confirmed' ? mlKey : null;
-  const provisionalKey = mlStage === 'probable' ? mlKey : null;
-  const displayKey = confirmedKey || provisionalKey;
-
-  // Dica amigável baseada nas flags do backend
-  const friendlyHint = useMemo(() => {
-    if (!mlResult?.success || mlStage === 'confirmed') return null;
-    const flags = mlResult.flags || [];
-    if (flags.includes('ambiguous_third')) return 'Tonalidade ainda ambígua — continue cantando';
-    if (flags.includes('no_third_evidence')) return 'Ainda analisando maior/menor…';
-    if (flags.includes('few_notes')) return 'Cante por mais alguns segundos';
-    if (flags.includes('single_phrase')) return 'Continue cantando para confirmar';
-    if (flags.includes('relative_ambiguous')) return 'Ainda decidindo entre tons próximos';
-    if (flags.includes('no_resolution')) return 'Resolva uma frase na tônica';
-    if (mlStage === 'analyzing') return 'Continue cantando…';
-    if (mlStage === 'probable') return 'Confirmando o tom…';
-    return null;
-  }, [mlResult?.flags, mlStage, mlResult?.success]);
+  // (friendlyHint removido — agora a UI usa statusInfo da máquina de estados)
 
   // Confidence do ML result atual (para a barra visual)
   const confPct = (() => {
@@ -449,16 +396,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   }, [mlResult?.key_name, mlResult?.confidence, mlResult?.recommendation]);
 
   // Indicador de última análise — visível pro usuário ver que sistema está vivo
-  const [lastAnalysisAt, setLastAnalysisAt] = useState<number | null>(null);
-  const [analysisCount, setAnalysisCount] = useState(0);
-
-  useEffect(() => {
-    if (mlResult?.success) {
-      setLastAnalysisAt(Date.now());
-      setAnalysisCount(c => c + 1);
-    }
-  }, [mlResult]);
-
+  // (reutiliza analysisCount/lastAnalysisAt definidos acima na máquina de estados)
   const [tickRefresh, setTickRefresh] = useState(0);
   useEffect(() => {
     if (!isRunning) return;
@@ -478,14 +416,15 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const statusLabel = (() => {
     if (!isRunning) return 'TOQUE PARA COMEÇAR';
     if (mlStage === 'confirmed') return 'TOM IDENTIFICADO';
-    if (mlStage === 'probable') return 'IDENTIFICANDO TONALIDADE…';
-    return 'ANALISANDO TOM…';
+    if (mlStage === 'needs_more') return 'CANTE MAIS UM POUCO…';
+    if (mlStage === 'analyzing') return 'ANALISANDO TOM…';
+    return 'OUVINDO…';
   })();
 
   const statusDotColor = (() => {
     if (!isRunning) return C.text3;
     if (mlStage === 'confirmed') return C.green;
-    if (mlStage === 'probable') return C.amber;
+    if (mlStage === 'needs_more') return C.amber;
     return C.text2;
   })();
 
@@ -605,46 +544,40 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               <View style={ss.keyCardHeader}>
                 <View style={[
                   ss.keyCardBadge,
-                  { borderColor: confirmedKey ? 'rgba(34,197,94,0.35)' : C.amberBorder },
+                  { borderColor: 'rgba(34,197,94,0.35)' },
                 ]}>
                   <Ionicons
-                    name={confirmedKey ? 'checkmark-circle' : 'radio-button-on'}
+                    name="checkmark-circle"
                     size={11}
-                    color={confirmedKey ? C.green : C.amber}
+                    color={C.green}
                   />
-                  <Text style={[ss.keyCardBadgeTxt, { color: confirmedKey ? C.green : C.amber }]}>
-                    {confirmedKey ? 'TOM DETECTADO' : 'TOM PROVÁVEL'}
+                  <Text style={[ss.keyCardBadgeTxt, { color: C.green }]}>
+                    TOM DETECTADO
                   </Text>
                 </View>
                 <Text style={[ss.keyCardConfPct, { color: confColor }]}>{confPct}%</Text>
               </View>
-              <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={!confirmedKey} />
+              <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={false} />
               <ConfidenceBar pct={confPct} color={confColor} />
-              {!confirmedKey && friendlyHint ? (
-                <View style={ss.hintRow}>
-                  <Ionicons name="ellipsis-horizontal-circle-outline" size={13} color={C.amber} />
-                  <Text style={ss.hintTxt}>{friendlyHint}</Text>
-                </View>
-              ) : null}
             </View>
           ) : isRunning ? (
             <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
               <View style={ss.keyCardHeader}>
                 <View style={[ss.keyCardBadge, { borderColor: C.amberBorder }]}>
-                  <Ionicons name="sync" size={11} color={C.amber} />
-                  <Text style={[ss.keyCardBadgeTxt, { color: C.amber }]}>ANALISANDO</Text>
+                  <Ionicons name={statusInfo.icon as any} size={11} color={C.amber} />
+                  <Text style={[ss.keyCardBadgeTxt, { color: C.amber }]}>{statusInfo.label}</Text>
                 </View>
               </View>
-              <Text style={ss.analyzingTitle}>Continue cantando…</Text>
+              <Text style={ss.analyzingTitle}>{statusInfo.sub}</Text>
               <Text style={ss.analyzingSub}>
-                {friendlyHint || 'Precisamos de mais alguns segundos para identificar o tom.'}
+                Aguarde — só vou exibir o tom quando tiver certeza.
               </Text>
             </View>
           ) : null}
         </View>
 
-        {/* ───── Change Banner ───── */}
-        {changeSuggestion && (
+        {/* ───── Change Banner — escondido quando travado ───── */}
+        {changeSuggestion && !confirmedKey && (
           <View style={ss.changeBanner}>
             <Ionicons name="swap-horizontal-outline" size={14} color={C.blue} />
             <Text style={ss.changeBannerTxt}>

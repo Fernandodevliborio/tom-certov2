@@ -294,9 +294,72 @@ metadata:
   test_sequence: 0
   run_ui: false
 
+  - task: "Admin login com usuário/senha + JWT + compat legacy X-Admin-Key"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: |
+          Admin Auth (Username/Password + JWT) — 11/11 PASS (27/27 sub-checks)
+          via /app/backend_test.py against http://localhost:8001/api.
+          Production URL https://tom-certov2-production.up.railway.app NÃO TEM
+          essa nova funcionalidade implantada ainda — retorna 404 em
+          /api/admin/login e /api/admin/me. Código fonte em /app/backend/server.py
+          está correto e funciona localmente; só falta deploy para Railway.
+
+          §1 POST /admin/login {username:"Admin01", password:"adminfernando"}
+              → 200 {ok:true, token:<jwt>, username:"Admin01", expires_in_hours:168} ✓
+              token tem exatamente 3 partes separadas por "." (JWT válido) ✓
+
+          §2 POST /admin/login com senha errada
+              → 401 {detail:"Usuário ou senha inválidos"} ✓
+              elapsed=0.40s ≥ 0.3s (anti-brute-force confirmado) ✓
+
+          §3 POST /admin/login com username "hacker" + senha correta
+              → 401 ✓
+
+          §4 GET /admin/me com Authorization: Bearer <jwt do passo 1>
+              → 200 {username:"Admin01", role:"admin"} ✓
+
+          §5 GET /admin/me sem header Authorization
+              → 401 ✓
+
+          §6 GET /admin/stats com Authorization: Bearer <jwt>
+              → 200, body contém total, active, revoked ✓
+
+          §7 GET /admin/stats com X-Admin-Key: tomcerto-admin-2026 (LEGACY)
+              → 200, body contém total, active, revoked ✓
+              (Compatibilidade legacy preservada — verify_admin aceita os 2 modos)
+
+          §8 GET /admin/stats sem nenhuma auth → 401 ✓
+
+          §9 GET /admin/stats com Authorization: Bearer xyz.abc.def (inválido)
+              → 401 ✓ (_decode_admin_jwt retorna None, cai pro raise 401)
+
+          §10 GET /admin → 200 Content-Type: text/html ✓ (página pública)
+
+          §11 GET /health → 200 {status:"ok", timestamp:<iso>} ✓
+
+          ALERTA AO MAIN AGENT: o código LOCAL passa 100%, porém a URL de
+          produção configurada no frontend/.env (Railway) ainda serve a
+          versão antiga (sem /admin/login e /admin/me — retorna 404). O
+          main agent precisa fazer push/deploy para o Railway antes que o
+          frontend mobile consiga usar essa rota em produção. Nenhum
+          código backend foi modificado durante o teste.
+
+metadata:
+  created_by: "main_agent"
+  version: "2.0"
+  test_sequence: 0
+  run_ui: false
+
 test_plan:
-  current_focus:
-    - "Lógica avançada de decisão tonal no backend Python"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
