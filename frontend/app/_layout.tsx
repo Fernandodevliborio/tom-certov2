@@ -6,11 +6,14 @@ import { StatusBar } from 'expo-status-bar';
 import * as Updates from 'expo-updates';
 import {
   useFonts,
-  Poppins_400Regular,
-  Poppins_500Medium,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
+  Outfit_700Bold,
+  Outfit_800ExtraBold,
+} from '@expo-google-fonts/outfit';
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+} from '@expo-google-fonts/manrope';
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import ActivationScreen from '../src/auth/ActivationScreen';
 
@@ -32,16 +35,18 @@ function kickBackgroundOtaCheck() {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
+  // Painel admin agora é servido como HTML pelo backend em /admin — não há mais rota RN
   if (status !== 'authenticated') return <ActivationScreen />;
   return <>{children}</>;
 }
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    Poppins_400Regular,
-    Poppins_500Medium,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
+    Outfit_700Bold,
+    Outfit_800ExtraBold,
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
   });
 
   useEffect(() => {
@@ -59,7 +64,7 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <AuthProvider>
         <AuthGate>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#0A0A0A' } }} />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#000000' } }} />
         </AuthGate>
       </AuthProvider>
     </SafeAreaProvider>
@@ -69,6 +74,6 @@ export default function RootLayout() {
 const ss = StyleSheet.create({
   bgBlack: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: '#0A0A0A', zIndex: -1,
+    backgroundColor: '#000000', zIndex: -1,
   },
 });

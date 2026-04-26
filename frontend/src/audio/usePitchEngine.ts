@@ -203,6 +203,7 @@ export function usePitchEngine(): PitchEngineHandle {
 
   // ── Stop ─────────────────────────────────────────────────────────
   const stop = useCallback(async () => {
+    if (!activeRef.current && !isStartingRef.current) return;
     activeRef.current = false;
     ringLenRef.current = 0;
     try {
@@ -211,62 +212,55 @@ export function usePitchEngine(): PitchEngineHandle {
         await rec.stopRecording();
       }
     } catch (e: any) {
-      // Não é erro fatal — pode ser que já estava parado
       console.warn('[AudioEngine][STOP] stopRecording() falhou:', String(e?.message || e));
     }
-    await new Promise(resolve => setTimeout(resolve, 250));
-  }, []);
-
-  // Garantir que NÃO existe gravação ativa antes de iniciar uma nova
-  const forceCleanup = useCallback(async () => {
-    activeRef.current = false;
-    isStartingRef.current = false;
-    ringLenRef.current = 0;
-    try {
-      const rec: any = recorderRef.current;
-      if (rec?.stopRecording) {
-        await rec.stopRecording();
-      }
-    } catch { /* swallow */ }
-    await new Promise(resolve => setTimeout(resolve, 350));
+    await new Promise(resolve => setTimeout(resolve, 200));
   }, []);
 
   // ── Start ────────────────────────────────────────────────────────
   const start = useCallback(
     async (onPitch: PitchCallback, onError: ErrorCallback): Promise<boolean> => {
-      // Se já tá iniciando, ignora (debounce de toque duplo)
       if (isStartingRef.current) return false;
-
-      // CLEANUP defensivo SEMPRE (resolve "Recording is already in progress")
-      await forceCleanup();
+      if (activeRef.current) await stop();
 
       isStartingRef.current = true;
       onPitchRef.current = onPitch;
       onErrorRef.current = onError;
       ringLenRef.current = 0;
 
-      const tryStart = async (): Promise<boolean> => {
+      try {
         // 1) Permission (shows OS prompt if needed)
         const perm = await ensureMicPermission();
         if (perm === 'blocked') {
-          onError('Permita o acesso ao microfone nas configurações do aparelho.', 'permission_blocked');
+          isStartingRef.current = false;
+          onError(
+            'Permita o acesso ao microfone nas configurações do aparelho.',
+            'permission_blocked'
+          );
           return false;
         }
         if (perm === 'denied') {
+          isStartingRef.current = false;
           onError('Permissão de microfone negada.', 'permission_denied');
           return false;
         }
-        // 2) Start recording
+
+        // 2) Start recording — NOW using the hook's startRecording
         const rec: any = recorderRef.current;
         if (!rec || typeof rec.startRecording !== 'function') {
+          isStartingRef.current = false;
           console.error('[AudioEngine] useAudioRecorder did not return startRecording()', {
             hasRec: !!rec,
             keys: rec ? Object.keys(rec) : [],
             platform: Platform.OS,
           });
-          onError('Falha ao inicializar o gravador de áudio.', 'platform_limit');
+          onError(
+            'Falha ao inicializar o gravador de áudio.',
+            'platform_limit'
+          );
           return false;
         }
+
         await rec.startRecording({
           sampleRate: SAMPLE_RATE,
           channels: 1,
@@ -278,39 +272,16 @@ export function usePitchEngine(): PitchEngineHandle {
           ios: { audioSession: { category: 'PlayAndRecord', mode: 'measurement' } } as any,
           onAudioStream: handleAudioStream,
         } as any);
-        return true;
-      };
 
-      try {
-        await tryStart();
         activeRef.current = true;
         isStartingRef.current = false;
         return true;
       } catch (err: any) {
-        const msg = String(err?.message || err || '');
-        console.warn('[AudioEngine][START] primeira tentativa falhou:', msg);
-
-        // Recovery: se foi "already in progress" ou similar, tenta de novo após cleanup
-        if (/already.*progress|already.*recording|recording.*progress/i.test(msg)) {
-          console.warn('[AudioEngine][START] retry após cleanup forçado');
-          await forceCleanup();
-          await new Promise(r => setTimeout(r, 400));
-          try {
-            await tryStart();
-            activeRef.current = true;
-            isStartingRef.current = false;
-            return true;
-          } catch (err2: any) {
-            console.error('[AudioEngine][START] retry também falhou:', String(err2?.message || err2));
-            activeRef.current = false;
-            isStartingRef.current = false;
-            onError('Não foi possível iniciar o microfone. Feche e abra o app.', 'unknown');
-            return false;
-          }
-        }
-
         activeRef.current = false;
         isStartingRef.current = false;
+        const msg = String(err?.message || err || '');
+        console.error('[AudioEngine][START] exception:', msg);
+
         let reason: PitchErrorReason = 'unknown';
         let userMsg = 'Não foi possível iniciar o microfone.';
         if (/permission|denied|NotAllowed/i.test(msg)) {
@@ -329,7 +300,7 @@ export function usePitchEngine(): PitchEngineHandle {
         return false;
       }
     },
-    [forceCleanup, handleAudioStream]
+    [stop, handleAudioStream]
   );
 
   // ── Misc helpers ─────────────────────────────────────────────────

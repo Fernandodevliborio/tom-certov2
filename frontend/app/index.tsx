@@ -1,25 +1,34 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions,
-  Easing, Platform, Modal, ScrollView, Linking, Image,
+  Easing, Platform, Modal, ScrollView, Linking, Alert, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import * as Updates from 'expo-updates';
 
 import { useKeyDetection } from '../src/hooks/useKeyDetection';
 import { NOTES_BR, NOTES_INTL, formatKeyDisplay, getHarmonicField } from '../src/utils/noteUtils';
-import { Colors, Radius, Spacing, Typography } from '../src/theme/tokens';
-import { GoldWaveform } from '../src/components/GoldWaveform';
-import { HarmonicFieldChips } from '../src/components/HarmonicFieldChips';
+import { useAuth } from '../src/auth/AuthContext';
+import AudioVisualizer from '../src/components/AudioVisualizer';
 
-const { height: SH } = Dimensions.get('window');
+const { width: SW, height: SH } = Dimensions.get('window');
+
+const C = {
+  bg: '#000000', surface: '#0E0E0E', surface2: '#141414',
+  border: '#1C1C1C', borderStrong: '#2A2A2A',
+  amber: '#FFB020', amberGlow: 'rgba(255,176,32,0.38)',
+  amberMuted: 'rgba(255,176,32,0.10)', amberBorder: 'rgba(255,176,32,0.28)',
+  white: '#FFFFFF', text2: '#A0A0A0', text3: '#555555',
+  red: '#EF4444', redMuted: 'rgba(239,68,68,0.12)',
+  green: '#22C55E', blue: '#60A5FA',
+};
 
 export default function HomeScreen() {
   const det = useKeyDetection();
   const screen: 'initial' | 'active' = det.isRunning ? 'active' : 'initial';
   return (
-    <SafeAreaView testID="home-screen" style={ss.safe} edges={['top', 'bottom']}>
+    <SafeAreaView testID="home-screen" style={ss.safe}>
       {screen === 'initial'
         ? <InitialScreen onStart={det.start} errorMessage={det.errorMessage} errorReason={det.errorReason} />
         : <ActiveScreen det={det} />
@@ -29,7 +38,7 @@ export default function HomeScreen() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// INITIAL SCREEN — mínimo: logo pequena + mic + texto
+// INITIAL SCREEN
 // ═════════════════════════════════════════════════════════════════════════
 function InitialScreen({
   onStart, errorMessage, errorReason,
@@ -38,8 +47,54 @@ function InitialScreen({
   errorMessage: string | null;
   errorReason: 'permission_denied' | 'permission_blocked' | 'platform_limit' | 'unknown' | null;
 }) {
+  const { logout, session } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const prevErr = useRef<string | null>(null);
+
+  // OTA auto-check no startup — garante que app sempre tem bundle mais recente
+  useEffect(() => {
+    if (Platform.OS === 'web' || !Updates.isEnabled) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await Updates.checkForUpdateAsync();
+        if (res.isAvailable && mounted) {
+          await Updates.fetchUpdateAsync();
+          if (mounted) await Updates.reloadAsync();
+        }
+      } catch {
+        // silencioso — não incomoda o usuário
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const onCheckUpdate = async () => {
+    if (checkingUpdate) return;
+    if (Platform.OS === 'web' || !Updates.isEnabled) {
+      Alert.alert('Atualização', 'A busca de atualizações só funciona no aplicativo instalado.');
+      return;
+    }
+    setCheckingUpdate(true);
+    try {
+      const res = await Updates.checkForUpdateAsync();
+      if (res.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        Alert.alert(
+          'Atualização baixada',
+          'Nova versão baixada! O app vai reiniciar agora.',
+          [{ text: 'Reiniciar', onPress: () => Updates.reloadAsync().catch(() => {}) }]
+        );
+      } else {
+        Alert.alert('Você está em dia', 'Versão mais recente já instalada.');
+      }
+    } catch (e: any) {
+      Alert.alert('Falha ao buscar atualização', e?.message ? String(e.message) : 'Verifique sua conexão.');
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   useEffect(() => {
     if (errorMessage && errorMessage !== prevErr.current) setModalVisible(true);
@@ -47,36 +102,104 @@ function InitialScreen({
   }, [errorMessage]);
 
   const fadeIn = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(30)).current;
+  const logoGlow = useRef(new Animated.Value(0.6)).current;
+  const ring1 = useRef(new Animated.Value(0)).current;
+  const ring2 = useRef(new Animated.Value(0)).current;
+  const ring3 = useRef(new Animated.Value(0)).current;
+  const micScale = useRef(new Animated.Value(1)).current;
+
   useEffect(() => {
-    Animated.timing(fadeIn, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.timing(fadeIn, { toValue: 1, duration: 280, useNativeDriver: true }),
+      Animated.timing(slideUp, { toValue: 0, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+    const logoLoop = Animated.loop(Animated.sequence([
+      Animated.timing(logoGlow, { toValue: 1, duration: 2000, useNativeDriver: true }),
+      Animated.timing(logoGlow, { toValue: 0.6, duration: 2000, useNativeDriver: true }),
+    ]));
+    logoLoop.start();
+    const makeRing = (val: Animated.Value, delay: number) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(val, { toValue: 1, duration: 2200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        Animated.timing(val, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]));
+    const r1 = makeRing(ring1, 0), r2 = makeRing(ring2, 700), r3 = makeRing(ring3, 1400);
+    r1.start(); r2.start(); r3.start();
+    return () => { logoLoop.stop(); r1.stop(); r2.stop(); r3.stop(); };
   }, []);
 
+  const renderRing = (val: Animated.Value) => (
+    <Animated.View style={[
+      ss.micRing,
+      {
+        opacity: val.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.7, 0.4, 0] }),
+        transform: [{ scale: val.interpolate({ inputRange: [0, 1], outputRange: [1, 2.8] }) }],
+      }
+    ]} />
+  );
+
   return (
-    <Animated.View testID="initial-screen" style={[ss.initialRoot, { opacity: fadeIn }]}>
-      {/* Settings icon - canto superior direito */}
-      <TouchableOpacity
-        testID="settings-btn"
-        style={ss.settingsBtn}
-        onPress={() => router.push('/configuracoes')}
-        activeOpacity={0.7}
-      >
-        <Ionicons name="settings-outline" size={20} color={Colors.text2} />
-      </TouchableOpacity>
-
-      {/* Logo + nome compacto */}
+    <Animated.View testID="initial-screen" style={[ss.initialRoot, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
+      {/* Brand Block */}
       <View style={ss.brandBlock}>
-        <Image source={require('../assets/images/logo.png')} style={ss.logoSmall} resizeMode="contain" />
+        <Animated.View style={[ss.logoWrapMain, { opacity: logoGlow }]}>
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={ss.logoImgMain}
+            resizeMode="contain"
+          />
+        </Animated.View>
         <Text style={ss.brandTitle}>Tom Certo</Text>
+        <Text style={ss.brandSub}>DETECTOR DE TONALIDADE</Text>
       </View>
 
-      {/* Mic central */}
+      {/* Mic Section */}
       <View style={ss.micSection}>
-        <SimpleMicButton onPress={onStart} />
-        <Text style={ss.micLabel}>Toque para começar</Text>
+        {renderRing(ring3)}
+        {renderRing(ring2)}
+        {renderRing(ring1)}
+        <TouchableOpacity
+          testID="start-btn"
+          onPressIn={() => Animated.spring(micScale, { toValue: 0.92, useNativeDriver: true }).start()}
+          onPressOut={() => Animated.spring(micScale, { toValue: 1, friction: 4, useNativeDriver: true }).start()}
+          onPress={onStart}
+          activeOpacity={1}
+        >
+          <Animated.View style={[ss.micBtn, { transform: [{ scale: micScale }] }]}>
+            <Ionicons name="mic" size={52} color={C.bg} />
+          </Animated.View>
+        </TouchableOpacity>
+        <Text style={ss.micLabel}>Toque para detectar</Text>
       </View>
 
-      {/* Espaço inferior */}
-      <View style={{ height: 40 }} />
+      {/* Error Box */}
+      {errorMessage && !modalVisible ? (
+        <TouchableOpacity style={ss.errorBox} onPress={() => setModalVisible(true)} activeOpacity={0.7}>
+          <Ionicons name="alert-circle" size={16} color={C.red} />
+          <Text style={ss.errorTxt}>{errorMessage}</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {/* Footer */}
+      <View style={ss.footerRow}>
+        <TouchableOpacity testID="logout-btn" onPress={logout} style={ss.footerBtn}>
+          <Ionicons name="log-out-outline" size={13} color={C.text3} />
+          <Text style={ss.logoutTxt}>
+            Sair{session?.customer_name ? ` · ${session.customer_name}` : ''}
+          </Text>
+        </TouchableOpacity>
+        <View style={ss.footerDivider} />
+        <TouchableOpacity testID="update-btn" onPress={onCheckUpdate} style={ss.footerBtn}>
+          {checkingUpdate ? (
+            <ActivityIndicator size={12} color={C.text3} />
+          ) : (
+            <Ionicons name="refresh-outline" size={13} color={C.text3} />
+          )}
+          <Text style={ss.logoutTxt}>{checkingUpdate ? 'Buscando...' : 'Buscar atualização'}</Text>
+        </TouchableOpacity>
+      </View>
 
       <MicNoticeModal
         visible={modalVisible}
@@ -89,88 +212,37 @@ function InitialScreen({
   );
 }
 
-// ─── Botão de microfone simples ─────────────────────────────────────────
-function SimpleMicButton({ onPress }: { onPress: () => void }) {
-  const scale = useRef(new Animated.Value(1)).current;
-  const breath = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const br = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breath, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(breath, { toValue: 0, duration: 1600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-      ])
-    );
-    br.start();
-    return () => br.stop();
-  }, []);
-
-  const breathScale = breath.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] });
-  const breathOpacity = breath.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] });
-
-  return (
-    <TouchableOpacity
-      testID="start-btn"
-      onPress={onPress}
-      onPressIn={() => Animated.spring(scale, { toValue: 0.94, useNativeDriver: true }).start()}
-      onPressOut={() => Animated.spring(scale, { toValue: 1, friction: 5, useNativeDriver: true }).start()}
-      activeOpacity={1}
-    >
-      <Animated.View
-        style={[
-          ssMic.btn,
-          {
-            opacity: breathOpacity,
-            transform: [{ scale: Animated.multiply(scale, breathScale) }],
-          },
-        ]}
-      >
-        <Ionicons name="mic" size={56} color={Colors.bg} />
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
-const ssMic = StyleSheet.create({
-  btn: {
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    backgroundColor: Colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.gold,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.40,
-    shadowRadius: 18,
-    elevation: 8,
-  },
-});
-
 // ═════════════════════════════════════════════════════════════════════════
-// ACTIVE SCREEN — direto: nota + waveform + tom (assim que houver)
+// ACTIVE SCREEN
 // ═════════════════════════════════════════════════════════════════════════
 function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const {
-    currentNote, audioLevel, isRunning,
-    reset, mlResult,
+    detectionState, currentKey, keyTier, liveConfidence, changeSuggestion,
+    currentNote, recentNotes, audioLevel, isRunning,
+    softInfo, reset, phraseStage, phrasesAnalyzed,
+    smartStatus, mlResult,
   } = det;
 
-  // ─── Tracking probabilidades — mostra cedo, refina depois ─────────────
-  const MIN_DISPLAY_CONF = 0.30;       // mostra com 30%+
-  const MIN_REFINE_CONF = 0.55;        // refinando: laranja
-  const MIN_LOCK_CONF = 0.85;          // confirmado: verde
-  const LOCK_REPLACE_MARGIN = 0.10;
+  // ═══════════════════════════════════════════════════════════════
+  // HISTERESE COM JANELA DE 3 ANÁLISES v5 — rápido E honesto
+  // ═══════════════════════════════════════════════════════════════
+  // - Mantém uma janela com as últimas 3 análises de qualidade (conf >= 0.50)
+  // - Trava como "Tom Detectado" se ALGUM tom aparecer ≥ 2 vezes na janela
+  //   E a conf média desse tom ≥ 0.55
+  // - Permite 1 outlier entre as boas (não exige estritamente consecutivas)
+  // - Análises com conf < 0.50 não entram na janela (ruído ignorado)
+  // - Pra trocar tom travado: novo tom precisa dominar janela + margem
+  const MIN_DISPLAY_CONF = 0.25;
+  const MIN_CONFIRM_CONF = 0.55;
+  const MIN_INDIVIDUAL_CONF = 0.50;
+  const LOCK_REPLACE_MARGIN = 0.08;
   const LOCK_WINDOW_SIZE = 3;
 
   const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
   const lockedKeyRef = useRef<{
     tonic: number; quality: 'major' | 'minor'; key_name: string; confidence: number; at: number;
   } | null>(null);
-  const [tick, setTick] = useState(0);
-
-  // Probable key contínuo (mostra cedo)
-  const probableKeyRef = useRef<{ tonic: number; quality: 'major' | 'minor'; confidence: number } | null>(null);
+  const [lockedKeyTick, setLockedKeyTick] = useState(0);
 
   useEffect(() => {
     if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
@@ -179,327 +251,455 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     const quality = mlResult.quality as 'major' | 'minor';
     const keyName = mlResult.key_name || '';
 
-    // ─── Probable (mostra com 30%+) ────────────────────────────
-    if (conf >= MIN_DISPLAY_CONF) {
-      const cur = probableKeyRef.current;
-      if (!cur || (cur.tonic === tonic && cur.quality === quality)) {
-        probableKeyRef.current = { tonic, quality, confidence: conf };
-      } else if (conf >= cur.confidence + 0.05) {
-        // Só troca se nova proposta tem confiança claramente maior
-        probableKeyRef.current = { tonic, quality, confidence: conf };
-      }
-      setTick(t => t + 1);
-    }
+    // Só entra na janela se passou do mínimo
+    if (conf < MIN_INDIVIDUAL_CONF) return;
 
-    // ─── Lock (confirma com 85%+ e janela estável) ────────────
-    if (conf < MIN_LOCK_CONF * 0.65) return;   // 0.55+ entra na janela
+    // Adiciona à janela (mantém últimas N)
     lockWindowRef.current = [
       ...lockWindowRef.current.slice(-(LOCK_WINDOW_SIZE - 1)),
       { tonic, quality, confidence: conf },
     ];
+
+    // Conta ocorrências de cada tom na janela
     const counts = new Map<string, { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' }>();
     for (const r of lockWindowRef.current) {
       const k = `${r.tonic}-${r.quality}`;
       const e = counts.get(k) || { count: 0, sumConf: 0, tonic: r.tonic, quality: r.quality };
-      e.count += 1; e.sumConf += r.confidence;
+      e.count += 1;
+      e.sumConf += r.confidence;
       counts.set(k, e);
     }
-    let best: { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' } | null = null;
-    for (const v of counts.values()) {
-      if (!best || v.count > best.count ||
-          (v.count === best.count && v.sumConf > best.sumConf)) best = v;
-    }
-    if (!best) return;
-    const avgConf = best.sumConf / best.count;
 
+    // Tom mais frequente (desempate por sumConf)
+    let bestEntry: { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' } | null = null;
+    for (const v of counts.values()) {
+      if (!bestEntry || v.count > bestEntry.count ||
+          (v.count === bestEntry.count && v.sumConf > bestEntry.sumConf)) {
+        bestEntry = v;
+      }
+    }
+    if (!bestEntry) return;
+    const avgConf = bestEntry.sumConf / bestEntry.count;
+
+    // Caminho 1: nada travado ainda
     if (!lockedKeyRef.current) {
-      if (best.count >= 2 && avgConf >= MIN_LOCK_CONF) {
-        lockedKeyRef.current = { tonic: best.tonic, quality: best.quality, key_name: keyName, confidence: avgConf, at: Date.now() };
-        setTick(t => t + 1);
+      if (bestEntry.count >= 2 && avgConf >= MIN_CONFIRM_CONF) {
+        lockedKeyRef.current = {
+          tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
+          confidence: avgConf, at: Date.now(),
+        };
+        setLockedKeyTick(t => t + 1);
       }
       return;
     }
+
+    // Caminho 2: já travado
     const cur = lockedKeyRef.current;
-    if (cur.tonic === best.tonic && cur.quality === best.quality) {
+    if (cur.tonic === bestEntry.tonic && cur.quality === bestEntry.quality) {
       cur.confidence = Math.max(cur.confidence, avgConf);
       cur.at = Date.now();
-    } else if (best.count >= 2 && avgConf >= cur.confidence + LOCK_REPLACE_MARGIN && avgConf >= MIN_LOCK_CONF) {
-      lockedKeyRef.current = { tonic: best.tonic, quality: best.quality, key_name: keyName, confidence: avgConf, at: Date.now() };
-      setTick(t => t + 1);
+      return;
+    }
+    // Tom diferente: troca se novo dominou janela com margem
+    if (bestEntry.count >= 2 && avgConf >= cur.confidence + LOCK_REPLACE_MARGIN && avgConf >= MIN_CONFIRM_CONF) {
+      lockedKeyRef.current = {
+        tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
+        confidence: avgConf, at: Date.now(),
+      };
+      setLockedKeyTick(t => t + 1);
     }
   }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
 
+  // Reset quando para de gravar
   useEffect(() => {
     if (!isRunning) {
       lockedKeyRef.current = null;
       lockWindowRef.current = [];
-      probableKeyRef.current = null;
-      setTick(t => t + 1);
+      setLockedKeyTick(t => t + 1);
     }
   }, [isRunning]);
 
-  // ─── Estado UI derivado ───────────────────────────────────────────────
-  const stage: 'listening' | 'probable' | 'refining' | 'confirmed' = useMemo(() => {
-    if (lockedKeyRef.current) return 'confirmed';
-    const p = probableKeyRef.current;
-    if (!p) return 'listening';
-    if (p.confidence >= MIN_REFINE_CONF) return 'refining';
-    return 'probable';
-  }, [tick]);
+  // ── Estabilização do "Tom Provável" — modo estatístico das últimas 3 análises ──
+  // Em vez de mostrar cada resultado bruto (causando flicker), guardamos um
+  // "best guess provisional" que só muda se as evidências recentes forem mais
+  // consistentes que o atual.
+  const recentResultsRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
+  const probableKeyRef = useRef<{ tonic: number; quality: 'major' | 'minor'; confidence: number } | null>(null);
 
-  const displayKey = useMemo(() => {
-    if (lockedKeyRef.current) return {
-      root: lockedKeyRef.current.tonic,
-      quality: lockedKeyRef.current.quality,
-      confidence: lockedKeyRef.current.confidence,
-    };
-    if (probableKeyRef.current) return {
-      root: probableKeyRef.current.tonic,
-      quality: probableKeyRef.current.quality,
-      confidence: probableKeyRef.current.confidence,
-    };
-    return null;
-  }, [tick]);
-
-  const onDetectAgain = useCallback(() => {
-    lockedKeyRef.current = null;
-    lockWindowRef.current = [];
-    probableKeyRef.current = null;
-    setTick(t => t + 1);
-    reset();
-  }, [reset]);
-
-  const fadeIn = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(fadeIn, { toValue: 1, duration: 220, useNativeDriver: true }).start();
-  }, []);
+    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
+    const conf = mlResult.confidence ?? 0;
+    if (conf < MIN_DISPLAY_CONF) return; // ignora resultados muito fracos
 
-  // ─── Renderização ─────────────────────────────────────────────────────
-  return (
-    <Animated.View testID="active-screen" style={[ss.activeRoot, { opacity: fadeIn }]}>
-      {/* Top bar: mini-logo + close */}
-      <View style={ss.topBar}>
-        <Image source={require('../assets/images/logo.png')} style={ss.topLogo} resizeMode="contain" />
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity testID="stop-btn" onPress={reset} style={ss.closeBtn} activeOpacity={0.7}>
-          <Ionicons name="close" size={20} color={Colors.textMuted} />
-        </TouchableOpacity>
-      </View>
+    // Adiciona ao histórico (mantém apenas últimos 3)
+    const tonic = mlResult.tonic;
+    const quality = mlResult.quality as 'major' | 'minor';
+    recentResultsRef.current = [
+      ...recentResultsRef.current.slice(-2),
+      { tonic, quality, confidence: conf },
+    ];
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={ss.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        {stage === 'confirmed' ? (
-          <ResultBlock
-            root={displayKey!.root}
-            quality={displayKey!.quality}
-            confPct={Math.round(displayKey!.confidence * 100)}
-            onAgain={onDetectAgain}
-          />
-        ) : (
-          <LiveBlock
-            currentNote={currentNote}
-            audioLevel={audioLevel}
-            isRunning={isRunning}
-            displayKey={displayKey}
-            stage={stage}
-          />
-        )}
-      </ScrollView>
-    </Animated.View>
+    // Calcula o "modo" — tom mais frequente nas últimas 3 análises
+    const counts = new Map<string, { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' }>();
+    for (const r of recentResultsRef.current) {
+      const key = `${r.tonic}-${r.quality}`;
+      const c = counts.get(key) || { count: 0, sumConf: 0, tonic: r.tonic, quality: r.quality };
+      c.count += 1;
+      c.sumConf += r.confidence;
+      counts.set(key, c);
+    }
+    // Vencedor: maior contagem; em empate, maior confidence média
+    let winner: { tonic: number; quality: 'major' | 'minor'; confidence: number } | null = null;
+    let bestScore = -1;
+    for (const c of counts.values()) {
+      const score = c.count * 1000 + (c.sumConf / c.count);
+      if (score > bestScore) {
+        bestScore = score;
+        winner = { tonic: c.tonic, quality: c.quality, confidence: c.sumConf / c.count };
+      }
+    }
+
+    // Só atualiza o probable se: ainda não tem nenhum, OU é o mesmo, OU
+    // o novo vencedor tem mais ocorrências/confidence que o atual.
+    if (winner) {
+      const cur = probableKeyRef.current;
+      if (!cur) {
+        probableKeyRef.current = winner;
+      } else if (cur.tonic === winner.tonic && cur.quality === winner.quality) {
+        cur.confidence = winner.confidence;
+      } else {
+        // Tom diferente: só troca se vencedor aparece em >= 2 das últimas 3 análises
+        const winnerKey = `${winner.tonic}-${winner.quality}`;
+        const winnerCount = counts.get(winnerKey)?.count ?? 0;
+        if (winnerCount >= 2) {
+          probableKeyRef.current = winner;
+        }
+      }
+    }
+  }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
+
+  // Reset do histórico quando para de gravar
+  useEffect(() => {
+    if (!isRunning) {
+      recentResultsRef.current = [];
+      probableKeyRef.current = null;
+    }
+  }, [isRunning]);
+
+  // ── Estado visível: "confirmed" SÓ se passou pela trava (confirmação dupla) ──
+  const mlStage: 'none' | 'analyzing' | 'probable' | 'confirmed' = useMemo(() => {
+    if (lockedKeyRef.current) return 'confirmed';
+    if (probableKeyRef.current) return 'probable';
+    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return 'none';
+    return 'analyzing';
+  }, [mlResult?.success, mlResult?.tonic, mlResult?.quality, mlResult?.confidence, lockedKeyTick]);
+
+  const mlKey = useMemo(() => {
+    if (lockedKeyRef.current) {
+      return { root: lockedKeyRef.current.tonic, quality: lockedKeyRef.current.quality };
+    }
+    if (probableKeyRef.current) {
+      return { root: probableKeyRef.current.tonic, quality: probableKeyRef.current.quality };
+    }
+    return null;
+  }, [mlStage, lockedKeyTick]);
+
+  // IMPORTANTE: detector LOCAL foi desativado como fallback visual —
+  // ele tende a confirmar com baixa confiança (12%) e criar flip-flop.
+  // A partir daqui, SÓ o ML backend manda no display.
+  const confirmedKey = mlStage === 'confirmed' ? mlKey : null;
+  const provisionalKey = mlStage === 'probable' ? mlKey : null;
+  const displayKey = confirmedKey || provisionalKey;
+
+  // Dica amigável baseada nas flags do backend
+  const friendlyHint = useMemo(() => {
+    if (!mlResult?.success || mlStage === 'confirmed') return null;
+    const flags = mlResult.flags || [];
+    if (flags.includes('ambiguous_third')) return 'Tonalidade ainda ambígua — continue cantando';
+    if (flags.includes('no_third_evidence')) return 'Ainda analisando maior/menor…';
+    if (flags.includes('few_notes')) return 'Cante por mais alguns segundos';
+    if (flags.includes('single_phrase')) return 'Continue cantando para confirmar';
+    if (flags.includes('relative_ambiguous')) return 'Ainda decidindo entre tons próximos';
+    if (flags.includes('no_resolution')) return 'Resolva uma frase na tônica';
+    if (mlStage === 'analyzing') return 'Continue cantando…';
+    if (mlStage === 'probable') return 'Confirmando o tom…';
+    return null;
+  }, [mlResult?.flags, mlStage, mlResult?.success]);
+
+  // Confidence do ML result atual (para a barra visual)
+  const confPct = (() => {
+    if (lockedKeyRef.current) {
+      return Math.round(lockedKeyRef.current.confidence * 100);
+    }
+    if (mlResult?.success) return Math.round((mlResult.confidence ?? 0) * 100);
+    return 0;
+  })();
+  const confColor = confPct >= 60 ? C.green : confPct >= 35 ? C.amber : C.text2;
+
+  // Log técnico (dev only)
+  useEffect(() => {
+    if (mlResult?.success && mlResult.key_name) {
+      // eslint-disable-next-line no-console
+      console.log(
+        `[ML] ${mlResult.key_name} conf=${(mlResult.confidence ?? 0).toFixed(2)} ` +
+        `rec=${mlResult.recommendation} flags=[${(mlResult.flags ?? []).join(',')}] ` +
+        `locked=${lockedKeyRef.current?.key_name ?? 'null'}`
+      );
+    }
+  }, [mlResult?.key_name, mlResult?.confidence, mlResult?.recommendation]);
+
+  // Indicador de última análise — visível pro usuário ver que sistema está vivo
+  const [lastAnalysisAt, setLastAnalysisAt] = useState<number | null>(null);
+  const [analysisCount, setAnalysisCount] = useState(0);
+
+  useEffect(() => {
+    if (mlResult?.success) {
+      setLastAnalysisAt(Date.now());
+      setAnalysisCount(c => c + 1);
+    }
+  }, [mlResult]);
+
+  const [tickRefresh, setTickRefresh] = useState(0);
+  useEffect(() => {
+    if (!isRunning) return;
+    const t = setInterval(() => setTickRefresh(x => x + 1), 1000);
+    return () => clearInterval(t);
+  }, [isRunning]);
+
+  const lastAnalysisAgoTxt = useMemo(() => {
+    void tickRefresh;
+    if (!lastAnalysisAt) return null;
+    const ago = Math.round((Date.now() - lastAnalysisAt) / 1000);
+    if (ago < 5) return `análise há ${ago}s · ${analysisCount} análises`;
+    if (ago < 60) return `análise há ${ago}s · ${analysisCount} análises`;
+    return `última análise há ${Math.round(ago/60)}min · ${analysisCount} total`;
+  }, [lastAnalysisAt, analysisCount, tickRefresh]);
+
+  const statusLabel = (() => {
+    if (!isRunning) return 'TOQUE PARA COMEÇAR';
+    if (mlStage === 'confirmed') return 'TOM IDENTIFICADO';
+    if (mlStage === 'probable') return 'IDENTIFICANDO TONALIDADE…';
+    return 'ANALISANDO TOM…';
+  })();
+
+  const statusDotColor = (() => {
+    if (!isRunning) return C.text3;
+    if (mlStage === 'confirmed') return C.green;
+    if (mlStage === 'probable') return C.amber;
+    return C.text2;
+  })();
+
+  const harmonicField = useMemo(
+    () => confirmedKey ? getHarmonicField(confirmedKey.root, confirmedKey.quality) : [],
+    [confirmedKey?.root, confirmedKey?.quality]
   );
-}
 
-// ─── LIVE BLOCK (nota + onda + tom progressivo) ─────────────────────────
-function LiveBlock({
-  currentNote, audioLevel, isRunning, displayKey, stage,
-}: {
-  currentNote: number | null;
-  audioLevel: number;
-  isRunning: boolean;
-  displayKey: { root: number; quality: 'major' | 'minor'; confidence: number } | null;
-  stage: 'listening' | 'probable' | 'refining';
-}) {
+  const statusDot = useRef(new Animated.Value(1)).current;
   const noteOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(statusDot, { toValue: 0.25, duration: 700, useNativeDriver: true }),
+      Animated.timing(statusDot, { toValue: 1, duration: 700, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  useEffect(() => {
     Animated.timing(noteOpacity, {
-      toValue: currentNote !== null ? 1 : 0.35,
-      duration: 140, useNativeDriver: true,
+      toValue: currentNote !== null ? 1 : 0.3,
+      duration: 180, useNativeDriver: true,
     }).start();
   }, [currentNote]);
 
-  const stageLabel = stage === 'listening'
-    ? 'OUVINDO…'
-    : stage === 'probable'
-    ? 'TOM PROVÁVEL'
-    : 'REFINANDO';
-
-  const stageColor = stage === 'listening'
-    ? Colors.text2
-    : stage === 'probable'
-    ? Colors.gold
-    : Colors.goldLight;
-
   return (
-    <View style={{ gap: 36 }}>
-      {/* Nota grande */}
-      <View style={ss.heroBlock}>
-        <Animated.View style={[ss.noteBox, { opacity: noteOpacity }]}>
-          {currentNote !== null ? (
-            <>
-              <Text style={ss.noteBig} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-                {NOTES_BR[currentNote]}
-              </Text>
-              <Text style={ss.noteIntl}>{NOTES_INTL[currentNote]}</Text>
-            </>
-          ) : (
-            <View style={ss.noteBoxPlaceholder}>
-              <Text style={ss.notePlaceholder}>—</Text>
-              <Text style={ss.notePlaceholderSub}>cante ou toque algumas notas</Text>
-            </View>
-          )}
-        </Animated.View>
-        <View style={ss.waveformWrap}>
-          <GoldWaveform level={audioLevel} active={isRunning} height={44} bars={42} />
+    <View testID="active-screen" style={ss.activeRoot}>
+      {/* ───── Header: linha 1 (brand + close) ───── */}
+      <View style={ss.activeHeader}>
+        <View style={ss.brandRow}>
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={ss.headerLogo}
+            resizeMode="contain"
+          />
+          <View style={ss.brandTextWrap}>
+            <Text style={ss.headerBrand} numberOfLines={1}>Tom Certo</Text>
+            <Text style={ss.headerVersion} numberOfLines={1}>
+              v3.4.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+            </Text>
+          </View>
         </View>
+        <TouchableOpacity testID="stop-btn" onPress={reset} style={ss.headerCloseBtn} activeOpacity={0.7}>
+          <Ionicons name="close" size={18} color={C.text2} />
+        </TouchableOpacity>
       </View>
 
-      {/* Card de tom — sempre visível, refina ao longo do tempo */}
-      <View style={ss.keyCard}>
-        <View style={ss.keyCardHeader}>
-          <Text style={[ss.stageLabel, { color: stageColor }]}>{stageLabel}</Text>
+      {/* ───── Header: linha 2 (status discreto) ───── */}
+      <View style={ss.statusBar}>
+        <Animated.View style={[ss.statusDot, { backgroundColor: statusDotColor, opacity: statusDot }]} />
+        <Text style={ss.statusBarTxt} numberOfLines={1}>{statusLabel}</Text>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ss.scrollPad}>
+        {/* ───── Note Hero (altura fixa pra evitar reflow) ───── */}
+        <View style={ss.noteHero}>
+          <View style={ss.noteHeroTopRow}>
+            <Text style={ss.noteHeroLabel}>NOTA EM TEMPO REAL</Text>
+            <AudioVisualizer level={audioLevel} active={isRunning} height={24} bars={5} />
+          </View>
+          <Animated.View style={[ss.noteHeroBox, { opacity: noteOpacity }]}>
+            {currentNote !== null ? (
+              <>
+                <Text
+                  testID="current-note"
+                  style={ss.noteHeroTxt}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.55}
+                >
+                  {NOTES_BR[currentNote]}
+                </Text>
+                <Text style={ss.noteHeroIntl}>{NOTES_INTL[currentNote]}</Text>
+              </>
+            ) : (
+              <View style={ss.listeningHero}>
+                <Text style={ss.listeningTitle}>
+                  {detectionState === 'analyzing' ? 'Analisando' : 'Ouvindo'}
+                </Text>
+                <Text style={ss.listeningSub}>
+                  Cante ou toque — o app já começou a captar
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+        </View>
+
+        {/* ───── História (scroll horizontal — não muda altura) ───── */}
+        <View style={ss.section}>
+          <Text style={ss.sectionLabel}>HISTÓRICO</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={ss.historyRow}
+            style={ss.historyScroll}
+          >
+            {recentNotes.length === 0
+              ? <Text style={ss.historyEmpty}>— aguardando primeiras notas —</Text>
+              : recentNotes.map((pc, i) => {
+                  const latest = i === recentNotes.length - 1;
+                  return (
+                    <View key={i} style={[ss.historyChip, latest && ss.historyChipActive]}>
+                      <Text style={[ss.historyChipTxt, latest && ss.historyChipTxtActive]}>
+                        {NOTES_BR[pc]}
+                      </Text>
+                    </View>
+                  );
+                })
+            }
+          </ScrollView>
+        </View>
+
+        {/* ───── Key Card / Analyzing — minHeight reservado ───── */}
+        <View style={ss.keyCardSlot}>
           {displayKey ? (
-            <View style={ss.confBadge}>
-              <Text style={ss.confBadgeTxt}>{Math.round(displayKey.confidence * 100)}%</Text>
+            <View testID="key-card" style={[ss.keyCard, confirmedKey ? ss.keyCardConfirmed : ss.keyCardProv]}>
+              <View style={ss.keyCardHeader}>
+                <View style={[
+                  ss.keyCardBadge,
+                  { borderColor: confirmedKey ? 'rgba(34,197,94,0.35)' : C.amberBorder },
+                ]}>
+                  <Ionicons
+                    name={confirmedKey ? 'checkmark-circle' : 'radio-button-on'}
+                    size={11}
+                    color={confirmedKey ? C.green : C.amber}
+                  />
+                  <Text style={[ss.keyCardBadgeTxt, { color: confirmedKey ? C.green : C.amber }]}>
+                    {confirmedKey ? 'TOM DETECTADO' : 'TOM PROVÁVEL'}
+                  </Text>
+                </View>
+                <Text style={[ss.keyCardConfPct, { color: confColor }]}>{confPct}%</Text>
+              </View>
+              <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={!confirmedKey} />
+              <ConfidenceBar pct={confPct} color={confColor} />
+              {!confirmedKey && friendlyHint ? (
+                <View style={ss.hintRow}>
+                  <Ionicons name="ellipsis-horizontal-circle-outline" size={13} color={C.amber} />
+                  <Text style={ss.hintTxt}>{friendlyHint}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : isRunning ? (
+            <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
+              <View style={ss.keyCardHeader}>
+                <View style={[ss.keyCardBadge, { borderColor: C.amberBorder }]}>
+                  <Ionicons name="sync" size={11} color={C.amber} />
+                  <Text style={[ss.keyCardBadgeTxt, { color: C.amber }]}>ANALISANDO</Text>
+                </View>
+              </View>
+              <Text style={ss.analyzingTitle}>Continue cantando…</Text>
+              <Text style={ss.analyzingSub}>
+                {friendlyHint || 'Precisamos de mais alguns segundos para identificar o tom.'}
+              </Text>
             </View>
           ) : null}
         </View>
 
-        {displayKey ? (
-          <KeyDisplay root={displayKey.root} quality={displayKey.quality} confidence={displayKey.confidence} />
-        ) : (
-          <Text style={ss.keyEmpty}>analisando…</Text>
+        {/* ───── Change Banner ───── */}
+        {changeSuggestion && (
+          <View style={ss.changeBanner}>
+            <Ionicons name="swap-horizontal-outline" size={14} color={C.blue} />
+            <Text style={ss.changeBannerTxt}>
+              Possível mudança para{' '}
+              <Text style={ss.changeBannerStrong}>
+                {formatKeyDisplay(changeSuggestion.root, changeSuggestion.quality).noteBr}{' '}
+                {formatKeyDisplay(changeSuggestion.root, changeSuggestion.quality).qualityLabel}
+              </Text>
+            </Text>
+          </View>
         )}
-      </View>
+
+        {/* ───── Campo Harmônico (só quando confirmado) ───── */}
+        {confirmedKey && harmonicField.length > 0 && (
+          <View style={ss.section}>
+            <Text style={ss.sectionLabel}>CAMPO HARMÔNICO</Text>
+            <View style={ss.chordGrid}>
+              {harmonicField.map((chord, i) => (
+                <View key={i} style={[ss.chordCard, chord.isTonic && ss.chordCardTonic]}>
+                  <Text style={ss.chordDegree}>{degreeLabel(i, confirmedKey.quality)}</Text>
+                  <Text style={[ss.chordName, chord.isTonic && ss.chordNameTonic]}>{chord.label}</Text>
+                  <Text style={ss.chordIntl}>{chordIntlLabel(chord.root, chord.quality)}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
-function KeyDisplay({ root, quality, confidence }: { root: number; quality: 'major' | 'minor'; confidence: number }) {
-  const k = formatKeyDisplay(root, quality);
-  const widthAnim = useRef(new Animated.Value(0)).current;
-  const pct = Math.round(confidence * 100);
-
-  useEffect(() => {
-    Animated.timing(widthAnim, {
-      toValue: pct,
-      duration: 350, useNativeDriver: false,
-    }).start();
-  }, [pct]);
-
-  const color = pct >= 85 ? Colors.green : pct >= 60 ? Colors.gold : Colors.text2;
-
-  return (
-    <View style={{ gap: 10 }}>
-      <View style={ss.keyRow}>
-        <Text style={ss.keyNote}>{k.noteBr}</Text>
-        <Text style={ss.keyQual}>{k.qualityLabel}</Text>
-      </View>
-      <Text style={ss.keyIntl}>{k.noteIntl}</Text>
-      <View style={ss.confBar}>
-        <Animated.View
-          style={[
-            ss.confFill,
-            {
-              backgroundColor: color,
-              width: widthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
-            },
-          ]}
-        />
-      </View>
-    </View>
-  );
-}
-
-// ─── RESULT BLOCK ───────────────────────────────────────────────────────
-function ResultBlock({
-  root, quality, confPct, onAgain,
-}: {
-  root: number;
-  quality: 'major' | 'minor';
-  confPct: number;
-  onAgain: () => void;
+function KeyDisplay({ root, quality, provisional }: {
+  root: number; quality: 'major' | 'minor'; provisional?: boolean;
 }) {
   const k = formatKeyDisplay(root, quality);
-  const widthAnim = useRef(new Animated.Value(0)).current;
-  const fade = useRef(new Animated.Value(0)).current;
-  const harmonicField = useMemo(() => getHarmonicField(root, quality), [root, quality]);
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 360, useNativeDriver: true }),
-      Animated.timing(widthAnim, { toValue: confPct, duration: 600, useNativeDriver: false }),
-    ]).start();
-  }, []);
-
   return (
-    <Animated.View style={{ opacity: fade, gap: 28 }}>
-      {/* Status verde */}
-      <View style={ss.confirmedPill}>
-        <Ionicons name="checkmark-circle" size={14} color={Colors.green} />
-        <Text style={ss.confirmedTxt}>TONALIDADE IDENTIFICADA</Text>
+    <View>
+      <View style={ss.keyDisplayRow}>
+        <Text style={ss.keyDisplayNote}>{k.noteBr}</Text>
+        <Text style={ss.keyDisplayQual}>{k.qualityLabel}</Text>
       </View>
-
-      {/* Tom grande */}
-      <View style={{ alignItems: 'center', gap: 4 }}>
-        <View style={ss.resultKeyRow}>
-          <Text style={ss.resultNote} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
-            {k.noteBr}
-          </Text>
-          <Text style={ss.resultQual}>{k.qualityLabel}</Text>
-        </View>
-        <Text style={ss.resultIntl}>{k.noteIntl}</Text>
-      </View>
-
-      {/* Confiança */}
-      <View style={{ gap: 8 }}>
-        <View style={ss.confLabelRow}>
-          <Text style={ss.confLabel}>Confiança</Text>
-          <Text style={[ss.confPct, { color: Colors.green }]}>{confPct}%</Text>
-        </View>
-        <View style={ss.confTrack}>
-          <Animated.View
-            style={[
-              ss.confTrackFill,
-              {
-                width: widthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
-              },
-            ]}
-          />
-        </View>
-      </View>
-
-      {/* Campo harmônico */}
-      <View>
-        <Text style={ss.sectionLabel}>CAMPO HARMÔNICO</Text>
-        <View style={{ height: 12 }} />
-        <HarmonicFieldChips chords={harmonicField} quality={quality} />
-      </View>
-
-      {/* Botão Detectar Novamente */}
-      <TouchableOpacity testID="detect-again-btn" onPress={onAgain} activeOpacity={0.85} style={ss.againBtn}>
-        <Ionicons name="refresh" size={18} color={Colors.bg} />
-        <Text style={ss.againTxt}>Detectar novamente</Text>
-      </TouchableOpacity>
-    </Animated.View>
+      <Text style={ss.keyDisplayIntl}>({k.noteIntl})</Text>
+    </View>
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// MIC NOTICE MODAL (inalterado)
-// ═════════════════════════════════════════════════════════════════════════
+function ConfidenceBar({ pct, color }: { pct: number; color: string }) {
+  return (
+    <View style={ss.confBarBg}>
+      <View style={[ss.confBarFill, { width: `${pct}%` as any, backgroundColor: color }]} />
+    </View>
+  );
+}
+
 function MicNoticeModal({ visible, onClose, onRetry, reason, message }: {
   visible: boolean; onClose: () => void; onRetry: () => void;
   reason: string | null; message: string | null;
@@ -512,24 +712,31 @@ function MicNoticeModal({ visible, onClose, onRetry, reason, message }: {
     <Modal visible={visible} transparent animationType="fade">
       <View style={ss.modalBg}>
         <View style={ss.modalCard}>
-          <Ionicons name={icon} size={36} color={Colors.gold} style={{ marginBottom: 12 }} />
+          <Ionicons name={icon} size={38} color={C.amber} style={{ marginBottom: 12 }} />
           <Text style={ss.modalTitle}>
             {isPerm ? 'Microfone bloqueado' : isLimit ? 'Recurso nativo' : 'Aviso'}
           </Text>
           <Text style={ss.modalMsg}>{message ?? 'Algo deu errado.'}</Text>
-          <View style={{ height: 18 }} />
+          <View style={{ height: 20 }} />
           {isBlocked && Platform.OS !== 'web' ? (
             <TouchableOpacity
               testID="open-settings-btn"
-              style={ss.modalPrimary}
+              style={[ss.modalPrimary, { width: '100%', marginBottom: 8 }]}
               onPress={async () => { try { await Linking.openSettings(); } catch {} }}
               activeOpacity={0.85}
             >
               <Text style={ss.modalPrimaryTxt}>Abrir Configurações</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity testID="retry-btn" style={ss.modalPrimary} onPress={onRetry} activeOpacity={0.85}>
-              <Text style={ss.modalPrimaryTxt}>{isPerm ? 'Permitir Microfone' : 'Tentar novamente'}</Text>
+            <TouchableOpacity
+              testID="retry-btn"
+              style={[ss.modalPrimary, { width: '100%', marginBottom: 8 }]}
+              onPress={onRetry}
+              activeOpacity={0.85}
+            >
+              <Text style={ss.modalPrimaryTxt}>
+                {isPerm ? 'Permitir Microfone' : 'Tentar novamente'}
+              </Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity testID="close-modal-btn" onPress={onClose} style={ss.modalSecondary}>
@@ -541,273 +748,258 @@ function MicNoticeModal({ visible, onClose, onRetry, reason, message }: {
   );
 }
 
-// ═════════════════════════════════════════════════════════════════════════
-// STYLES
-// ═════════════════════════════════════════════════════════════════════════
+function degreeLabel(i: number, _q: 'major' | 'minor') {
+  return (['I', 'ii', 'iii', 'IV', 'V', 'vi'] as const)[i] ?? '';
+}
+function chordIntlLabel(root: number, q: 'major' | 'minor' | 'dim') {
+  return NOTES_INTL[root] + (q === 'minor' ? 'm' : q === 'dim' ? '°' : '');
+}
+
+// ─── Styles ──────────────────────────────────────────────────────────────
+const MIC_SIZE = 128;
+const CHORD_GAP = 8;
+const CHORD_W = (SW - 32 - CHORD_GAP * 2) / 3;
+
 const ss = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: C.bg },
 
   // INITIAL
   initialRoot: {
     flex: 1, alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: SH * 0.10, paddingHorizontal: 28, paddingBottom: 32,
+    paddingTop: SH * 0.08, paddingBottom: 36, paddingHorizontal: 24,
   },
-  settingsBtn: {
-    position: 'absolute',
-    top: 12,
-    right: 16,
-    width: 40, height: 40,
+  brandBlock: { alignItems: 'center', gap: 6 },
+  logoWrapMain: {
+    width: 170, height: 170,
     alignItems: 'center', justifyContent: 'center',
+    marginBottom: 10,
+    ...Platform.select({
+      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.55, shadowRadius: 36 },
+      android: { elevation: 14 },
+      default: {},
+    }),
   },
-  brandBlock: {
-    alignItems: 'center', gap: 10, marginTop: 8,
-  },
-  logoSmall: { width: 48, height: 48 },
-  brandTitle: {
-    color: Colors.white,
-    fontFamily: Typography.bold,
-    fontSize: 22,
-    letterSpacing: 0.4,
-  },
+  logoImgMain: { width: 170, height: 170 },
+  headerLogoLanding: { width: 28, height: 28 },
+  brandTitle: { fontFamily: 'Outfit_800ExtraBold', fontSize: 28, color: C.white, letterSpacing: -0.8 },
+  brandSub: { fontFamily: 'Manrope_500Medium', fontSize: 10, color: C.text3, letterSpacing: 3 },
+
   micSection: {
-    alignItems: 'center', gap: 26,
+    alignItems: 'center', justifyContent: 'center',
+    width: MIC_SIZE * 3, height: MIC_SIZE * 3,
+  },
+  micRing: {
+    position: 'absolute', width: MIC_SIZE, height: MIC_SIZE,
+    borderRadius: MIC_SIZE / 2, borderWidth: 1.5, borderColor: C.amber,
+  },
+  micBtn: {
+    width: MIC_SIZE, height: MIC_SIZE, borderRadius: MIC_SIZE / 2,
+    backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center',
+    ...Platform.select({
+      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 28 },
+      android: { elevation: 10 },
+      default: {},
+    }),
   },
   micLabel: {
-    color: Colors.textMuted,
-    fontFamily: Typography.medium,
-    fontSize: 14,
-    letterSpacing: 0.4,
+    position: 'absolute', bottom: 12,
+    fontFamily: 'Manrope_500Medium', fontSize: 13, color: C.text3, letterSpacing: 0.5,
   },
+  errorBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.redMuted, borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)',
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, width: '100%',
+  },
+  errorTxt: { flex: 1, fontFamily: 'Manrope_500Medium', fontSize: 12, color: C.red, lineHeight: 16 },
+  footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8, gap: 4 },
+  footerBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 8, paddingHorizontal: 12 },
+  footerDivider: { width: 1, height: 12, backgroundColor: C.borderStrong, marginHorizontal: 2 },
+  logoutTxt: { fontFamily: 'Manrope_500Medium', fontSize: 11, color: C.text3, letterSpacing: 0.4 },
 
   // ACTIVE
-  activeRoot: { flex: 1 },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 6,
-    paddingBottom: 8,
-    gap: 12,
+  activeRoot: { flex: 1, paddingHorizontal: 16, paddingTop: 4 },
+  activeHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingTop: 8, paddingBottom: 10,
   },
-  topLogo: { width: 28, height: 28 },
-  closeBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.surface,
-    borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
+  headerLogo: { width: 32, height: 32 },
+  brandTextWrap: { flexShrink: 1 },
+  headerBrand: {
+    fontFamily: 'Outfit_700Bold', fontSize: 18, color: C.white, letterSpacing: -0.4,
+    includeFontPadding: false,
   },
-  scroll: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 12,
-    paddingBottom: 32,
+  headerVersion: {
+    fontFamily: 'Manrope_500Medium', fontSize: 9.5, color: C.text3,
+    letterSpacing: 0.6, marginTop: 1, includeFontPadding: false,
   },
+  statusBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 11, paddingVertical: 7,
+    backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border,
+    marginBottom: 12, alignSelf: 'flex-start',
+  },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  statusBarTxt: {
+    fontFamily: 'Manrope_600SemiBold', fontSize: 10.5, color: C.text2, letterSpacing: 1.6,
+  },
+  headerStatusRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.surface, borderRadius: 10, borderWidth: 1, borderColor: C.border,
+    paddingHorizontal: 9, paddingVertical: 5,
+  },
+  headerStatusTxt: { fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text2, letterSpacing: 1.5 },
+  headerCloseBtn: {
+    width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+  },
+  scrollPad: { paddingBottom: 24, gap: 14 },
 
-  // Live
-  heroBlock: { gap: 14 },
-  noteBox: { alignItems: 'center', paddingVertical: 12 },
-  noteBoxPlaceholder: { alignItems: 'center', height: 110, justifyContent: 'center', gap: 4 },
-  notePlaceholder: {
-    color: Colors.text3,
-    fontFamily: Typography.bold,
-    fontSize: 80,
-    lineHeight: 84,
-  },
-  notePlaceholderSub: {
-    color: Colors.text2,
-    fontFamily: Typography.regular,
-    fontSize: 13,
-  },
-  noteBig: {
-    color: Colors.white,
-    fontFamily: Typography.bold,
-    fontSize: 110,
-    lineHeight: 114,
-    letterSpacing: -3,
-  },
-  noteIntl: {
-    color: Colors.textMuted,
-    fontFamily: Typography.medium,
-    fontSize: 18,
-    marginTop: -4,
-  },
-  waveformWrap: {
-    paddingHorizontal: 8,
-  },
-
-  // Key card
-  keyCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    gap: 12,
-  },
-  keyCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  stageLabel: {
-    fontFamily: Typography.semi,
-    fontSize: 11,
-    letterSpacing: 1.5,
-  },
-  confBadge: {
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    backgroundColor: Colors.goldMuted,
-    borderRadius: Radius.pill,
-    borderWidth: 1,
-    borderColor: Colors.goldBorder,
-  },
-  confBadgeTxt: {
-    color: Colors.gold,
-    fontFamily: Typography.bold,
-    fontSize: 11,
-    letterSpacing: 0.3,
-  },
-  keyEmpty: {
-    color: Colors.text2,
-    fontFamily: Typography.medium,
-    fontSize: 14,
-    fontStyle: 'italic',
-    paddingVertical: 12,
-  },
-  keyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  keyNote: { color: Colors.white, fontFamily: Typography.bold, fontSize: 36, lineHeight: 40 },
-  keyQual: { color: Colors.textMuted, fontFamily: Typography.medium, fontSize: 18, marginBottom: 6 },
-  keyIntl: { color: Colors.text2, fontFamily: Typography.regular, fontSize: 13, marginTop: -4 },
-
-  confBar: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: Colors.surface3,
+  // Note Hero — altura FIXA, evita reflow
+  noteHero: {
+    backgroundColor: C.surface, borderRadius: 20, borderWidth: 1, borderColor: C.border,
     overflow: 'hidden',
-    marginTop: 4,
+    minHeight: 240,                         // ← altura mínima fixa
   },
-  confFill: { height: '100%', borderRadius: 3 },
+  noteHeroTopRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 4,
+  },
+  noteHeroLabel: { fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text3, letterSpacing: 2.4 },
+  noteHeroBox: {
+    alignItems: 'center', justifyContent: 'center',
+    flex: 1,                                // ocupa o resto do hero
+    paddingHorizontal: 20, paddingBottom: 18, paddingTop: 4,
+    minHeight: 175,                         // garante altura mesmo sem nota
+  },
+  noteHeroTxt: {
+    fontFamily: 'Outfit_800ExtraBold', fontSize: 96, color: C.white,
+    letterSpacing: -3.5, lineHeight: 110, textAlign: 'center',
+    includeFontPadding: false,
+    ...Platform.select({
+      ios: { textShadowColor: C.amberGlow, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 28 },
+      default: {},
+    }),
+  },
+  noteHeroIntl: {
+    fontFamily: 'Manrope_500Medium', fontSize: 13, color: C.text2,
+    letterSpacing: 1, marginTop: 4,
+  },
+  listeningHero: { alignItems: 'center', justifyContent: 'center', flex: 1, paddingHorizontal: 20 },
+  listeningTitle: {
+    fontFamily: 'Outfit_800ExtraBold', fontSize: 32, color: C.white, letterSpacing: -1, marginBottom: 6,
+  },
+  listeningSub: {
+    fontFamily: 'Manrope_400Regular', fontSize: 13, color: C.text2, textAlign: 'center', maxWidth: 280,
+  },
 
+  section: { gap: 8 },
   sectionLabel: {
-    color: Colors.text2,
-    fontFamily: Typography.semi,
-    fontSize: 11,
-    letterSpacing: 1.6,
+    fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text3, letterSpacing: 2.4, paddingHorizontal: 2,
   },
-
-  // Result
-  confirmedPill: {
-    flexDirection: 'row', alignSelf: 'center',
-    alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 7,
-    backgroundColor: Colors.greenSoft,
-    borderRadius: Radius.pill,
-    borderWidth: 1, borderColor: Colors.greenBorder,
+  // Histórico em scroll horizontal — altura fixa, sem wrap
+  historyScroll: {
+    backgroundColor: C.surface, borderRadius: 14, borderWidth: 1, borderColor: C.border,
+    minHeight: 48, maxHeight: 48,
   },
-  confirmedTxt: {
-    color: Colors.green,
-    fontFamily: Typography.semi,
-    fontSize: 11,
-    letterSpacing: 1.4,
-  },
-  resultKeyRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
-  resultNote: {
-    color: Colors.white,
-    fontFamily: Typography.bold,
-    fontSize: 84,
-    lineHeight: 88,
-    letterSpacing: -1.5,
-  },
-  resultQual: {
-    color: Colors.textMuted,
-    fontFamily: Typography.medium,
-    fontSize: 26,
-    marginBottom: 14,
-  },
-  resultIntl: {
-    color: Colors.gold,
-    fontFamily: Typography.semi,
-    fontSize: 17,
-  },
-  confLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  confLabel: { color: Colors.textMuted, fontFamily: Typography.medium, fontSize: 13 },
-  confPct: { fontFamily: Typography.bold, fontSize: 17 },
-  confTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.surface3,
-    overflow: 'hidden',
-  },
-  confTrackFill: {
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: Colors.green,
-  },
-  againBtn: {
-    flexDirection: 'row',
+  historyRow: {
+    flexDirection: 'row', gap: 6,
+    paddingVertical: 9, paddingHorizontal: 12,
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: Colors.gold,
-    borderRadius: Radius.pill,
-    paddingVertical: 16,
-    marginTop: 4,
   },
-  againTxt: {
-    color: Colors.bg,
-    fontFamily: Typography.bold,
-    fontSize: 15,
-    letterSpacing: 0.3,
+  historyEmpty: { fontFamily: 'Manrope_400Regular', fontSize: 11, color: C.text3, fontStyle: 'italic' },
+  historyChip: {
+    paddingHorizontal: 11, paddingVertical: 5, borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    minWidth: 38, alignItems: 'center',
   },
+  historyChipActive: { backgroundColor: 'rgba(255,176,32,0.14)', borderColor: 'rgba(255,176,32,0.50)' },
+  historyChipTxt: { fontFamily: 'Outfit_700Bold', fontSize: 13, color: C.text2, letterSpacing: 0.3 },
+  historyChipTxtActive: { color: C.amber },
 
-  // Modal
+  // Slot reservado pro key card — minHeight evita pulos
+  keyCardSlot: { minHeight: 168 },
+
+  keyCard: {
+    backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, padding: 14, gap: 10,
+  },
+  keyCardProv: { borderColor: C.amberBorder },
+  keyCardConfirmed: { borderColor: 'rgba(34,197,94,0.30)' },
+  keyCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  keyCardBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 99, borderWidth: 1,
+  },
+  keyCardBadgeTxt: { fontFamily: 'Manrope_600SemiBold', fontSize: 9.5, letterSpacing: 1.8 },
+  keyCardConfPct: { fontFamily: 'Outfit_700Bold', fontSize: 13, color: C.text2, letterSpacing: -0.3 },
+  hintRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 10, paddingTop: 10,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,176,32,0.15)',
+  },
+  hintTxt: {
+    flex: 1,
+    fontFamily: 'Manrope_500Medium', fontSize: 12.5, color: C.amber,
+    letterSpacing: 0.1,
+  },
+  analyzingTitle: {
+    fontFamily: 'Outfit_700Bold', fontSize: 22, color: C.white,
+    letterSpacing: -0.5, marginTop: 6,
+  },
+  analyzingSub: {
+    fontFamily: 'Manrope_400Regular', fontSize: 13, color: C.text2,
+    marginTop: 4, lineHeight: 18,
+  },
+  keyDisplayRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  keyDisplayNote: { fontFamily: 'Outfit_800ExtraBold', fontSize: 40, color: C.white, lineHeight: 44, letterSpacing: -1.2 },
+  keyDisplayQual: { fontFamily: 'Outfit_700Bold', fontSize: 22, color: C.white, letterSpacing: -0.5 },
+  keyDisplayIntl: { fontFamily: 'Manrope_400Regular', fontSize: 13, color: C.text3 },
+  confBarBg: { height: 4, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.06)', overflow: 'hidden' },
+  confBarFill: { height: '100%', borderRadius: 99 },
+
+  changeBanner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12,
+    backgroundColor: 'rgba(96,165,250,0.10)', borderWidth: 1, borderColor: 'rgba(96,165,250,0.35)',
+  },
+  changeBannerTxt: {
+    fontFamily: 'Manrope_500Medium', fontSize: 12.5, color: C.text2, letterSpacing: 0.2, flexShrink: 1,
+  },
+  changeBannerStrong: { fontFamily: 'Outfit_700Bold', color: C.blue },
+
+  chordGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: CHORD_GAP },
+  chordCard: {
+    width: CHORD_W, backgroundColor: C.surface, borderRadius: 12,
+    paddingVertical: 10, paddingHorizontal: 6,
+    alignItems: 'center', borderWidth: 1, borderColor: C.border,
+  },
+  chordCardTonic: { backgroundColor: C.amberMuted, borderColor: C.amberBorder },
+  chordDegree: { fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.text3, letterSpacing: 1, marginBottom: 2 },
+  chordName: { fontFamily: 'Outfit_700Bold', fontSize: 16, color: C.white, letterSpacing: -0.3 },
+  chordNameTonic: { color: C.amber },
+  chordIntl: { fontFamily: 'Manrope_400Regular', fontSize: 10, color: C.text3, marginTop: 1 },
+
+  softBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.amberMuted, borderWidth: 1, borderColor: C.amberBorder,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  softBarTxt: { flex: 1, fontFamily: 'Manrope_500Medium', fontSize: 12, color: C.amber, lineHeight: 16 },
+
   modalBg: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.78)',
-    alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 24,
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.82)',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28,
   },
   modalCard: {
-    width: '100%', maxWidth: 360,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    borderWidth: 1, borderColor: Colors.borderStrong,
-    paddingHorizontal: 24, paddingVertical: 28,
-    alignItems: 'center',
+    backgroundColor: C.surface, borderRadius: 24, borderWidth: 1, borderColor: C.border,
+    padding: 28, width: '100%', alignItems: 'center',
   },
-  modalTitle: {
-    color: Colors.white,
-    fontFamily: Typography.bold,
-    fontSize: 18,
-    marginBottom: 8,
-  },
-  modalMsg: {
-    color: Colors.textMuted,
-    fontFamily: Typography.regular,
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+  modalTitle: { fontFamily: 'Outfit_700Bold', fontSize: 20, color: C.white, marginBottom: 8, letterSpacing: -0.3 },
+  modalMsg: { fontFamily: 'Manrope_400Regular', fontSize: 14, color: C.text2, textAlign: 'center', lineHeight: 20 },
   modalPrimary: {
-    backgroundColor: Colors.gold,
-    borderRadius: Radius.pill,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginBottom: 8,
-    width: '100%',
+    height: 48, borderRadius: 99, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center',
   },
-  modalPrimaryTxt: {
-    color: Colors.bg,
-    fontFamily: Typography.bold,
-    fontSize: 14,
-  },
-  modalSecondary: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    width: '100%',
-  },
-  modalSecondaryTxt: {
-    color: Colors.text2,
-    fontFamily: Typography.medium,
-    fontSize: 13,
-  },
+  modalPrimaryTxt: { fontFamily: 'Manrope_600SemiBold', fontSize: 15, color: C.bg, letterSpacing: 0.4 },
+  modalSecondary: { height: 40, alignItems: 'center', justifyContent: 'center' },
+  modalSecondaryTxt: { fontFamily: 'Manrope_500Medium', fontSize: 13, color: C.text2 },
 });
