@@ -10,6 +10,7 @@ import * as Updates from 'expo-updates';
 import { useKeyDetection } from '../src/hooks/useKeyDetection';
 import { NOTES_BR, NOTES_INTL, formatKeyDisplay, getHarmonicField } from '../src/utils/noteUtils';
 import { useAuth } from '../src/auth/AuthContext';
+import { APP_VERSION_LABEL } from '../src/constants/version';
 import AudioVisualizer from '../src/components/AudioVisualizer';
 
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -380,6 +381,7 @@ function InitialScreen({
             </TouchableOpacity>
 
             <View style={{ height: 8 }} />
+            <Text style={ss.versionLabel}>{APP_VERSION_LABEL}</Text>
             <TouchableOpacity onPress={() => setSettingsOpen(false)} style={ss.modalSecondary}>
               <Text style={ss.modalSecondaryTxt}>Fechar</Text>
             </TouchableOpacity>
@@ -1021,6 +1023,16 @@ const ss = StyleSheet.create({
   },
   settingsItemTxt: {
     flex: 1, fontFamily: 'Manrope_600SemiBold', fontSize: 14, color: C.white,
+  },
+  versionLabel: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 11,
+    color: C.text3,
+    letterSpacing: 1.2,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 4,
+    opacity: 0.7,
   },
 
   // Footer antigo (mantido pra compat — não usado mais na InitialScreen)
