@@ -1,8 +1,7 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # IDE and editors
 .idea/
 .vscode/
+.cursor/
 
 # Dependencies
 node_modules/
@@ -28,55 +27,68 @@ next-env.d.ts
 # Production builds
 /build
 dist/
-dist
 
-# Environment files (comprehensive coverage)
+# Misc
+.DS_Store
+*.pem
 
-*token.json*
-*credentials.json*
+# ─── Secrets / Environment Variables (CRÍTICO: nunca commitar) ───
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
+backend/.env.*
+frontend/.env.*
+!backend/.env.example
+!frontend/.env.example
 
-# Logs and debug files
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-dump.rdb
-
-# System files
-.DS_Store
-*.pem
+*.log
 
 # Python
 __pycache__/
-*pyc*
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
 venv/
 .venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.ruff_cache/
 
-# Development tools
-chainlit.md
-.chainlit
-.ipynb_checkpoints/
-.ac
+# MongoDB local data
+data/db/
 
-# Deployment
-.vercel
+# Expo
+.expo/
+.expo-shared/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
 
-# Data and databases
-agenthub/agents/youtube/db
+# IDE specific
+*.swp
+.DS_Store
+Thumbs.db
 
-# Archive files and large assets
-**/*.zip
-**/*.tar.gz
-**/*.tar
-**/*.tgz
-*.pack
-*.deb
-*.dylib
+# Test outputs
+/test_results/
+/screenshots/
+/.emergent/
 
-# Build caches
-.cache/
-
-memory/test_credentials.md
-
-# Mobile development
-android-sdk/
+# Backend test artifacts
+backend_test*.py
+!backend_test_template.py
