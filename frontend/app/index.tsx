@@ -422,15 +422,11 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   // ═══════════════════════════════════════════════════════════════
   // ESTRATÉGIA "TOM TURBO" — DETECÇÃO RÁPIDA EM < 15 SEGUNDOS
   // ═══════════════════════════════════════════════════════════════
-  // Thresholds agressivos para resultado rápido:
-  //   FAST: 0.35 — trava em ~3s com 1 análise confiante
-  //   CONFIRM: 0.25 — trava em ~6s com 2 análises moderadas
-  //   INDIVIDUAL: 0.15 — qualquer análise útil entra na janela
-  //   PROVISIONAL: 0.10 — exibe imediatamente mesmo sem lock
-  const MIN_INDIVIDUAL_CONF = 0.15;
-  const MIN_CONFIRM_CONF = 0.25;
-  const FAST_CONFIRM_CONF = 0.35;
-  const LOCK_WINDOW_SIZE = 2;  // Apenas 2 análises para confirmar (era 3)
+  // Agora aceita QUALQUER resultado válido do backend (success: true)
+  // A confiança é usada apenas para decidir quando "travar" definitivamente
+  const MIN_CONFIRM_CONF = 0.20;   // Trava com 2 análises concordando
+  const FAST_CONFIRM_CONF = 0.30;  // Trava imediato se conf >= 30%
+  const LOCK_WINDOW_SIZE = 2;      // 2 análises iguais = lock
 
   const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
   const lockedKeyRef = useRef<{
@@ -448,7 +444,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     // 🔒 Já travado? Não muda mais até reset (regra do produto).
     if (lockedKeyRef.current) return;
 
-    // ⚡ CAMINHO RÁPIDO: 1 análise super confiante → trava direto (~4s)
+    // ⚡ CAMINHO RÁPIDO: confiança alta → trava direto
     if (conf >= FAST_CONFIRM_CONF) {
       lockedKeyRef.current = {
         tonic, quality, key_name: keyName,
@@ -458,10 +454,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
       return;
     }
 
-    // 🐢 CAMINHO NORMAL: só entra na janela se passou do mínimo individual
-    if (conf < MIN_INDIVIDUAL_CONF) return;
-
-    // Adiciona à janela (mantém últimas N)
+    // 🎯 SEMPRE adiciona à janela (qualquer resultado válido conta)
     lockWindowRef.current = [
       ...lockWindowRef.current.slice(-(LOCK_WINDOW_SIZE - 1)),
       { tonic, quality, confidence: conf },
@@ -486,13 +479,12 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
       }
     }
     if (!bestEntry) return;
-    const avgConf = bestEntry.sumConf / bestEntry.count;
 
-    // Trava se 2 de 3 análises concordam E a média de confiança é alta
-    if (bestEntry.count >= 2 && avgConf >= MIN_CONFIRM_CONF) {
+    // Trava se 2 análises concordam (independente da confiança - o backend já validou)
+    if (bestEntry.count >= 2) {
       lockedKeyRef.current = {
         tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
-        confidence: avgConf, at: Date.now(),
+        confidence: bestEntry.sumConf / bestEntry.count, at: Date.now(),
       };
       setLockedKeyTick(t => t + 1);
     }
@@ -538,28 +530,26 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const mlStage: Stage = useMemo(() => {
     if (lockedKeyRef.current) return 'confirmed';
     if (!isRunning) return 'idle';
-    // Tem resultado provisório com confiança mínima → mostra imediatamente (threshold 0.10)
+    // Tem resultado válido do backend → mostra imediatamente (independente da confiança)
     if (
       mlResult?.success &&
-      (mlResult.confidence ?? 0) >= 0.10 &&
       mlResult.tonic !== undefined &&
       mlResult.quality
     ) return 'confirmed';
     if (analysisCount === 0) return 'listening';
     return 'analyzing';
-  }, [isRunning, analysisCount, mlResult?.success, mlResult?.confidence, mlResult?.tonic, mlResult?.quality, lockedKeyTick]);
+  }, [isRunning, analysisCount, mlResult?.success, mlResult?.tonic, mlResult?.quality, lockedKeyTick]);
 
   const confirmedKey = lockedKeyRef.current
     ? { root: lockedKeyRef.current.tonic, quality: lockedKeyRef.current.quality }
     : null;
 
-  // Tom provisório: exibe o melhor resultado do backend assim que disponível (conf ≥ 0.10)
-  // Threshold mais baixo para mostrar resultado provisório rapidamente
+  // Tom provisório: exibe qualquer resultado válido do backend (sem filtro de confiança)
+  // O usuário precisa ver feedback rápido - a UI já indica que é "provisório"
   const provisionalKey = (
     !lockedKeyRef.current &&
     mlResult?.success &&
     isRunning &&
-    (mlResult.confidence ?? 0) >= 0.10 &&
     mlResult.tonic !== undefined &&
     mlResult.quality
   ) ? { root: mlResult.tonic!, quality: mlResult.quality as 'major' | 'minor' } : null;
