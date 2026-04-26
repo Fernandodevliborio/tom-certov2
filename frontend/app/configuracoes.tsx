@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { Colors, Radius, Spacing, Typography } from '../src/theme/tokens';
-import { BottomNav } from '../src/components/BottomNav';
 import { useAuth } from '../src/auth/AuthContext';
 
 export default function ConfiguracoesScreen() {
@@ -80,7 +79,7 @@ export default function ConfiguracoesScreen() {
               <Ionicons name="refresh-outline" size={22} color={Colors.gold} />
               <View>
                 <Text style={s.rowTitle}>Buscar atualização</Text>
-                <Text style={s.rowSub}>v4.0.1 · {(Updates.updateId ?? 'embedded').slice(0, 8)}</Text>
+                <Text style={s.rowSub}>v4.1.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}</Text>
               </View>
             </View>
             {checking ? <ActivityIndicator size="small" color={Colors.gold} /> : <Ionicons name="chevron-forward" size={18} color={Colors.text2} />}
@@ -112,10 +111,8 @@ export default function ConfiguracoesScreen() {
           </View>
         </View>
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
-
-      <BottomNav />
     </SafeAreaView>
   );
 }
