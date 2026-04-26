@@ -74,6 +74,7 @@ export interface UseKeyDetectionReturn {
   start: () => Promise<boolean>;
   stop: () => void;
   reset: () => void;
+  softReset: () => Promise<void>;
   mlState: 'idle' | 'waiting' | 'listening' | 'analyzing' | 'done' | 'error';
   mlResult: MLAnalysisResult | null;
   mlProgress: number;
@@ -405,6 +406,23 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     setMlState('idle');
   }, [stop]);
 
+  // Soft reset — limpa estado de análise SEM parar o microfone.
+  // Usado pelo botão "Detectar novo tom" no UI.
+  const softReset = useCallback(async () => {
+    setKeyState(createInitialState());
+    setRecentNotes([]);
+    setSoftInfo(null);
+    setMlResult(null);
+    setMlState('idle');
+    setAgreementMul(1.0);
+    lastVoicedTimeRef.current = 0;
+    phraseNotesRef.current = [];
+    phraseStartTimeRef.current = 0;
+    tempBufferRef.current.clear();
+    // Zera o acumulador PCP no backend pra começar análise limpa
+    try { await resetKeyAnalysisSession(deviceIdRef.current ?? undefined); } catch { /* offline tolerated */ }
+  }, []);
+
   // ── Ref estável para runMLAnalysis (evita reset do interval em mudanças de state)
   const runMLAnalysisRef = useRef(runMLAnalysis);
   useEffect(() => { runMLAnalysisRef.current = runMLAnalysis; }, [runMLAnalysis]);
@@ -520,6 +538,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     start,
     stop,
     reset,
+    softReset,
     mlState,
     mlResult,
     mlProgress,

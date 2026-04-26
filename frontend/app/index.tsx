@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions,
   Easing, Platform, Modal, ScrollView, Linking, Alert, ActivityIndicator, Image,
@@ -219,7 +219,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const {
     detectionState, currentKey, keyTier, liveConfidence, changeSuggestion,
     currentNote, recentNotes, audioLevel, isRunning,
-    softInfo, reset, phraseStage, phrasesAnalyzed,
+    softInfo, reset, softReset, phraseStage, phrasesAnalyzed,
     smartStatus, mlResult,
   } = det;
 
@@ -310,6 +310,18 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
       setLockedKeyTick(t => t + 1);
     }
   }, [isRunning]);
+
+  // 🔄 Restart Detection — limpa o estado de análise SEM parar o microfone.
+  // O usuário aperta esse botão pra detectar um novo tom (ex: música mudou)
+  // sem precisar parar a gravação. Volta direto ao estado "🎤 OUVINDO...".
+  const restartDetection = useCallback(async () => {
+    // 1) Limpa refs locais de trava
+    lockedKeyRef.current = null;
+    lockWindowRef.current = [];
+    setLockedKeyTick(t => t + 1);
+    // 2) Soft reset no hook (limpa mlResult + zera PCP no backend)
+    try { await softReset(); } catch { /* tolerado */ }
+  }, [softReset]);
 
   // ═══════════════════════════════════════════════════════════════
   // MÁQUINA DE ESTADOS DE STATUS — só status, nunca tom provisório
@@ -559,6 +571,16 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               </View>
               <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={false} />
               <ConfidenceBar pct={confPct} color={confColor} />
+              {/* 🔄 Botão de Reiniciar Detecção — só aparece quando tom está travado */}
+              <TouchableOpacity
+                testID="restart-detection-btn"
+                style={ss.restartBtn}
+                onPress={restartDetection}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="refresh" size={16} color={C.amber} />
+                <Text style={ss.restartBtnTxt}>Detectar Novo Tom</Text>
+              </TouchableOpacity>
             </View>
           ) : isRunning ? (
             <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
@@ -874,6 +896,19 @@ const ss = StyleSheet.create({
     flex: 1,
     fontFamily: 'Manrope_500Medium', fontSize: 12.5, color: C.amber,
     letterSpacing: 0.1,
+  },
+  restartBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 14, paddingVertical: 11, paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,176,32,0.10)',
+    borderRadius: 10,
+    borderWidth: 1, borderColor: 'rgba(255,176,32,0.28)',
+  },
+  restartBtnTxt: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 13.5,
+    letterSpacing: 0.3,
+    color: C.amber,
   },
   analyzingTitle: {
     fontFamily: 'Outfit_700Bold', fontSize: 22, color: C.white,
