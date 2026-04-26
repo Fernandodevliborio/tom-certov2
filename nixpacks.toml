@@ -1,10 +1,11 @@
 # Nixpacks config para Railway
-# Garante Python 3.11 + dependências de sistema para librosa/soundfile/torch
-# Aumenta timeout do pip pra suportar download grande do torch CPU (~200MB)
+# Garante Python 3.11 + PIP + dependências de sistema para librosa/soundfile/torch
 
 [phases.setup]
 nixPkgs = [
   "python311",
+  "python311Packages.pip",
+  "python311Packages.virtualenv",
   "gcc",
   "libffi",
   "openssl",
@@ -14,12 +15,8 @@ nixPkgs = [
 
 [phases.install]
 cmds = [
-  "cd backend && python -m pip install --upgrade pip",
   "cd backend && pip install --no-cache-dir --timeout=600 -r requirements.txt",
 ]
-
-[phases.build]
-cmds = ["echo 'Build complete - skipping any pre-compile.'"]
 
 [start]
 cmd = "cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 75"
