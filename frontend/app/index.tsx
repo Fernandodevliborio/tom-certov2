@@ -98,58 +98,119 @@ function InitialScreen({
   }, [errorMessage]);
 
   // ═══════════════════════════════════════════════════════════════
-  // ANIMAÇÕES PREMIUM — sutis, lentas, Apple-style
+  // ANIMAÇÕES PREMIUM — vivas mas elegantes (Apple/Tesla style)
   // ═══════════════════════════════════════════════════════════════
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(20)).current;
   const breathe = useRef(new Animated.Value(0)).current;
   const ring1 = useRef(new Animated.Value(0)).current;
   const ring2 = useRef(new Animated.Value(0)).current;
+  const ring3 = useRef(new Animated.Value(0)).current;
   const micScale = useRef(new Animated.Value(1)).current;
+  const logoGlow = useRef(new Animated.Value(0.7)).current;
+
+  // Side waves (16 barras cada lado)
+  const WAVE_COUNT = 16;
+  const waveLeft = useRef(Array.from({ length: WAVE_COUNT }, () => new Animated.Value(Math.random()))).current;
+  const waveRight = useRef(Array.from({ length: WAVE_COUNT }, () => new Animated.Value(Math.random()))).current;
+  // Particles douradas (12 ao redor)
+  const PARTICLE_COUNT = 14;
+  const particles = useRef(
+    Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+      angle: (i / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.3,
+      radius: 110 + Math.random() * 50,
+      val: new Animated.Value(Math.random()),
+      size: 2 + Math.random() * 2,
+      dur: 2200 + Math.random() * 1800,
+    }))
+  ).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeIn, { toValue: 1, duration: 320, useNativeDriver: true }),
       Animated.timing(slideUp, { toValue: 0, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
-    // Breathe muito sutil (Apple-style)
-    const breatheLoop = Animated.loop(Animated.sequence([
-      Animated.timing(breathe, { toValue: 1, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(breathe, { toValue: 0, duration: 2800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+
+    // Logo glow loop (sutil)
+    const logoLoop = Animated.loop(Animated.sequence([
+      Animated.timing(logoGlow, { toValue: 1, duration: 2400, useNativeDriver: true }),
+      Animated.timing(logoGlow, { toValue: 0.7, duration: 2400, useNativeDriver: true }),
     ]));
-    // Apenas 2 anéis lentos e discretos
+
+    // Breathe (scale 0.99-1.02 conforme pedido)
+    const breatheLoop = Animated.loop(Animated.sequence([
+      Animated.timing(breathe, { toValue: 1, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 0, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+
+    // 3 anéis concêntricos (mais visíveis que antes mas elegantes)
     const makeRing = (val: Animated.Value, delay: number) =>
       Animated.loop(Animated.sequence([
         Animated.delay(delay),
-        Animated.timing(val, { toValue: 1, duration: 4000, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+        Animated.timing(val, { toValue: 1, duration: 3200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
         Animated.timing(val, { toValue: 0, duration: 0, useNativeDriver: true }),
       ]));
-    const r1 = makeRing(ring1, 0), r2 = makeRing(ring2, 2000);
-    breatheLoop.start(); r1.start(); r2.start();
-    return () => { breatheLoop.stop(); r1.stop(); r2.stop(); };
+    const r1 = makeRing(ring1, 0), r2 = makeRing(ring2, 1066), r3 = makeRing(ring3, 2133);
+
+    // Side wave bars
+    const waveLoops: Animated.CompositeAnimation[] = [];
+    [waveLeft, waveRight].forEach(arr => {
+      arr.forEach((val) => {
+        const dur = 700 + Math.random() * 900;
+        const loop = Animated.loop(Animated.sequence([
+          Animated.timing(val, { toValue: 1, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+          Animated.timing(val, { toValue: 0, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+        ]));
+        waveLoops.push(loop);
+      });
+    });
+
+    // Particles
+    const particleLoops = particles.map(p =>
+      Animated.loop(Animated.sequence([
+        Animated.timing(p.val, { toValue: 1, duration: p.dur, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(p.val, { toValue: 0, duration: p.dur, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]))
+    );
+
+    logoLoop.start(); breatheLoop.start(); r1.start(); r2.start(); r3.start();
+    waveLoops.forEach(l => l.start());
+    particleLoops.forEach(l => l.start());
+
+    return () => {
+      logoLoop.stop(); breatheLoop.stop(); r1.stop(); r2.stop(); r3.stop();
+      waveLoops.forEach(l => l.stop());
+      particleLoops.forEach(l => l.stop());
+    };
   }, []);
 
-  const breatheScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.015] });
+  // scale 0.99 → 1.02 (vivo mas sutil)
+  const breatheScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [0.99, 1.02] });
 
-  const renderRing = (val: Animated.Value) => (
+  const renderRing = (val: Animated.Value, idx: number) => (
     <Animated.View style={[
       ss.micRingPremium,
       {
-        opacity: val.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0.18, 0.10, 0] }),
-        transform: [{ scale: val.interpolate({ inputRange: [0, 1], outputRange: [1, 1.55] }) }],
+        opacity: val.interpolate({
+          inputRange: [0, 0.4, 1],
+          outputRange: [0.45 - idx * 0.08, 0.22 - idx * 0.04, 0],
+        }),
+        transform: [{ scale: val.interpolate({ inputRange: [0, 1], outputRange: [1, 1.85 + idx * 0.15] }) }],
       },
     ]} />
   );
 
   return (
     <Animated.View testID="initial-screen" style={[ss.initialRoot, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
-      {/* HEADER: logo pequena + título refinado + subtítulo discreto */}
+      {/* HEADER: logo com glow + título + subtítulo */}
       <View style={ss.brandBlock}>
-        <Image
-          source={require('../assets/images/logo.png')}
-          style={ss.logoImgMain}
-          resizeMode="contain"
-        />
+        <Animated.View style={{ opacity: logoGlow }}>
+          <Image
+            source={require('../assets/images/logo.png')}
+            style={ss.logoImgMain}
+            resizeMode="contain"
+          />
+        </Animated.View>
         <Text style={ss.brandTitle}>
           <Text style={ss.brandTitleThin}>Tom </Text>
           <Text style={ss.brandTitleBold}>Certo</Text>
@@ -157,10 +218,68 @@ function InitialScreen({
         <Text style={ss.brandSub}>DETECTOR DE TONALIDADE</Text>
       </View>
 
-      {/* MIC SECTION — botão central, anéis sutis */}
+      {/* MIC SECTION — botão central, 3 anéis, partículas, ondas laterais */}
       <View style={ss.micSection}>
-        {renderRing(ring2)}
-        {renderRing(ring1)}
+        {/* Side waves esquerda */}
+        <View style={[ss.sideWaves, ss.sideWavesLeft]} pointerEvents="none">
+          {waveLeft.map((val, i) => {
+            const cw = 1 - Math.abs((i - WAVE_COUNT / 2) / (WAVE_COUNT / 2));
+            return (
+              <Animated.View key={`wl-${i}`} style={[
+                ss.waveBar,
+                {
+                  height: val.interpolate({ inputRange: [0, 1], outputRange: [4 + cw * 8, 18 + cw * 42] }),
+                  opacity: val.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.65] }),
+                },
+              ]} />
+            );
+          })}
+        </View>
+        {/* Side waves direita */}
+        <View style={[ss.sideWaves, ss.sideWavesRight]} pointerEvents="none">
+          {waveRight.map((val, i) => {
+            const cw = 1 - Math.abs((i - WAVE_COUNT / 2) / (WAVE_COUNT / 2));
+            return (
+              <Animated.View key={`wr-${i}`} style={[
+                ss.waveBar,
+                {
+                  height: val.interpolate({ inputRange: [0, 1], outputRange: [4 + cw * 8, 18 + cw * 42] }),
+                  opacity: val.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.65] }),
+                },
+              ]} />
+            );
+          })}
+        </View>
+
+        {/* Partículas douradas orbitando */}
+        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+          <View style={ss.particlesCenter}>
+            {particles.map((p, i) => {
+              const x = Math.cos(p.angle) * p.radius;
+              const y = Math.sin(p.angle) * p.radius;
+              const opacity = p.val.interpolate({
+                inputRange: [0, 0.5, 1],
+                outputRange: [0.15, 0.65, 0.15],
+              });
+              return (
+                <Animated.View
+                  key={`p-${i}`}
+                  style={[
+                    ss.particle,
+                    { width: p.size, height: p.size, opacity, transform: [{ translateX: x }, { translateY: y }] },
+                  ]}
+                />
+              );
+            })}
+          </View>
+        </View>
+
+        {/* 3 anéis concêntricos pulsantes */}
+        {renderRing(ring3, 2)}
+        {renderRing(ring2, 1)}
+        {renderRing(ring1, 0)}
+
+        {/* Botão central */}
         <TouchableOpacity
           testID="start-btn"
           onPressIn={() => Animated.spring(micScale, { toValue: 0.94, useNativeDriver: true }).start()}
@@ -173,7 +292,7 @@ function InitialScreen({
             { transform: [{ scale: Animated.multiply(micScale, breatheScale) }] },
           ]}>
             <View style={ss.micInnerPremium}>
-              <Ionicons name="mic" size={52} color={C.amber} />
+              <Ionicons name="mic" size={56} color={C.amber} />
             </View>
           </Animated.View>
         </TouchableOpacity>
@@ -197,7 +316,7 @@ function InitialScreen({
         </TouchableOpacity>
       ) : null}
 
-      {/* FOOTER: 2 ícones extremamente discretos */}
+      {/* FOOTER: 2 ícones com borda dourada circular */}
       <View style={ss.footerIcons}>
         <TouchableOpacity
           testID="settings-btn"
@@ -216,7 +335,7 @@ function InitialScreen({
         >
           {checkingUpdate
             ? <ActivityIndicator size={16} color={C.amber} />
-            : <Ionicons name="refresh-outline" size={20} color={C.amber} />}
+            : <Ionicons name="time-outline" size={22} color={C.amber} />}
         </TouchableOpacity>
       </View>
 
@@ -755,52 +874,82 @@ const CHORD_W = (SW - 32 - CHORD_GAP * 2) / 3;
 const ss = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
 
-  // INITIAL — PREMIUM MINIMALIST (Apple/Tesla style)
+  // INITIAL — PREMIUM (referência: visual rico mas elegante)
   initialRoot: {
     flex: 1, alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 28, paddingBottom: 22, paddingHorizontal: 24,
+    paddingTop: 24, paddingBottom: 22, paddingHorizontal: 24,
   },
   brandBlock: { alignItems: 'center' },
-  logoWrapMain: {
-    width: 56, height: 56,
-    alignItems: 'center', justifyContent: 'center',
+  logoWrapMain: { width: 80, height: 80, alignItems: 'center', justifyContent: 'center' },
+  logoImgMain: {
+    width: 80, height: 80, marginBottom: 14,
+    ...Platform.select({
+      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.5, shadowRadius: 24 },
+      android: { elevation: 12 },
+      default: {},
+    }),
   },
-  logoImgMain: { width: 56, height: 56, marginBottom: 12, opacity: 0.85 },
   headerLogoLanding: { width: 28, height: 28 },
-  brandTitle: { fontSize: 26, color: C.white, letterSpacing: -0.4 },
-  brandTitleThin: { fontFamily: 'Outfit_400Regular', fontWeight: '200', color: '#D8D8D8' },
-  brandTitleBold: { fontFamily: 'Outfit_700Bold', fontWeight: '600', color: C.white },
+  brandTitle: { fontSize: 36, color: C.white, letterSpacing: -0.6 },
+  brandTitleThin: { fontFamily: 'Outfit_400Regular', fontWeight: '300', color: '#E8E8E8' },
+  brandTitleBold: { fontFamily: 'Outfit_700Bold', fontWeight: '700', color: C.white },
   brandSub: {
-    fontFamily: 'Manrope_500Medium', fontSize: 9.5, letterSpacing: 5,
-    color: C.text2, marginTop: 10, opacity: 0.55,
+    fontFamily: 'Manrope_500Medium', fontSize: 11.5, letterSpacing: 6,
+    color: C.amber, marginTop: 8, opacity: 0.78,
   },
 
   micSection: {
     alignItems: 'center', justifyContent: 'center',
-    width: 240, height: 240,
+    width: '100%', height: 320, position: 'relative',
   },
+  // 3 anéis pulsantes (mais visíveis que antes)
   micRingPremium: {
-    position: 'absolute', width: 164, height: 164,
-    borderRadius: 82,
-    borderWidth: 1, borderColor: 'rgba(255,176,32,0.30)',
+    position: 'absolute', width: 184, height: 184,
+    borderRadius: 92,
+    borderWidth: 1, borderColor: C.amber,
   },
   micBtnPremium: {
-    width: 164, height: 164, borderRadius: 82,
-    borderWidth: 1.5, borderColor: 'rgba(255,176,32,0.55)',
+    width: 184, height: 184, borderRadius: 92,
+    borderWidth: 2, borderColor: C.amber,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#0E0905',
     ...Platform.select({
-      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.22, shadowRadius: 14 },
-      android: { elevation: 8 },
+      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.45, shadowRadius: 24 },
+      android: { elevation: 14 },
       default: {},
     }),
   },
   micInnerPremium: {
-    width: 154, height: 154, borderRadius: 77,
+    width: 168, height: 168, borderRadius: 84,
     backgroundColor: '#0A0A0A',
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,176,32,0.32)',
   },
-  // Mantém classes antigas para o ActiveScreen (não mexer)
+  // Side waves (clearly visible like reference)
+  sideWaves: {
+    position: 'absolute', top: '50%',
+    height: 80, width: SW * 0.32,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    transform: [{ translateY: -40 }],
+  },
+  sideWavesLeft: { left: -8 },
+  sideWavesRight: { right: -8 },
+  waveBar: {
+    width: 1.5, backgroundColor: C.amber, borderRadius: 1,
+  },
+  // Particles (golden dust around button)
+  particlesCenter: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+  },
+  particle: {
+    position: 'absolute',
+    borderRadius: 3, backgroundColor: C.amberSoft,
+    ...Platform.select({
+      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 4 },
+      default: {},
+    }),
+  },
+  // Mantém classes antigas para o ActiveScreen (NÃO MEXER)
   micRing: {
     position: 'absolute', width: MIC_SIZE, height: MIC_SIZE,
     borderRadius: MIC_SIZE / 2, borderWidth: 1.5, borderColor: C.amber,
@@ -819,23 +968,23 @@ const ss = StyleSheet.create({
     fontFamily: 'Manrope_500Medium', fontSize: 13, color: C.text3, letterSpacing: 0.5,
   },
 
-  // Status / CTA premium
+  // Status / CTA (mais destaque, como na referência)
   statusBlock: { alignItems: 'center', paddingHorizontal: 16 },
   startLabel: {
-    fontFamily: 'Manrope_400Regular', fontWeight: '300',
-    fontSize: 12.5, letterSpacing: 7,
-    color: '#C8C8C8', textAlign: 'center', opacity: 0.85,
+    fontFamily: 'Manrope_500Medium', fontWeight: '500',
+    fontSize: 15, letterSpacing: 9,
+    color: C.amber, textAlign: 'center',
   },
   goldLine: {
-    width: 28, height: 1, backgroundColor: C.amber,
-    opacity: 0.35, marginVertical: 16, borderRadius: 1,
+    width: 36, height: 1.5, backgroundColor: C.amber,
+    opacity: 0.6, marginVertical: 14, borderRadius: 1,
   },
   tagline: {
-    fontFamily: 'Outfit_400Regular', fontSize: 13.5,
-    textAlign: 'center', letterSpacing: 0.2, opacity: 0.78,
+    fontFamily: 'Outfit_400Regular', fontSize: 14,
+    textAlign: 'center', letterSpacing: 0.2,
   },
   taglineWhite: { color: '#D8D8D8', fontWeight: '300' },
-  taglineGold: { color: C.amber, fontWeight: '400', opacity: 0.85 },
+  taglineGold: { color: C.amber, fontWeight: '500' },
 
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -844,14 +993,16 @@ const ss = StyleSheet.create({
   },
   errorTxt: { flex: 1, fontFamily: 'Manrope_500Medium', fontSize: 12, color: C.red, lineHeight: 16 },
 
-  // Footer minimalista (2 ícones discretos)
+  // Footer com 2 ícones com borda dourada circular (como referência)
   footerIcons: {
     flexDirection: 'row', justifyContent: 'space-between',
-    width: '100%', paddingHorizontal: 18, opacity: 0.32,
+    width: '100%', paddingHorizontal: 18,
   },
   footerIconBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 44, height: 44, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,176,32,0.45)',
+    backgroundColor: 'rgba(255,176,32,0.04)',
   },
 
   // Settings list (modal)
