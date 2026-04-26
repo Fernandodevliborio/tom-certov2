@@ -1,5 +1,5 @@
 # Nixpacks config para Railway
-# Garante Python 3.11 + PIP + dependências de sistema para librosa/soundfile/torch
+# Usa virtualenv para contornar PEP 668 do Python Nix.
 
 [phases.setup]
 nixPkgs = [
@@ -15,11 +15,13 @@ nixPkgs = [
 
 [phases.install]
 cmds = [
-  "cd backend && pip install --no-cache-dir --timeout=600 -r requirements.txt",
+  "python -m venv /opt/venv",
+  ". /opt/venv/bin/activate && pip install --no-cache-dir --timeout=600 --upgrade pip",
+  ". /opt/venv/bin/activate && cd backend && pip install --no-cache-dir --timeout=600 -r requirements.txt",
 ]
 
 [start]
-cmd = "cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 75"
+cmd = ". /opt/venv/bin/activate && cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT --workers 1 --timeout-keep-alive 75"
 
 [variables]
 PYTHON_VERSION = "3.11"
