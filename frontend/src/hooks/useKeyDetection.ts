@@ -337,6 +337,10 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const [mlResult, setMlResult] = useState<MLAnalysisResult | null>(null);
   const [mlProgress, setMlProgress] = useState(0);
   const deviceIdRef = useRef<string | null>(null);
+  
+  // Ref para evitar stale closures no guard de mlState
+  const mlStateRef = useRef(mlState);
+  useEffect(() => { mlStateRef.current = mlState; }, [mlState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -350,8 +354,11 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const ML_MIN_CLIP_SAMPLES = 16000 * 1.0; // 1.0s mínimo (era 1.5s)
 
   const runMLAnalysis = useCallback(async () => {
+    // Usar ref para ler estado atual (evita stale closure)
+    const currentMlState = mlStateRef.current;
+    
     // eslint-disable-next-line no-console
-    console.log(`[ML] runMLAnalysis chamado. isRunning=${isRunning} mlState=${mlState} hasCaptureClip=${!!engine.captureClip}`);
+    console.log(`[ML] runMLAnalysis chamado. isRunning=${isRunning} mlState=${currentMlState} hasCaptureClip=${!!engine.captureClip}`);
     
     if (!isRunning) {
       // eslint-disable-next-line no-console
@@ -363,9 +370,9 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       console.warn('[ML] ERRO CRÍTICO: engine.captureClip não existe! Plataforma web?');
       return;
     }
-    if (mlState === 'listening' || mlState === 'analyzing') {
+    if (currentMlState === 'listening' || currentMlState === 'analyzing') {
       // eslint-disable-next-line no-console
-      console.log(`[ML] Abortando: já em ${mlState}`);
+      console.log(`[ML] Abortando: já em ${currentMlState}`);
       return;
     }
 
@@ -425,7 +432,11 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       console.warn('[ML] Exceção na análise:', e?.message || e);
       setMlState('waiting');
     }
-  }, [isRunning, engine, mlState]);
+  // CRÍTICO: NÃO incluir mlState nas dependências!
+  // Isso causa stale closures que capturam valores antigos do estado
+  // e fazem o loop abortar antes de enviar ao backend.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRunning, engine]);
 
   const dismissMlResult = useCallback(() => {
     setMlState('idle');
