@@ -1,0 +1,43 @@
+# Ignore tudo que não é necessário no Docker build (acelera muito)
+# Frontend
+frontend/
+node_modules/
+.expo/
+.expo-shared/
+*.lock
+yarn.lock
+package-lock.json
+
+# Git/CI
+.git/
+.github/
+.gitignore
+
+# Local dev
+.env
+.env.local
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Docs / scripts (opcional)
+DEPLOY.md
+test_result.md
+memory/
+scripts/
