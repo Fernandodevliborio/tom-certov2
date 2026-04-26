@@ -89,7 +89,7 @@ export interface MLAnalysisResult {
 
 export async function analyzeKeyML(
   clip: CapturedClip,
-  timeoutMs: number = 30000,
+  timeoutMs: number = 15000,
   deviceId?: string,
 ): Promise<MLAnalysisResult> {
   const wav = float32ToWav(clip.samples, clip.sampleRate);
@@ -134,12 +134,20 @@ export async function analyzeKeyML(
 export async function resetKeyAnalysisSession(deviceId?: string): Promise<boolean> {
   const base = getBackendUrl();
   if (!base) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000); // 5s max — não trava o start
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (deviceId) headers['X-Device-Id'] = deviceId;
-    const res = await fetch(`${base}/api/analyze-key/reset`, { method: 'POST', headers });
+    const res = await fetch(`${base}/api/analyze-key/reset`, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
     return res.ok;
   } catch {
+    clearTimeout(timer);
     return false;
   }
 }

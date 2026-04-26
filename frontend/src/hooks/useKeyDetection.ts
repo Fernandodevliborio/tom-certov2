@@ -298,8 +298,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     phraseStartTimeRef.current = 0;
     tempBufferRef.current.clear();
     setAgreementMul(1.0);
-    // Zera o acumulador de PCP da sessão no backend (nova sessão = clean slate)
-    try { await resetKeyAnalysisSession(deviceIdRef.current ?? undefined); } catch { /* offline tolerated */ }
+    // Reset PCP em background — NÃO aguarda para não bloquear o start do microfone
+    resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
     const ok = await engine.start(onPitch, onError);
     if (ok) setIsRunning(true);
     return ok;
@@ -326,10 +326,10 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     return () => { cancelled = true; };
   }, []);
 
-  const ML_CAPTURE_DURATION_MS = 5000;     // 5s — mais rápido (era 8s)
-  const ML_START_DELAY_MS = 1000;
-  const ML_REANALYZE_INTERVAL_MS = 4000;   // re-análise a cada 4s (era 6s)
-  const ML_MIN_CLIP_SAMPLES = 16000 * 2;   // 2s mínimo
+  const ML_CAPTURE_DURATION_MS = 4000;     // 4s — janela de captura (era 5s)
+  const ML_START_DELAY_MS = 500;           // 0.5s warmup — mic precisa de tempo (era 1s)
+  const ML_REANALYZE_INTERVAL_MS = 2500;   // re-análise a cada 2.5s (era 4s)
+  const ML_MIN_CLIP_SAMPLES = 16000 * 1.5; // 1.5s mínimo (era 2s)
 
   const runMLAnalysis = useCallback(async () => {
     if (!isRunning) return;
@@ -419,8 +419,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     phraseNotesRef.current = [];
     phraseStartTimeRef.current = 0;
     tempBufferRef.current.clear();
-    // Zera o acumulador PCP no backend pra começar análise limpa
-    try { await resetKeyAnalysisSession(deviceIdRef.current ?? undefined); } catch { /* offline tolerated */ }
+    // Zera o acumulador PCP no backend em background (não bloqueia UI)
+    resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
   }, []);
 
   // ── Ref estável para runMLAnalysis (evita reset do interval em mudanças de state)

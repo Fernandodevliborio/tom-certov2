@@ -404,15 +404,16 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════
-  // ESTRATÉGIA "TOM SEGURO" v7 — DETECÇÃO RÁPIDA (mantém honestidade)
+  // ESTRATÉGIA "TOM SEGURO" v8 — DETECÇÃO RÁPIDA + PROVISÓRIO
   // ═══════════════════════════════════════════════════════════════
-  // Thresholds afrouxados para detectar mais rápido sem perder precisão:
-  //   FAST: 0.80 → 0.65 (trava em ~4s com 1 análise confiante)
-  //   CONFIRM: 0.70 → 0.55 (trava em ~8s com 2 de 3 análises)
-  //   INDIVIDUAL: 0.60 → 0.45 (mais resultados entram na janela)
-  const MIN_INDIVIDUAL_CONF = 0.45;
-  const MIN_CONFIRM_CONF = 0.55;
-  const FAST_CONFIRM_CONF = 0.65;
+  // Thresholds calibrados para detectar mais rápido sem perder honestidade:
+  //   FAST: 0.45 — trava em ~3s com 1 análise confiante
+  //   CONFIRM: 0.35 — trava em ~6s com 2 de 3 análises moderadas
+  //   INDIVIDUAL: 0.20 — entra na janela (qualquer análise útil conta)
+  //   PROVISIONAL: 0.15 — exibe imediatamente mesmo sem lock
+  const MIN_INDIVIDUAL_CONF = 0.20;
+  const MIN_CONFIRM_CONF = 0.35;
+  const FAST_CONFIRM_CONF = 0.45;
   const LOCK_WINDOW_SIZE = 3;
 
   const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
@@ -496,10 +497,9 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   // Estados visuais (antes do tom ser exibido):
   //   - 'idle'        : não está gravando
   //   - 'listening'   : gravando, sem nenhuma análise ainda
-  //   - 'analyzing'   : tem análises, mas confiança ainda baixa
-  //   - 'needs_more'  : backend sinaliza few_notes/single_phrase
-  //   - 'confirmed'   : tom travado (único caso onde tom é exibido)
-  type Stage = 'idle' | 'listening' | 'analyzing' | 'needs_more' | 'confirmed';
+  //   - 'analyzing'   : backend processando, aguardando resultado
+  //   - 'confirmed'   : tem resultado (provisório ou travado)
+  type Stage = 'idle' | 'listening' | 'analyzing' | 'confirmed';
 
   // Conta análises recebidas na sessão (zera ao parar)
   const [analysisCount, setAnalysisCount] = useState(0);
@@ -522,31 +522,45 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const mlStage: Stage = useMemo(() => {
     if (lockedKeyRef.current) return 'confirmed';
     if (!isRunning) return 'idle';
-    // Backend sinaliza poucas notas / frase única → "Cante mais..."
-    const flags = mlResult?.flags || [];
-    if (flags.includes('few_notes') || flags.includes('single_phrase')) return 'needs_more';
+    // Tem resultado provisório com confiança mínima → mostra imediatamente
+    if (
+      mlResult?.success &&
+      (mlResult.confidence ?? 0) >= 0.15 &&
+      mlResult.tonic !== undefined &&
+      mlResult.quality
+    ) return 'confirmed';
     if (analysisCount === 0) return 'listening';
     return 'analyzing';
-  }, [isRunning, analysisCount, mlResult?.flags, lockedKeyTick]);
+  }, [isRunning, analysisCount, mlResult?.success, mlResult?.confidence, mlResult?.tonic, mlResult?.quality, lockedKeyTick]);
 
   const confirmedKey = lockedKeyRef.current
     ? { root: lockedKeyRef.current.tonic, quality: lockedKeyRef.current.quality }
     : null;
 
-  // ⚠️ NUNCA exibir tom provisório — eliminada a fonte do "tom errado intermediário"
-  const displayKey = confirmedKey;
+  // Tom provisório: exibe o melhor resultado do backend assim que disponível (conf ≥ 0.15)
+  // Atualiza a cada nova análise até o tom ser travado (lockedKey)
+  const provisionalKey = (
+    !lockedKeyRef.current &&
+    mlResult?.success &&
+    isRunning &&
+    (mlResult.confidence ?? 0) >= 0.15 &&
+    mlResult.tonic !== undefined &&
+    mlResult.quality
+  ) ? { root: mlResult.tonic!, quality: mlResult.quality as 'major' | 'minor' } : null;
 
-  // Status text amigável (mostrado no card de análise)
+  const displayKey = confirmedKey ?? provisionalKey;
+  // isProvisional: tem chave para exibir mas ainda não travou no lock
+  const isProvisional = displayKey !== null && confirmedKey === null;
+
+  // Status text técnico (mostrado no card de análise quando sem displayKey)
   const statusInfo = useMemo(() => {
     switch (mlStage) {
       case 'listening':
-        return { icon: 'mic', label: 'OUVINDO', sub: 'Cante uma melodia ou um trecho da música…' };
+        return { icon: 'mic', label: 'OUVINDO', sub: 'Capturando áudio — primeira análise em ~3s…' };
       case 'analyzing':
-        return { icon: 'pulse', label: 'ANALISANDO TOM', sub: 'Procurando o centro tonal com segurança…' };
-      case 'needs_more':
-        return { icon: 'musical-notes', label: 'CANTE MAIS', sub: 'Cante mais alguns segundos para confirmar o tom.' };
+        return { icon: 'pulse', label: 'PROCESSANDO', sub: 'Analisando padrão tonal (CREPE + KS)…' };
       default:
-        return { icon: 'mic', label: 'OUVINDO', sub: 'Cante uma melodia ou um trecho da música…' };
+        return { icon: 'mic', label: 'OUVINDO', sub: 'Capturando áudio — primeira análise em ~3s…' };
     }
   }, [mlStage]);
 
@@ -594,22 +608,21 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
 
   const statusLabel = (() => {
     if (!isRunning) return 'TOQUE PARA COMEÇAR';
-    if (mlStage === 'confirmed') return 'TOM IDENTIFICADO';
-    if (mlStage === 'needs_more') return 'CANTE MAIS UM POUCO…';
-    if (mlStage === 'analyzing') return 'ANALISANDO TOM…';
+    if (mlStage === 'confirmed') return lockedKeyRef.current ? 'TOM DETECTADO' : 'TOM PROVISÓRIO';
+    if (mlStage === 'analyzing') return 'PROCESSANDO…';
     return 'OUVINDO…';
   })();
 
   const statusDotColor = (() => {
     if (!isRunning) return C.text3;
-    if (mlStage === 'confirmed') return C.green;
-    if (mlStage === 'needs_more') return C.amber;
+    if (mlStage === 'confirmed') return lockedKeyRef.current ? C.green : C.amber;
+    if (mlStage === 'analyzing') return C.amber;
     return C.text2;
   })();
 
   const harmonicField = useMemo(
-    () => confirmedKey ? getHarmonicField(confirmedKey.root, confirmedKey.quality) : [],
-    [confirmedKey?.root, confirmedKey?.quality]
+    () => displayKey ? getHarmonicField(displayKey.root, displayKey.quality) : [],
+    [displayKey?.root, displayKey?.quality]
   );
 
   const statusDot = useRef(new Animated.Value(1)).current;
@@ -719,24 +732,27 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
         {/* ───── Key Card / Analyzing — minHeight reservado ───── */}
         <View style={ss.keyCardSlot}>
           {displayKey ? (
-            <View testID="key-card" style={[ss.keyCard, confirmedKey ? ss.keyCardConfirmed : ss.keyCardProv]}>
+            <View testID="key-card" style={[ss.keyCard, isProvisional ? ss.keyCardProv : ss.keyCardConfirmed]}>
               <View style={ss.keyCardHeader}>
                 <View style={[
                   ss.keyCardBadge,
-                  { borderColor: 'rgba(34,197,94,0.35)' },
+                  { borderColor: isProvisional ? C.amberBorder : 'rgba(34,197,94,0.35)' },
                 ]}>
                   <Ionicons
-                    name="checkmark-circle"
+                    name={isProvisional ? 'time-outline' : 'checkmark-circle'}
                     size={11}
-                    color={C.green}
+                    color={isProvisional ? C.amber : C.green}
                   />
-                  <Text style={[ss.keyCardBadgeTxt, { color: C.green }]}>
-                    TOM DETECTADO
+                  <Text style={[ss.keyCardBadgeTxt, { color: isProvisional ? C.amber : C.green }]}>
+                    {isProvisional
+                      ? `PROVISÓRIO · ${analysisCount} análise${analysisCount !== 1 ? 's' : ''}`
+                      : 'TOM DETECTADO'
+                    }
                   </Text>
                 </View>
                 <Text style={[ss.keyCardConfPct, { color: confColor }]}>{confPct}%</Text>
               </View>
-              <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={false} />
+              <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={isProvisional} />
               <ConfidenceBar pct={confPct} color={confColor} />
             </View>
           ) : isRunning ? (
@@ -749,7 +765,9 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               </View>
               <Text style={ss.analyzingTitle}>{statusInfo.sub}</Text>
               <Text style={ss.analyzingSub}>
-                Aguarde — só vou exibir o tom quando tiver certeza.
+                {analysisCount > 0
+                  ? `${analysisCount} análise${analysisCount !== 1 ? 's' : ''} — aguardando confiança mínima…`
+                  : 'Cante 1.5s+ para obter o primeiro resultado.'}
               </Text>
             </View>
           ) : null}
@@ -769,14 +787,16 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           </View>
         )}
 
-        {/* ───── Campo Harmônico (só quando confirmado) ───── */}
-        {confirmedKey && harmonicField.length > 0 && (
+        {/* ───── Campo Harmônico (provisional + confirmado) ───── */}
+        {displayKey && harmonicField.length > 0 && (
           <View style={ss.section}>
-            <Text style={ss.sectionLabel}>CAMPO HARMÔNICO</Text>
+            <Text style={ss.sectionLabel}>
+              CAMPO HARMÔNICO{isProvisional ? ' (PROVISÓRIO)' : ''}
+            </Text>
             <View style={ss.chordGrid}>
               {harmonicField.map((chord, i) => (
                 <View key={i} style={[ss.chordCard, chord.isTonic && ss.chordCardTonic]}>
-                  <Text style={ss.chordDegree}>{degreeLabel(i, confirmedKey.quality)}</Text>
+                  <Text style={ss.chordDegree}>{degreeLabel(i, displayKey.quality)}</Text>
                   <Text style={[ss.chordName, chord.isTonic && ss.chordNameTonic]}>{chord.label}</Text>
                   <Text style={ss.chordIntl}>{chordIntlLabel(chord.root, chord.quality)}</Text>
                 </View>
