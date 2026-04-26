@@ -52,10 +52,12 @@ class RevalidateRequest(BaseModel):
     device_id: str
 
 class TokenCreate(BaseModel):
-    code: str
+    code: Optional[str] = None        # opcional: se vazio, auto-gera
     customer_name: Optional[str] = None
     device_limit: int = 3
-    duration_minutes: Optional[int] = None
+    duration_minutes: Optional[int] = None   # legado — soma com duration_value abaixo
+    duration_value: Optional[int] = None     # novo: 1, 30, 7, etc
+    duration_unit: Optional[str] = None      # novo: 'minutes' | 'hours' | 'days' | 'months' | 'forever'
     notes: Optional[str] = None
 
 class TokenUpdate(BaseModel):
@@ -325,15 +327,55 @@ async def analyze_key(request: Request):
         }, status_code=500)
 
 
-# ─── Admin: Criar Token (sem auth — proteger em produção) ──────────────
+def _generate_code() -> str:
+    """Gera um código único no formato TC-XXXX-XXXX (4 + 4 hex)."""
+    import secrets
+    a = secrets.token_hex(2).upper()
+    b = secrets.token_hex(2).upper()
+    return f"TC-{a}-{b}"
+
+def _compute_duration_minutes(body: TokenCreate) -> Optional[int]:
+    """Converte (duration_value, duration_unit) em minutos. Mantém duration_minutes se já vier preenchido."""
+    if body.duration_minutes:
+        return body.duration_minutes
+    if body.duration_unit == 'forever' or body.duration_unit is None:
+        return None
+    if not body.duration_value or body.duration_value <= 0:
+        return None
+    unit = (body.duration_unit or 'days').lower()
+    v = body.duration_value
+    if unit in ('minute', 'minutes', 'min'):
+        return v
+    if unit in ('hour', 'hours', 'h'):
+        return v * 60
+    if unit in ('day', 'days', 'd'):
+        return v * 60 * 24
+    if unit in ('month', 'months', 'mo'):
+        return v * 60 * 24 * 30
+    if unit in ('year', 'years', 'y'):
+        return v * 60 * 24 * 365
+    return None
+
+
+# ─── Admin: Criar Token (PROTEGIDO via X-Admin-Key) ────────────────────
 @api_router.post("/admin/tokens")
-async def create_token(body: TokenCreate):
-    code = body.code.strip().upper()
+async def create_token(body: TokenCreate, request: Request):
+    verify_admin(request)
+    code = (body.code or '').strip().upper()
     if not code:
-        raise HTTPException(400, "code is required")
-    exists = await db.tokens.find_one({"code": code})
-    if exists:
-        raise HTTPException(409, "Token already exists")
+        # auto-gera código único
+        for _ in range(10):
+            code = _generate_code()
+            if not await db.tokens.find_one({"code": code}):
+                break
+        else:
+            raise HTTPException(500, "Falha ao gerar código único")
+    else:
+        exists = await db.tokens.find_one({"code": code})
+        if exists:
+            raise HTTPException(409, "Token já existe com esse código")
+
+    duration_minutes = _compute_duration_minutes(body)
     doc = {
         "code": code,
         "customer_name": body.customer_name,
@@ -342,15 +384,22 @@ async def create_token(body: TokenCreate):
         "active": True,
         "created_at": datetime.now(timezone.utc),
         "expires_at": None,
-        "duration_minutes": body.duration_minutes,
+        "duration_minutes": duration_minutes,
         "notes": body.notes,
     }
-    if body.duration_minutes:
-        doc["expires_at"] = datetime.now(timezone.utc) + timedelta(minutes=body.duration_minutes)
+    if duration_minutes:
+        doc["expires_at"] = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
 
     result = await db.tokens.insert_one(doc)
-    doc["_id"] = str(result.inserted_id)
-    return JSONResponse({"ok": True, "token_id": str(result.inserted_id), "code": code})
+    expires_at_iso = doc["expires_at"].isoformat() if doc["expires_at"] else None
+    return JSONResponse({
+        "ok": True,
+        "token_id": str(result.inserted_id),
+        "code": code,
+        "customer_name": body.customer_name,
+        "expires_at": expires_at_iso,
+        "duration_minutes": duration_minutes,
+    })
 
 @api_router.get("/admin/tokens")
 async def list_tokens(request: Request):

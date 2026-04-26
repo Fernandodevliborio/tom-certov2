@@ -1,573 +1,714 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Tom Certo — Painel Admin</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Outfit:wght@700;800&display=swap" rel="stylesheet" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Tom Certo · Admin</title>
 <style>
   :root {
     --bg: #0A0A0A;
-    --surface: #111111;
-    --surface2: #181818;
-    --surface3: #1E1E1E;
-    --border: #222222;
-    --border-strong: #333333;
-    --amber: #FFB020;
-    --amber-muted: rgba(255,176,32,0.12);
-    --amber-border: rgba(255,176,32,0.30);
-    --white: #FFFFFF;
-    --text2: #A0A0A0;
-    --text3: #555555;
+    --surface: #131313;
+    --surface2: #1A1A1A;
+    --surface3: #232323;
+    --border: #232323;
+    --border2: #2D2D2D;
+    --gold: #FFB020;
+    --gold2: #FFD166;
+    --gold-soft: rgba(255,176,32,0.10);
+    --gold-border: rgba(255,176,32,0.32);
     --green: #22C55E;
-    --green-muted: rgba(34,197,94,0.12);
-    --green-border: rgba(34,197,94,0.30);
+    --green-soft: rgba(34,197,94,0.16);
     --red: #EF4444;
-    --red-muted: rgba(239,68,68,0.12);
-    --red-border: rgba(239,68,68,0.30);
+    --red-soft: rgba(239,68,68,0.14);
     --blue: #60A5FA;
-    --blue-muted: rgba(96,165,250,0.12);
-    --blue-border: rgba(96,165,250,0.30);
+    --text: #FFFFFF;
+    --text2: #9BA1A6;
+    --text3: #687280;
+    --text4: #4A5159;
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { background: var(--bg); color: var(--white); font-family: 'Manrope', sans-serif; min-height: 100%; }
-  body { padding: 20px; }
-  button, input { font-family: inherit; }
-  input, select {
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { cursor: pointer; }
+  input, select, textarea, button { font-family: inherit; font-size: 14px; }
+  input, select, textarea {
     background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--white);
-    padding: 12px 14px;
+    border: 1px solid var(--border2);
+    color: var(--text);
     border-radius: 10px;
-    font-size: 14px;
+    padding: 10px 12px;
     width: 100%;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.15s;
   }
-  input:focus, select:focus { border-color: var(--amber); }
-  label { display: block; font-size: 10px; font-weight: 600; color: var(--amber); letter-spacing: 2.5px; margin-bottom: 6px; text-transform: uppercase; }
+  input:focus, select:focus, textarea:focus { border-color: var(--gold); }
+  label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); letter-spacing: 1.3px; margin-bottom: 6px; text-transform: uppercase; }
 
+  /* ─── Layout ─── */
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 20px 80px; }
+  .header { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+  .header img { width: 38px; height: 38px; }
+  .header h1 { font-size: 22px; margin: 0; font-weight: 700; }
+  .header .pill { padding: 4px 10px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: 1.2px; border: 1px solid rgba(34,197,94,0.4); }
+  .header .spacer { flex: 1; }
+
+  /* ─── Stats ─── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+  .stat .lbl { font-size: 11px; color: var(--text2); letter-spacing: 1.4px; font-weight: 600; }
+  .stat .val { font-size: 28px; font-weight: 800; margin-top: 6px; }
+  .stat.gold .val { color: var(--gold); }
+  .stat.green .val { color: var(--green); }
+  .stat.red .val { color: var(--red); }
+  @media (max-width: 720px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ─── Toolbar ─── */
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar input.search { flex: 1; min-width: 220px; }
   .btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 10px 16px; border-radius: 10px; border: 1px solid;
-    background: transparent; color: var(--white); font-size: 13px;
-    font-weight: 600; cursor: pointer; transition: all 0.15s;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    font-weight: 600;
+    transition: all 0.15s;
+    white-space: nowrap;
   }
-  .btn:hover { transform: translateY(-1px); }
-  .btn-primary { background: var(--amber); color: var(--bg); border-color: var(--amber); }
-  .btn-danger { background: var(--red-muted); color: var(--red); border-color: var(--red-border); }
-  .btn-success { background: var(--green-muted); color: var(--green); border-color: var(--green-border); }
-  .btn-amber { background: var(--amber-muted); color: var(--amber); border-color: var(--amber-border); }
-  .btn-blue { background: var(--blue-muted); color: var(--blue); border-color: var(--blue-border); }
-  .btn-ghost { background: var(--surface2); color: var(--text2); border-color: var(--border); }
+  .btn-primary { background: var(--gold); color: #0A0A0A; }
+  .btn-primary:hover { background: var(--gold2); }
+  .btn-ghost { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+  .btn-ghost:hover { background: var(--surface3); }
+  .btn-success { background: var(--green-soft); color: var(--green); border-color: rgba(34,197,94,0.4); }
+  .btn-danger { background: var(--red-soft); color: var(--red); border-color: rgba(239,68,68,0.4); }
+  .btn-blue { background: rgba(96,165,250,0.14); color: var(--blue); border-color: rgba(96,165,250,0.4); }
+  .btn-amber { background: var(--gold-soft); color: var(--gold); border-color: var(--gold-border); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
 
-  /* LOGIN */
-  #login {
-    max-width: 440px; margin: 80px auto; background: var(--surface);
-    padding: 36px 28px; border-radius: 20px; border: 1px solid var(--border);
+  /* ─── Token list ─── */
+  .token-grid { display: grid; gap: 10px; }
+  .token-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+    transition: border-color 0.15s;
+  }
+  .token-card:hover { border-color: var(--border2); }
+  .token-card.revoked { opacity: 0.55; }
+  .token-card.expired { border-color: rgba(239,68,68,0.30); }
+
+  .tok-info { min-width: 0; }
+  .tok-row1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .tok-code { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 15px; font-weight: 700; color: var(--gold); cursor: pointer; user-select: all; }
+  .tok-code:hover { color: var(--gold2); }
+  .tok-name { color: var(--text); font-weight: 600; font-size: 14px; }
+  .tok-name.empty { color: var(--text3); font-weight: 400; font-style: italic; }
+  .badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+  }
+  .badge-active { background: var(--green-soft); color: var(--green); }
+  .badge-revoked { background: var(--red-soft); color: var(--red); }
+  .badge-expired { background: rgba(255,176,32,0.14); color: var(--gold); }
+  .badge-forever { background: rgba(96,165,250,0.14); color: var(--blue); }
+
+  .tok-meta { display: flex; gap: 14px; font-size: 12px; color: var(--text2); flex-wrap: wrap; }
+  .tok-meta span { display: inline-flex; align-items: center; gap: 5px; }
+  .tok-meta strong { color: var(--text); font-weight: 600; }
+  .tok-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+  @media (max-width: 720px) {
+    .token-card { grid-template-columns: 1fr; }
+    .tok-actions { justify-content: flex-start; }
+  }
+
+  /* ─── Modal ─── */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.78); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 16px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.18s;
+  }
+  .modal-bg.open { opacity: 1; pointer-events: auto; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 18px;
+    padding: 28px;
+    width: 100%; max-width: 480px;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 { margin: 0 0 18px; font-size: 18px; }
+  .form-row { margin-bottom: 14px; }
+  .form-row .row { display: flex; gap: 8px; }
+  .form-row .row > * { flex: 1; }
+  .modal-footer { display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; }
+
+  /* ─── Toast ─── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--gold-border);
+    color: var(--text);
+    padding: 12px 20px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 2000;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.18s, transform 0.18s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+  .toast.success { border-color: rgba(34,197,94,0.4); color: var(--green); }
+  .toast.error { border-color: rgba(239,68,68,0.4); color: var(--red); }
+
+  /* ─── Login ─── */
+  .login-screen {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 32px;
+    width: 100%; max-width: 380px;
     text-align: center;
   }
-  #login .logo-wrap {
-    width: 120px; height: 120px;
-    margin: 0 auto 16px;
-    display: flex; align-items: center; justify-content: center;
-    filter: drop-shadow(0 0 24px rgba(255,176,32,0.4));
+  .login-card img { width: 56px; height: 56px; }
+  .login-card h2 { font-size: 20px; margin: 14px 0 6px; font-weight: 700; }
+  .login-card p { color: var(--text2); font-size: 13px; margin: 0 0 22px; }
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--text2);
+    background: var(--surface);
+    border: 1px dashed var(--border2); border-radius: 14px;
   }
-  #login .logo-wrap img {
-    width: 100%; height: 100%; object-fit: contain;
+  .copy-hint { font-size: 10px; color: var(--text3); margin-left: 4px; }
+
+  /* ─── Result modal (show new token) ─── */
+  .result-key {
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    background: var(--surface2);
+    border: 2px dashed var(--gold-border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    user-select: all;
+    cursor: pointer;
+    margin: 16px 0;
   }
-  #login h1 { font-family: 'Outfit', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -0.8px; margin-bottom: 6px; }
-  #login .sub { font-size: 11px; color: var(--text3); letter-spacing: 3px; margin-bottom: 32px; }
-  #login .row { margin-bottom: 18px; text-align: left; }
-  #login .error { color: var(--red); font-size: 12px; margin-bottom: 12px; display: none; }
-  #login .error.show { display: block; }
-  #login .btn-primary { width: 100%; justify-content: center; padding: 14px; font-size: 15px; }
-
-  /* DASHBOARD */
-  #dash { display: none; max-width: 1200px; margin: 0 auto; }
-  .header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 16px 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
-  }
-  .header h1 { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.4px; display: flex; gap: 10px; align-items: center; }
-  .header h1 .hlogo { width: 28px; height: 28px; object-fit: contain; }
-  .backend-info { font-size: 11px; color: var(--text3); margin-top: 6px; }
-
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-  .stat {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-    padding: 16px; text-align: center;
-  }
-  .stat .val { font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 800; letter-spacing: -1px; }
-  .stat .label { font-size: 10px; color: var(--text3); letter-spacing: 2px; margin-top: 4px; }
-  .stat.total .val { color: var(--amber); }
-  .stat.active .val { color: var(--green); }
-  .stat.revoked .val { color: var(--red); }
-
-  .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
-  .toolbar .search { flex: 1; min-width: 200px; }
-  .toolbar .btn { height: 44px; }
-
-  .tokens-list { display: flex; flex-direction: column; gap: 12px; }
-  .token-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-    padding: 16px; transition: border-color 0.15s;
-  }
-  .token-card.revoked { opacity: 0.6; border-color: var(--red-border); }
-  .token-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-  .token-info { flex: 1; min-width: 200px; }
-  .token-code { font-family: 'Outfit', sans-serif; font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
-  .token-customer { font-size: 13px; color: var(--text2); margin-top: 3px; }
-  .status-badge {
-    display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
-    border-radius: 99px; border: 1px solid; font-size: 10px; font-weight: 600; letter-spacing: 1px;
-  }
-  .status-badge.active { color: var(--green); background: var(--green-muted); border-color: var(--green-border); }
-  .status-badge.revoked { color: var(--red); background: var(--red-muted); border-color: var(--red-border); }
-  .status-badge.limit { color: var(--amber); background: var(--amber-muted); border-color: var(--amber-border); }
-  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-
-  .device-bar { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 11px; color: var(--text3); }
-  .bar-bg { flex: 1; height: 4px; border-radius: 99px; background: rgba(255,255,255,0.06); overflow: hidden; }
-  .bar-fill { height: 100%; background: var(--green); border-radius: 99px; transition: width 0.3s; }
-  .bar-fill.warn { background: var(--amber); }
-
-  .token-extra {
-    display: none;
-    padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--border);
-    font-size: 12px; color: var(--text2); gap: 6px;
-  }
-  .token-extra.expanded { display: block; }
-  .token-extra .info-row { margin-bottom: 4px; }
-
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-  .actions .btn { padding: 8px 12px; font-size: 12px; }
-
-  .empty { text-align: center; padding: 60px 20px; color: var(--text3); }
-  .loading { text-align: center; padding: 40px; color: var(--text2); }
-
-  /* MODAL */
-  .modal {
-    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.75); z-index: 100;
-    align-items: center; justify-content: center; padding: 20px;
-  }
-  .modal.open { display: flex; }
-  .modal-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
-    padding: 24px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto;
-  }
-  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  .modal-header h2 { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; }
-  .modal-close { background: none; border: none; color: var(--text2); font-size: 22px; cursor: pointer; }
-  .form-row { margin-bottom: 14px; }
-  .form-error { color: var(--red); font-size: 12px; margin-bottom: 12px; display: none; }
-  .form-error.show { display: block; }
-  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
-  .modal-actions .btn { flex: 1; justify-content: center; }
-
-  /* TOAST */
-  #toast {
-    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-    background: var(--surface2); border: 1px solid var(--border-strong);
-    padding: 12px 20px; border-radius: 12px; font-size: 13px;
-    z-index: 200; opacity: 0; transition: opacity 0.3s;
-    pointer-events: none;
-  }
-  #toast.show { opacity: 1; }
-  #toast.success { border-color: var(--green-border); color: var(--green); }
-  #toast.error { border-color: var(--red-border); color: var(--red); }
-
-  @media (max-width: 600px) {
-    .stats { grid-template-columns: 1fr; }
-    .header h1 { font-size: 16px; }
-  }
+  .result-key:hover { background: var(--surface3); }
 </style>
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
-<div id="login">
-  <div class="logo-wrap"><img src="/api/admin-logo" alt="Tom Certo" /></div>
-  <h1>Tom Certo Admin</h1>
-  <div class="sub">PAINEL DE GESTÃO DE TOKENS</div>
-  <div class="row">
-    <label for="admin-key-input">CHAVE DE ACESSO ADMIN</label>
-    <input type="password" id="admin-key-input" placeholder="Digite sua chave admin" autocomplete="off" />
+<!-- Login Screen -->
+<div id="login-view" class="login-screen">
+  <div class="login-card">
+    <img src="/api/admin-logo" alt="Tom Certo" onerror="this.style.display='none'" />
+    <h2>Tom Certo · Admin</h2>
+    <p>Painel de gerenciamento de tokens</p>
+    <div class="form-row" style="text-align: left;">
+      <label>CHAVE DE ACESSO</label>
+      <input type="password" id="admin-key" placeholder="Digite sua chave admin" autocomplete="current-password" />
+    </div>
+    <button class="btn btn-primary" id="login-btn" style="width: 100%; margin-top: 8px;">Entrar</button>
+    <div id="login-error" style="color: var(--red); font-size: 12px; margin-top: 12px; display: none;"></div>
   </div>
-  <div class="error" id="login-error"></div>
-  <button class="btn btn-primary" id="login-btn">Entrar no Painel</button>
 </div>
 
-<!-- DASHBOARD -->
-<div id="dash">
+<!-- App -->
+<div id="app-view" class="wrap" style="display: none;">
   <div class="header">
-    <div>
-      <h1><img class="hlogo" src="/api/admin-logo" alt="" />Tom Certo Admin</h1>
-      <div class="backend-info" id="backend-info"></div>
-    </div>
-    <button class="btn btn-ghost" id="logout-btn">⎋ Sair</button>
+    <img src="/api/admin-logo" alt="" onerror="this.style.display='none'" />
+    <h1>Tom Certo · Admin</h1>
+    <span class="pill" id="conn-pill">CONECTADO</span>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost btn-sm" id="logout-btn">Sair</button>
   </div>
 
   <div class="stats">
-    <div class="stat total"><div class="val" id="stat-total">0</div><div class="label">TOTAL</div></div>
-    <div class="stat active"><div class="val" id="stat-active">0</div><div class="label">ATIVOS</div></div>
-    <div class="stat revoked"><div class="val" id="stat-revoked">0</div><div class="label">REVOGADOS</div></div>
+    <div class="stat gold">
+      <div class="lbl">Total</div>
+      <div class="val" id="stat-total">—</div>
+    </div>
+    <div class="stat green">
+      <div class="lbl">Ativos</div>
+      <div class="val" id="stat-active">—</div>
+    </div>
+    <div class="stat red">
+      <div class="lbl">Revogados</div>
+      <div class="val" id="stat-revoked">—</div>
+    </div>
+    <div class="stat">
+      <div class="lbl">Em uso (devices)</div>
+      <div class="val" id="stat-devices">—</div>
+    </div>
   </div>
 
   <div class="toolbar">
-    <input type="text" class="search" id="search-input" placeholder="🔎 Buscar token ou cliente..." />
-    <button class="btn btn-primary" id="new-token-btn">+ Novo Token</button>
+    <input type="text" class="search" id="search" placeholder="Buscar por código ou nome do usuário…" />
     <button class="btn btn-ghost" id="refresh-btn">↻ Atualizar</button>
+    <button class="btn btn-primary" id="new-btn">+ Novo Token</button>
   </div>
 
-  <div id="tokens-container">
-    <div class="loading">Carregando tokens…</div>
-  </div>
+  <div id="token-list" class="token-grid"></div>
+  <div id="empty" class="empty" style="display: none;">Nenhum token encontrado.</div>
 </div>
 
-<!-- CREATE MODAL -->
-<div class="modal" id="create-modal">
-  <div class="modal-card">
-    <div class="modal-header">
-      <h2>Novo Token</h2>
-      <button class="modal-close" data-close="create">✕</button>
-    </div>
+<!-- Create Modal -->
+<div id="create-modal" class="modal-bg">
+  <div class="modal">
+    <h2>Criar novo token</h2>
+
     <div class="form-row">
-      <label>CÓDIGO*</label>
-      <input id="new-code" placeholder="ex: ALUNO-001" />
+      <label>Nome do usuário <span class="copy-hint">(opcional)</span></label>
+      <input id="c-name" placeholder="ex: João Silva" autofocus />
     </div>
+
     <div class="form-row">
-      <label>NOME DO CLIENTE</label>
-      <input id="new-name" placeholder="ex: João Silva" />
+      <label>Código do token</label>
+      <div class="row">
+        <input id="c-code" placeholder="Auto-gerado se vazio (ex: TC-A1B2-C3D4)" style="font-family: monospace; flex: 3;" />
+        <button class="btn btn-ghost" id="c-gen-btn" type="button" style="flex: 1; min-width: 110px;">⚡ Gerar</button>
+      </div>
     </div>
+
     <div class="form-row">
-      <label>LIMITE DE DISPOSITIVOS</label>
-      <input id="new-limit" type="number" value="3" min="1" />
+      <label>Duração</label>
+      <div class="row">
+        <input id="c-duration-value" type="number" min="1" placeholder="ex: 30" style="flex: 2;" />
+        <select id="c-duration-unit" style="flex: 3;">
+          <option value="forever">Sem expiração</option>
+          <option value="minutes">Minutos</option>
+          <option value="hours">Horas</option>
+          <option value="days" selected>Dias</option>
+          <option value="months">Meses</option>
+          <option value="years">Anos</option>
+        </select>
+      </div>
     </div>
+
     <div class="form-row">
-      <label>VALIDADE (dias) — vazio = sem expiração</label>
-      <input id="new-duration" type="number" placeholder="ex: 30" />
+      <label>Limite de dispositivos</label>
+      <input id="c-limit" type="number" min="1" max="100" value="3" />
     </div>
+
     <div class="form-row">
-      <label>OBSERVAÇÕES</label>
-      <input id="new-notes" placeholder="Opcional..." />
+      <label>Observações <span class="copy-hint">(opcional)</span></label>
+      <input id="c-notes" placeholder="ex: assinatura mensal cliente premium" />
     </div>
-    <div class="form-error" id="create-error"></div>
-    <div class="modal-actions">
+
+    <div id="c-error" style="color: var(--red); font-size: 12px; display: none; margin-top: 4px;"></div>
+
+    <div class="modal-footer">
       <button class="btn btn-ghost" data-close="create">Cancelar</button>
-      <button class="btn btn-primary" id="create-save">Criar Token</button>
+      <button class="btn btn-primary" id="c-save">Criar Token</button>
     </div>
   </div>
 </div>
 
-<!-- EDIT MODAL -->
-<div class="modal" id="edit-modal">
-  <div class="modal-card">
-    <div class="modal-header">
-      <h2 id="edit-title">Editar Token</h2>
-      <button class="modal-close" data-close="edit">✕</button>
+<!-- Result Modal (after creation) -->
+<div id="result-modal" class="modal-bg">
+  <div class="modal">
+    <h2 style="color: var(--green);">✓ Token criado</h2>
+    <p style="color: var(--text2); font-size: 13px; margin: 0 0 6px;">Compartilhe este código com o usuário:</p>
+    <div class="result-key" id="r-code" title="Clique para copiar">—</div>
+    <div id="r-info" style="color: var(--text2); font-size: 13px; line-height: 1.6;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="r-copy">📋 Copiar código</button>
+      <button class="btn btn-primary" data-close="result">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="edit-modal" class="modal-bg">
+  <div class="modal">
+    <h2>Editar token</h2>
+    <div class="form-row">
+      <label>Nome</label>
+      <input id="e-name" />
     </div>
     <div class="form-row">
-      <label>NOME DO CLIENTE</label>
-      <input id="edit-name" />
+      <label>Limite de dispositivos</label>
+      <input id="e-limit" type="number" min="1" max="100" />
     </div>
     <div class="form-row">
-      <label>LIMITE DE DISPOSITIVOS</label>
-      <input id="edit-limit" type="number" min="1" />
+      <label>Observações</label>
+      <input id="e-notes" />
     </div>
-    <div class="form-row">
-      <label>OBSERVAÇÕES</label>
-      <input id="edit-notes" />
-    </div>
-    <div class="form-error" id="edit-error"></div>
-    <div class="modal-actions">
+    <div class="modal-footer">
       <button class="btn btn-ghost" data-close="edit">Cancelar</button>
-      <button class="btn btn-primary" id="edit-save">Salvar</button>
+      <button class="btn btn-primary" id="e-save">Salvar</button>
     </div>
   </div>
 </div>
 
-<div id="toast"></div>
+<div id="toast" class="toast"></div>
 
 <script>
-  const STORAGE_KEY = 'tc_admin_key_v1';
-  // Always use current origin; /api is proxied to backend
-  const BASE = window.location.origin;
+const BASE = '/api';
+let ADMIN_KEY = '';
+let TOKENS = [];
 
-  let adminKey = '';
-  let tokens = [];
-  let editingTokenId = null;
+const $ = (id) => document.getElementById(id);
+const showToast = (msg, type = '') => {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 2400);
+};
 
-  document.getElementById('backend-info').textContent = `Backend: ${BASE}`;
-
-  // ─── API ─────────────────────────────────────────
-  async function api(path, method = 'GET', body) {
-    const opts = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Key': adminKey,
-      },
-    };
-    if (body) opts.body = JSON.stringify(body);
-    const res = await fetch(`${BASE}${path}`, opts);
-    let data = {};
-    try { data = await res.json(); } catch {}
-    if (!res.ok) throw new Error(data?.detail || data?.message || `HTTP ${res.status}`);
-    return data;
+async function api(path, opts = {}) {
+  const headers = Object.assign({ 'X-Admin-Key': ADMIN_KEY }, opts.headers || {});
+  if (opts.body && typeof opts.body !== 'string') {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
   }
-
-  // ─── Toast ────────────────────────────────────────
-  function toast(msg, type = '') {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.className = 'show ' + type;
-    setTimeout(() => { t.className = t.className.replace('show', ''); }, 2500);
+  const res = await fetch(BASE + path, Object.assign({}, opts, { headers }));
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) {
+    const detail = (data && (data.detail || data.message)) || res.statusText || 'Erro';
+    throw new Error(detail);
   }
+  return data;
+}
 
-  // ─── LOGIN ────────────────────────────────────────
-  async function doLogin() {
-    const keyInput = document.getElementById('admin-key-input');
-    const errEl = document.getElementById('login-error');
-    const key = keyInput.value.trim();
-    errEl.classList.remove('show');
-    if (!key) { errEl.textContent = 'Digite a chave de acesso'; errEl.classList.add('show'); return; }
-    adminKey = key;
+// ─── Login ────────────────────────────────────────────────────────────
+async function doLogin() {
+  const key = $('admin-key').value.trim();
+  if (!key) { $('login-error').textContent = 'Informe a chave admin.'; $('login-error').style.display = 'block'; return; }
+  ADMIN_KEY = key;
+  $('login-error').style.display = 'none';
+  try {
+    await api('/admin/stats');
+    localStorage.setItem('tc_admin_key', key);
+    $('login-view').style.display = 'none';
+    $('app-view').style.display = 'block';
+    await refresh();
+  } catch (e) {
+    $('login-error').textContent = 'Chave inválida ou erro de conexão: ' + e.message;
+    $('login-error').style.display = 'block';
+  }
+}
+$('login-btn').addEventListener('click', doLogin);
+$('admin-key').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// Auto-login
+window.addEventListener('DOMContentLoaded', async () => {
+  const saved = localStorage.getItem('tc_admin_key');
+  if (saved) {
+    $('admin-key').value = saved;
+    ADMIN_KEY = saved;
     try {
-      await api('/api/admin/stats');
-      localStorage.setItem(STORAGE_KEY, key);
-      document.getElementById('login').style.display = 'none';
-      document.getElementById('dash').style.display = 'block';
-      loadAll();
-    } catch (e) {
-      adminKey = '';
-      errEl.textContent = 'Chave inválida ou servidor inacessível';
-      errEl.classList.add('show');
+      await api('/admin/stats');
+      $('login-view').style.display = 'none';
+      $('app-view').style.display = 'block';
+      await refresh();
+    } catch {
+      // chave salva inválida — mantém na tela de login
     }
   }
-  document.getElementById('login-btn').addEventListener('click', doLogin);
-  document.getElementById('admin-key-input').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+});
 
-  // Autologin se tiver chave salva
-  const savedKey = localStorage.getItem(STORAGE_KEY);
-  if (savedKey) {
-    document.getElementById('admin-key-input').value = savedKey;
-    adminKey = savedKey;
-    api('/api/admin/stats').then(() => {
-      document.getElementById('login').style.display = 'none';
-      document.getElementById('dash').style.display = 'block';
-      loadAll();
-    }).catch(() => {
-      adminKey = '';
-    });
+$('logout-btn').addEventListener('click', () => {
+  localStorage.removeItem('tc_admin_key');
+  ADMIN_KEY = '';
+  $('app-view').style.display = 'none';
+  $('login-view').style.display = 'flex';
+  $('admin-key').value = '';
+});
+
+// ─── Refresh ──────────────────────────────────────────────────────────
+async function refresh() {
+  try {
+    const [stats, tokens] = await Promise.all([api('/admin/stats'), api('/admin/tokens')]);
+    $('stat-total').textContent = stats.total;
+    $('stat-active').textContent = stats.active;
+    $('stat-revoked').textContent = stats.revoked;
+    TOKENS = tokens.tokens || [];
+    const totalDevices = TOKENS.reduce((s, t) => s + (t.active_devices || []).length, 0);
+    $('stat-devices').textContent = totalDevices;
+    render();
+    $('conn-pill').textContent = 'CONECTADO';
+    $('conn-pill').style.background = 'var(--green-soft)';
+    $('conn-pill').style.color = 'var(--green)';
+    $('conn-pill').style.borderColor = 'rgba(34,197,94,0.4)';
+  } catch (e) {
+    $('conn-pill').textContent = 'DESCONECTADO';
+    $('conn-pill').style.background = 'var(--red-soft)';
+    $('conn-pill').style.color = 'var(--red)';
+    $('conn-pill').style.borderColor = 'rgba(239,68,68,0.4)';
+    showToast('Erro: ' + e.message, 'error');
   }
+}
+$('refresh-btn').addEventListener('click', refresh);
 
-  // ─── LOGOUT ───────────────────────────────────────
-  document.getElementById('logout-btn').addEventListener('click', () => {
-    localStorage.removeItem(STORAGE_KEY);
-    adminKey = '';
-    document.getElementById('login').style.display = 'block';
-    document.getElementById('dash').style.display = 'none';
-    document.getElementById('admin-key-input').value = '';
+// ─── Render list ──────────────────────────────────────────────────────
+function fmtRelative(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(+d)) return null;
+  const now = Date.now();
+  const ms = +d - now;
+  const past = ms < 0;
+  const abs = Math.abs(ms);
+  const min = Math.round(abs / 60000);
+  const h = Math.round(abs / 3600000);
+  const days = Math.round(abs / 86400000);
+  const months = Math.round(abs / (86400000 * 30));
+  let s;
+  if (min < 60) s = min + 'min';
+  else if (h < 48) s = h + 'h';
+  else if (days < 60) s = days + ' dias';
+  else s = months + ' meses';
+  return past ? 'expirou há ' + s : 'expira em ' + s;
+}
+
+function fmtCreated(iso) {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('pt-BR'); } catch { return iso.slice(0, 10); }
+}
+
+function isExpired(t) {
+  if (!t.expires_at) return false;
+  try { return new Date(t.expires_at) < new Date(); } catch { return false; }
+}
+
+function render() {
+  const q = ($('search').value || '').trim().toLowerCase();
+  const filtered = TOKENS.filter(t => {
+    if (!q) return true;
+    return (t.code || '').toLowerCase().includes(q) ||
+           (t.customer_name || '').toLowerCase().includes(q) ||
+           (t.notes || '').toLowerCase().includes(q);
   });
-
-  // ─── LOAD ─────────────────────────────────────────
-  async function loadAll() {
-    try {
-      const [tk, st] = await Promise.all([
-        api('/api/admin/tokens'),
-        api('/api/admin/stats'),
-      ]);
-      tokens = tk.tokens || [];
-      document.getElementById('stat-total').textContent = st.total;
-      document.getElementById('stat-active').textContent = st.active;
-      document.getElementById('stat-revoked').textContent = st.revoked;
-      render();
-    } catch (e) {
-      toast('Erro: ' + e.message, 'error');
-    }
+  const list = $('token-list');
+  list.innerHTML = '';
+  if (filtered.length === 0) {
+    $('empty').style.display = 'block';
+    $('empty').textContent = TOKENS.length === 0
+      ? 'Nenhum token criado ainda. Clique em "+ Novo Token" para começar.'
+      : 'Nenhum token corresponde à busca.';
+    return;
   }
-  document.getElementById('refresh-btn').addEventListener('click', () => { loadAll(); toast('Atualizado ✓', 'success'); });
+  $('empty').style.display = 'none';
+  for (const t of filtered) {
+    const expired = isExpired(t);
+    const isForever = !t.expires_at && t.active;
+    const statusBadge = !t.active
+      ? '<span class="badge badge-revoked">REVOGADO</span>'
+      : expired
+        ? '<span class="badge badge-expired">EXPIRADO</span>'
+        : isForever
+          ? '<span class="badge badge-forever">SEM EXPIRAÇÃO</span>'
+          : '<span class="badge badge-active">ATIVO</span>';
 
-  // ─── RENDER ───────────────────────────────────────
-  function render() {
-    const q = document.getElementById('search-input').value.trim().toLowerCase();
-    const filtered = tokens.filter(t => {
-      if (!q) return true;
-      return t.code.toLowerCase().includes(q)
-        || (t.customer_name || '').toLowerCase().includes(q)
-        || (t.notes || '').toLowerCase().includes(q);
-    });
+    const expRel = t.expires_at ? fmtRelative(t.expires_at) : null;
+    const devCount = (t.active_devices || []).length;
+    const devLimit = t.device_limit || 3;
 
-    const container = document.getElementById('tokens-container');
-    if (filtered.length === 0) {
-      container.innerHTML = '<div class="empty">🔑 Nenhum token encontrado</div>';
+    const card = document.createElement('div');
+    card.className = 'token-card' + (!t.active ? ' revoked' : '') + (expired ? ' expired' : '');
+    card.innerHTML = `
+      <div class="tok-info">
+        <div class="tok-row1">
+          <span class="tok-code" data-copy="${t.code}" title="Clique para copiar">${t.code}</span>
+          ${statusBadge}
+          <span class="${t.customer_name ? 'tok-name' : 'tok-name empty'}">${t.customer_name || 'Sem nome'}</span>
+        </div>
+        <div class="tok-meta">
+          <span>📱 <strong>${devCount}</strong>/${devLimit} dispositivos</span>
+          ${expRel ? `<span>⏱ ${expRel}</span>` : ''}
+          <span>📅 criado ${fmtCreated(t.created_at)}</span>
+          ${t.notes ? `<span>📝 ${t.notes}</span>` : ''}
+        </div>
+      </div>
+      <div class="tok-actions">
+        <button class="btn btn-sm btn-amber" data-action="copy" data-code="${t.code}">📋 Copiar</button>
+        <button class="btn btn-sm btn-blue" data-action="edit" data-id="${t._id}">✎ Editar</button>
+        ${devCount > 0 ? `<button class="btn btn-sm btn-amber" data-action="clear" data-id="${t._id}">📱 Liberar devices</button>` : ''}
+        <button class="btn btn-sm ${t.active ? 'btn-danger' : 'btn-success'}" data-action="toggle" data-id="${t._id}" data-active="${t.active}">
+          ${t.active ? '✕ Revogar' : '✓ Reativar'}
+        </button>
+        <button class="btn btn-sm btn-danger" data-action="delete" data-id="${t._id}">🗑</button>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+}
+$('search').addEventListener('input', render);
+
+// Action delegation
+$('token-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (btn) {
+    const action = btn.dataset.action;
+    const id = btn.dataset.id;
+    if (action === 'copy') {
+      const code = btn.dataset.code;
+      try { await navigator.clipboard.writeText(code); showToast('Código copiado: ' + code, 'success'); }
+      catch { showToast('Falha ao copiar', 'error'); }
       return;
     }
-
-    container.innerHTML = '<div class="tokens-list">' + filtered.map(t => {
-      const devCount = (t.active_devices || []).length;
-      const limit = t.device_limit || 1;
-      const pct = Math.min(100, Math.round((devCount / limit) * 100));
-      const atLimit = devCount >= limit;
-      const statusClass = !t.active ? 'revoked' : atLimit ? 'limit' : 'active';
-      const statusText = !t.active ? 'Revogado' : atLimit ? 'Limite atingido' : 'Ativo';
-
-      const expires = t.expires_at ? `Expira: ${new Date(t.expires_at).toLocaleDateString('pt-BR')}` : '';
-      const lastUse = t.last_used_at ? `Último uso: ${new Date(t.last_used_at).toLocaleDateString('pt-BR')}` : '';
-      const notes = t.notes ? `📝 ${t.notes}` : '';
-
-      return `
-        <div class="token-card ${!t.active ? 'revoked' : ''}" data-id="${t._id}">
-          <div class="token-card-top">
-            <div class="token-info">
-              <div class="token-code">${escapeHtml(t.code)}</div>
-              ${t.customer_name ? `<div class="token-customer">${escapeHtml(t.customer_name)}</div>` : ''}
-            </div>
-            <span class="status-badge ${statusClass}"><span class="status-dot"></span>${statusText}</span>
-          </div>
-          <div class="device-bar">
-            <span>${devCount}/${limit} dispositivos</span>
-            <div class="bar-bg"><div class="bar-fill ${atLimit ? 'warn' : ''}" style="width:${pct}%"></div></div>
-          </div>
-          <div class="token-extra expanded">
-            ${notes ? `<div class="info-row">${escapeHtml(notes)}</div>` : ''}
-            ${expires ? `<div class="info-row">⏰ ${expires}</div>` : ''}
-            ${lastUse ? `<div class="info-row">🟢 ${lastUse}</div>` : ''}
-            <div class="actions">
-              <button class="btn ${t.active ? 'btn-danger' : 'btn-success'}" data-action="toggle" data-id="${t._id}">
-                ${t.active ? '⛔ Revogar' : '✓ Ativar'}
-              </button>
-              <button class="btn btn-amber" data-action="clear" data-id="${t._id}">📱 Limpar devices</button>
-              <button class="btn btn-blue" data-action="edit" data-id="${t._id}">✎ Editar</button>
-              <button class="btn btn-danger" data-action="delete" data-id="${t._id}">🗑 Excluir</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('') + '</div>';
-
-    // Bind action buttons
-    container.querySelectorAll('[data-action]').forEach(btn => {
-      btn.addEventListener('click', handleAction);
-    });
-  }
-
-  function escapeHtml(s) {
-    return String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-
-  document.getElementById('search-input').addEventListener('input', render);
-
-  // ─── ACTIONS ──────────────────────────────────────
-  async function handleAction(e) {
-    const btn = e.currentTarget;
-    const action = btn.getAttribute('data-action');
-    const id = btn.getAttribute('data-id');
-    const t = tokens.find(x => x._id === id);
-    if (!t) return;
-
     if (action === 'toggle') {
-      try {
-        await api(`/api/admin/tokens/${id}`, 'PATCH', { active: !t.active });
-        toast(t.active ? 'Token revogado' : 'Token ativado', 'success');
-        loadAll();
-      } catch (e) { toast('Erro: ' + e.message, 'error'); }
-    } else if (action === 'clear') {
-      if (!confirm(`Remover ${t.active_devices.length} dispositivo(s) de "${t.code}"?`)) return;
-      try {
-        await api(`/api/admin/tokens/${id}/clear-devices`, 'POST');
-        toast('Dispositivos limpos', 'success');
-        loadAll();
-      } catch (e) { toast('Erro: ' + e.message, 'error'); }
-    } else if (action === 'delete') {
-      if (!confirm(`Excluir "${t.code}" permanentemente?`)) return;
-      try {
-        await api(`/api/admin/tokens/${id}`, 'DELETE');
-        toast('Token excluído', 'success');
-        loadAll();
-      } catch (e) { toast('Erro: ' + e.message, 'error'); }
-    } else if (action === 'edit') {
+      const cur = btn.dataset.active === 'true';
+      try { await api('/admin/tokens/' + id, { method: 'PATCH', body: { active: !cur } }); showToast(cur ? 'Token revogado' : 'Token reativado', 'success'); await refresh(); }
+      catch (err) { showToast('Erro: ' + err.message, 'error'); }
+      return;
+    }
+    if (action === 'clear') {
+      try { await api('/admin/tokens/' + id + '/clear-devices', { method: 'POST' }); showToast('Dispositivos liberados', 'success'); await refresh(); }
+      catch (err) { showToast('Erro: ' + err.message, 'error'); }
+      return;
+    }
+    if (action === 'delete') {
+      if (!confirm('Excluir este token permanentemente?')) return;
+      try { await api('/admin/tokens/' + id, { method: 'DELETE' }); showToast('Token excluído', 'success'); await refresh(); }
+      catch (err) { showToast('Erro: ' + err.message, 'error'); }
+      return;
+    }
+    if (action === 'edit') {
+      const t = TOKENS.find(x => x._id === id);
+      if (!t) return;
       openEdit(t);
+      return;
     }
   }
-
-  // ─── CREATE ───────────────────────────────────────
-  document.getElementById('new-token-btn').addEventListener('click', () => {
-    document.getElementById('new-code').value = '';
-    document.getElementById('new-name').value = '';
-    document.getElementById('new-limit').value = '3';
-    document.getElementById('new-duration').value = '';
-    document.getElementById('new-notes').value = '';
-    document.getElementById('create-error').classList.remove('show');
-    openModal('create');
-  });
-
-  document.getElementById('create-save').addEventListener('click', async () => {
-    const code = document.getElementById('new-code').value.trim().toUpperCase();
-    const errEl = document.getElementById('create-error');
-    if (!code) { errEl.textContent = 'Código obrigatório'; errEl.classList.add('show'); return; }
-    const body = {
-      code,
-      customer_name: document.getElementById('new-name').value.trim() || null,
-      device_limit: parseInt(document.getElementById('new-limit').value) || 3,
-      notes: document.getElementById('new-notes').value.trim() || null,
-    };
-    const days = parseInt(document.getElementById('new-duration').value);
-    if (days && days > 0) body.duration_minutes = days * 24 * 60;
-    try {
-      await api('/api/admin/tokens', 'POST', body);
-      closeModal('create');
-      toast('Token criado ✓', 'success');
-      loadAll();
-    } catch (e) {
-      errEl.textContent = e.message;
-      errEl.classList.add('show');
-    }
-  });
-
-  // ─── EDIT ─────────────────────────────────────────
-  function openEdit(t) {
-    editingTokenId = t._id;
-    document.getElementById('edit-title').textContent = `Editar ${t.code}`;
-    document.getElementById('edit-name').value = t.customer_name || '';
-    document.getElementById('edit-limit').value = t.device_limit || 3;
-    document.getElementById('edit-notes').value = t.notes || '';
-    document.getElementById('edit-error').classList.remove('show');
-    openModal('edit');
+  // Click no código copia
+  const codeEl = e.target.closest('[data-copy]');
+  if (codeEl) {
+    try { await navigator.clipboard.writeText(codeEl.dataset.copy); showToast('Código copiado', 'success'); } catch {}
   }
+});
 
-  document.getElementById('edit-save').addEventListener('click', async () => {
-    if (!editingTokenId) return;
-    const errEl = document.getElementById('edit-error');
-    const body = {
-      customer_name: document.getElementById('edit-name').value.trim() || null,
-      device_limit: parseInt(document.getElementById('edit-limit').value) || 3,
-      notes: document.getElementById('edit-notes').value.trim() || null,
-    };
-    try {
-      await api(`/api/admin/tokens/${editingTokenId}`, 'PATCH', body);
-      closeModal('edit');
-      toast('Alterações salvas ✓', 'success');
-      loadAll();
-    } catch (e) {
-      errEl.textContent = e.message;
-      errEl.classList.add('show');
+// ─── Modals ────────────────────────────────────────────────────────────
+function openModal(id) { $(id + '-modal').classList.add('open'); }
+function closeModal(id) { $(id + '-modal').classList.remove('open'); }
+document.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => closeModal(el.dataset.close)));
+
+// Create
+$('new-btn').addEventListener('click', () => {
+  $('c-name').value = '';
+  $('c-code').value = '';
+  $('c-duration-value').value = '';
+  $('c-duration-unit').value = 'days';
+  $('c-limit').value = '3';
+  $('c-notes').value = '';
+  $('c-error').style.display = 'none';
+  openModal('create');
+  setTimeout(() => $('c-name').focus(), 100);
+});
+$('c-gen-btn').addEventListener('click', () => {
+  const r1 = Math.random().toString(16).slice(2, 6).toUpperCase();
+  const r2 = Math.random().toString(16).slice(2, 6).toUpperCase();
+  $('c-code').value = `TC-${r1}-${r2}`;
+});
+$('c-save').addEventListener('click', async () => {
+  const body = {
+    code: $('c-code').value.trim() || null,
+    customer_name: $('c-name').value.trim() || null,
+    device_limit: parseInt($('c-limit').value) || 3,
+    duration_unit: $('c-duration-unit').value,
+    duration_value: parseInt($('c-duration-value').value) || null,
+    notes: $('c-notes').value.trim() || null,
+  };
+  if (body.duration_unit !== 'forever' && (!body.duration_value || body.duration_value <= 0)) {
+    $('c-error').textContent = 'Informe um valor de duração válido (ou escolha "Sem expiração").';
+    $('c-error').style.display = 'block';
+    return;
+  }
+  try {
+    const res = await api('/admin/tokens', { method: 'POST', body });
+    closeModal('create');
+    // Mostra o resultado
+    $('r-code').textContent = res.code;
+    const lines = [];
+    if (res.customer_name) lines.push(`Usuário: <strong style="color: var(--text)">${res.customer_name}</strong>`);
+    if (res.expires_at) {
+      const exp = new Date(res.expires_at);
+      lines.push(`Expira em: <strong style="color: var(--gold)">${exp.toLocaleString('pt-BR')}</strong>`);
+    } else {
+      lines.push(`<strong style="color: var(--blue)">Sem expiração</strong>`);
     }
-  });
+    $('r-info').innerHTML = lines.join('<br>');
+    openModal('result');
+    await refresh();
+  } catch (e) {
+    $('c-error').textContent = 'Erro: ' + e.message;
+    $('c-error').style.display = 'block';
+  }
+});
 
-  // ─── MODAL HELPERS ────────────────────────────────
-  function openModal(name) { document.getElementById(`${name}-modal`).classList.add('open'); }
-  function closeModal(name) { document.getElementById(`${name}-modal`).classList.remove('open'); }
-  document.querySelectorAll('[data-close]').forEach(el => {
-    el.addEventListener('click', () => closeModal(el.getAttribute('data-close')));
-  });
-  document.querySelectorAll('.modal').forEach(m => {
-    m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('open'); });
-  });
+$('r-copy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('r-code').textContent); showToast('Código copiado', 'success'); }
+  catch { showToast('Falha ao copiar', 'error'); }
+});
+$('r-code').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('r-code').textContent); showToast('Código copiado', 'success'); }
+  catch {}
+});
+
+// Edit
+let editingId = null;
+function openEdit(t) {
+  editingId = t._id;
+  $('e-name').value = t.customer_name || '';
+  $('e-limit').value = t.device_limit || 3;
+  $('e-notes').value = t.notes || '';
+  openModal('edit');
+}
+$('e-save').addEventListener('click', async () => {
+  if (!editingId) return;
+  const body = {
+    customer_name: $('e-name').value.trim() || null,
+    device_limit: parseInt($('e-limit').value) || 3,
+    notes: $('e-notes').value.trim() || null,
+  };
+  try {
+    await api('/admin/tokens/' + editingId, { method: 'PATCH', body });
+    closeModal('edit');
+    showToast('Token atualizado', 'success');
+    await refresh();
+  } catch (e) {
+    showToast('Erro: ' + e.message, 'error');
+  }
+});
+
+// Auto-refresh a cada 30s pra detectar mudanças (devices conectando, etc)
+setInterval(() => {
+  if (ADMIN_KEY && $('app-view').style.display !== 'none') {
+    refresh().catch(() => {});
+  }
+}, 30000);
 </script>
 </body>
 </html>

@@ -123,7 +123,135 @@ backend:
         agent: "testing"
         comment: "VERIFIED: GET /api/admin-ui and GET /api/admin both return 200 with Content-Type text/html and body contains 'Tom Certo Admin' (~23821 bytes). Both endpoints correctly DO NOT require X-Admin-Key header (page collects it via form). Admin API endpoints all pass: GET /admin/stats (total/active/revoked), GET /admin/tokens (list), POST /admin/tokens (create PYTEST-XXX), PATCH /admin/tokens/{id} (active=false), POST /admin/tokens/{id}/clear-devices, DELETE /admin/tokens/{id}. Auth enforcement verified: all protected endpoints return 401 when X-Admin-Key is missing or wrong. Auth flow also passes: POST /auth/validate with TEST-DEV2026 returns valid:true + session JWT; /auth/revalidate returns valid:true; invalid token returns valid:false reason=not_found."
 
-  - task: "Lógica avançada de decisão tonal no backend Python"
+  - task: "Painel admin de tokens premium + flexível"
+    implemented: true
+    working: true
+    file: "backend/server.py + backend/admin_ui.html"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          v4.2 - Painel admin reescrito + fix de segurança crítico.
+          Mudanças backend (server.py):
+          1. SEC FIX: POST /api/admin/tokens agora exige verify_admin (antes era público!)
+          2. TokenCreate model expandido com duration_value (int) + duration_unit
+             (forever/minutes/hours/days/months/years). _compute_duration_minutes()
+             converte pra minutos canônicos.
+          3. Auto-geração de código: se body.code vazio, gera TC-XXXX-XXXX único
+             (4 hex maiúsculas, retry até 10x até achar livre).
+          4. Resposta de POST inclui: code, customer_name, expires_at, duration_minutes.
+          
+          Mudanças admin_ui.html (reescrita completa):
+          - UI premium dark + dourado (aderente ao mockup do app)
+          - Login persistente via localStorage (lembra admin key)
+          - Auto-refresh a cada 30s
+          - Stats ao vivo (Total / Ativos / Revogados / Em uso)
+          - Form criar token: Nome, Código (auto/manual), Duração (valor + unidade
+            select), Limite devices, Observações. Validação de duração obrigatória
+            quando não-forever.
+          - Lista de tokens com badges (ATIVO / REVOGADO / EXPIRADO / SEM EXPIRAÇÃO),
+            tempo relativo de expiração (5min, 30 dias, 6 meses), contagem de
+            devices em uso, ações inline (Copiar / Editar / Liberar devices /
+            Revogar/Reativar / Excluir).
+          - Modal de resultado mostra código gerado + dados, com botão de copiar.
+          - Toast premium para feedback (success/error).
+          - Search filtra por código, nome, notes.
+
+          Validação manual (curl/python):
+          - POST sem admin: 401 ✓
+          - Auto-código: TC-FBA7-6174 ✓
+          - Duração 30 dias = 43200 min, expires_at correto ✓
+          - Duração 5 minutos = 5 min, expires_at correto ✓
+          - Duração 6 meses = 259200 min ✓
+          - Código manual personalizado: 'PASTOR-PEDRO-2026' ✓
+          - Listagem retorna 6 tokens, stats consistentes ✓
+          - Auth flow regression: TEST-DEV2026 valida + revalida ✓
+      - working: true
+        agent: "testing"
+        comment: |
+          v4.2 Admin Token Panel — FULL VALIDATION PASS (28/28 effective tests)
+          via /app/backend_test_v42.py against http://localhost:8001/api.
+
+          §1 SECURITY (POST /api/admin/tokens):
+            • No header → 401 ✓
+            • Wrong key 'wrong-key-xyz' → 401 ✓
+            • Correct key (tomcerto-admin-2026) → 200 ✓
+
+          §2 AUTO-CODE: POST {customer_name:"Auto Test"} → 200,
+              code='TC-DE82-AE2E' matches ^TC-[0-9A-F]{4}-[0-9A-F]{4}$ ✓
+              Response has all required fields: ok=true, token_id, code,
+              customer_name='Auto Test', expires_at=null, duration_minutes=null ✓
+
+          §3 FLEXIBLE DURATIONS — ALL 6 UNITS PASS (Δ=0.00s):
+              T1 5 minutes  → duration_minutes=5,      expires Δ=0.00s ✓
+              T2 2 hours    → duration_minutes=120,    expires Δ=0.00s ✓
+              T3 30 days    → duration_minutes=43200,  expires Δ=0.00s ✓
+              T4 6 months   → duration_minutes=259200, expires Δ=0.00s ✓
+              T5 1 years    → duration_minutes=525600, expires Δ=0.00s ✓
+              T6 forever    → duration_minutes=null,   expires_at=null ✓
+
+          §4 MANUAL CODE:
+              POST {code:"MEU-TESTE-001", customer_name:"Pedro"} → 200,
+              code preserved exactly as 'MEU-TESTE-001', customer_name='Pedro' ✓
+              Duplicate POST same code → 409 ✓
+
+          §5 GET /api/admin/tokens:
+              Shape {tokens:[...], total:N, active:M} ✓
+              Each token has _id, code, customer_name, device_limit,
+              active_devices, active, created_at, expires_at, duration_minutes ✓
+
+          §6 PATCH /api/admin/tokens/{id}:
+              Update customer_name + device_limit + notes → 200, persisted ✓
+              active=false → revoked, persisted ✓
+              active=true  → reactivated, persisted ✓
+
+          §7 POST /api/admin/tokens/{id}/clear-devices → 200,
+              active_devices=[] post-clear ✓
+
+          §8 DELETE /api/admin/tokens/{id} → 200, token gone from listing ✓
+
+          §9 EXPIRED BLOCKS VALIDATE (real 65s wait):
+              Created token with duration_value=1 duration_unit=minutes.
+              First /auth/validate at t=0 → 200 valid:true ✓
+              Slept 65s.
+              Second /auth/validate at t=65s → 200 valid:false reason='expired' ✓
+
+          §10 HTML PANEL:
+              GET /api/admin    → 200 text/html, contains 'Tom Certo · Admin'
+                                  (26446 bytes) ✓
+              GET /api/admin-ui → 200 (alias) ✓
+              GET /api/admin-logo → 200 content-type=image/png ✓
+
+          §11 AUTH REGRESSION (TEST-DEV2026):
+              First run hit valid:false reason='device_limit' because
+              TEST-DEV2026 had accumulated 10 devices (device_limit=10) from
+              earlier test runs — NOT a code defect. After
+              POST /admin/tokens/{id}/clear-devices, retest passes:
+              POST /auth/validate {token:'TEST-DEV2026', device_id:...} → 200
+                valid:true, customer_name='Dev/Tester', session=JWT (308 chars) ✓
+              POST /auth/revalidate → 200 valid:true, customer_name='Dev/Tester' ✓
+              Note: testing agent left TEST-DEV2026 with cleared devices.
+
+          §12 ANALYZE-KEY REGRESSION (6s 440Hz mono 16kHz PCM_16 sine WAV,
+              192044 B):
+              POST /api/analyze-key → 200 with
+              key_name='Lá Maior', tonic=9, quality='major', confidence=0.0,
+              top_candidates=[5 dicts] each with {key, score, correlation,
+              third_diff, axis, final_match}.
+              Backend log: '[AnalyzeKey] ✓ key=Lá Maior conf=0.00 notes=1
+              phrases=1 flags=[few_notes, close_call, low_correlation,
+              weak_tonic_fifth_axis]'. confidence=0.0 is expected behavior for
+              a pure sine (low correlation + weak tonic/5th axis flags zero
+              the margin score).
+
+          CLEANUP: All 12 created tokens DELETEd. Final DB state contains
+          only the 2 pre-existing tokens (TEST-DEV2026 and TESTE/Fernando 2),
+          as required.
+
+          No backend code modified during testing.
     implemented: true
     working: true
     file: "backend/key_detection.py"
@@ -331,3 +459,63 @@ agent_communication:
       the HTTP layer end-to-end. No regressions in admin/auth surface. Task
       "Lógica avançada de decisão tonal no backend Python" is now
       working:true, stuck_count=0, needs_retesting=false.
+  - agent: "testing"
+    message: |
+      v4.2 Admin Token Panel — FULL VALIDATION PASS via /app/backend_test_v42.py
+      against http://localhost:8001/api. 28 effective checks, 0 real failures.
+
+      §1 Security on POST /api/admin/tokens:
+        • No header → 401 ✓
+        • Wrong key → 401 ✓
+        • Correct key (tomcerto-admin-2026) → 200 ✓
+
+      §2 Auto-code: POST {customer_name:"Auto Test"} → 200, code='TC-DE82-AE2E'
+        matches ^TC-[0-9A-F]{4}-[0-9A-F]{4}$. Response includes ok=true,
+        token_id, code, customer_name, expires_at=null, duration_minutes=null.
+
+      §3 ALL 6 duration units verified (Δ < 1ms in every case):
+        5 minutes=5, 2 hours=120, 30 days=43200, 6 months=259200,
+        1 years=525600, forever=null+expires_at=null. Each non-forever case
+        also had its expires_at ISO date validated against the duration.
+
+      §4 Manual code 'MEU-TESTE-001' preserved exactly; duplicate POST → 409.
+
+      §5 GET /api/admin/tokens returns {tokens, total, active}; each token
+        has _id, code, customer_name, device_limit, active_devices, active,
+        created_at, expires_at, duration_minutes.
+
+      §6 PATCH: customer_name+device_limit+notes update persisted; active=false
+        revokes; active=true reactivates.
+
+      §7 POST .../clear-devices → 200, active_devices=[].
+
+      §8 DELETE → 200, token gone from listing.
+
+      §9 Real 65s wait expiry test PASSED:
+        Created token with duration_value=1 duration_unit=minutes.
+        First validate at t=0 → valid:true. After sleep(65), next validate
+        → valid:false reason='expired'.
+
+      §10 HTML panel: GET /api/admin → 200 text/html (26446 B) contains
+        "Tom Certo · Admin"; GET /api/admin-ui → 200 (alias);
+        GET /api/admin-logo → 200 content-type=image/png.
+
+      §11 Auth regression: First attempt got valid:false reason='device_limit'
+        because TEST-DEV2026 had accumulated 10 devices (device_limit=10) from
+        earlier test runs — NOT a code defect. After clear-devices, retest:
+        /auth/validate with TEST-DEV2026 → valid:true + JWT (308 chars) +
+        customer_name='Dev/Tester'; /auth/revalidate → valid:true. Testing
+        agent left TEST-DEV2026 with active_devices=[] for clean state.
+
+      §12 /api/analyze-key with 6s 440Hz mono 16kHz PCM_16 sine WAV (192044 B)
+        → 200 with key_name='Lá Maior', tonic=9, quality='major',
+        confidence=0.0 (expected for pure sine: low_correlation +
+        weak_tonic_fifth_axis flags zero margin score), top_candidates=5
+        dicts each with {key, score, correlation, third_diff, axis,
+        final_match}. method_version label visible in backend logs.
+
+      Cleanup: All 12 tokens created during testing were DELETEd. Final DB
+      state contains only the 2 pre-existing tokens (TEST-DEV2026 and
+      TESTE/Fernando 2). No backend code modified during testing.
+
+      Test script saved at /app/backend_test_v42.py for re-runs.
