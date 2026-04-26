@@ -189,7 +189,7 @@ function InitialScreen({
   const breatheScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [0.99, 1.02] });
 
   const renderRing = (val: Animated.Value, idx: number) => (
-    <Animated.View style={[
+    <Animated.View pointerEvents="none" style={[
       ss.micRingPremium,
       {
         opacity: val.interpolate({
@@ -404,16 +404,15 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════
-  // ESTRATÉGIA "TOM SEGURO" v6 — só mostra tom quando há ALTA confiança
+  // ESTRATÉGIA "TOM SEGURO" v7 — DETECÇÃO RÁPIDA (mantém honestidade)
   // ═══════════════════════════════════════════════════════════════
-  // - NUNCA exibe tom provisório (eliminado o flicker de "Lá menor → Sol menor")
-  // - Caminho RÁPIDO: 1 análise muito confiante (conf ≥ FAST_CONFIRM_CONF) → trava
-  // - Caminho NORMAL: 2 de 3 análises mesmo tom + conf média ≥ MIN_CONFIRM_CONF
-  // - Uma vez TRAVADO, o tom NÃO muda mais até o usuário parar/reiniciar
-  // - Antes de travar: só status ("Ouvindo...", "Analisando...", "Cante mais...")
-  const MIN_INDIVIDUAL_CONF = 0.60; // entrada na janela
-  const MIN_CONFIRM_CONF = 0.70;    // confirma com 2 de 3
-  const FAST_CONFIRM_CONF = 0.80;   // confirma com 1 análise super confiante
+  // Thresholds afrouxados para detectar mais rápido sem perder precisão:
+  //   FAST: 0.80 → 0.65 (trava em ~4s com 1 análise confiante)
+  //   CONFIRM: 0.70 → 0.55 (trava em ~8s com 2 de 3 análises)
+  //   INDIVIDUAL: 0.60 → 0.45 (mais resultados entram na janela)
+  const MIN_INDIVIDUAL_CONF = 0.45;
+  const MIN_CONFIRM_CONF = 0.55;
+  const FAST_CONFIRM_CONF = 0.65;
   const LOCK_WINDOW_SIZE = 3;
 
   const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
