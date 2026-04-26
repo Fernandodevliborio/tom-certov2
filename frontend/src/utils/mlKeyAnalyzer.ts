@@ -5,7 +5,7 @@
 import Constants from 'expo-constants';
 import type { CapturedClip } from '../audio/types';
 
-const PROD_BACKEND_URL = 'https://tom-certo-v2.preview.emergentagent.com';
+const PROD_BACKEND_URL = 'https://tom-certov2-production.up.railway.app';
 
 function getBackendUrl(): string {
   const url =

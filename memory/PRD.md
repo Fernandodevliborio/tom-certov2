@@ -22,9 +22,9 @@ Backend Python com CREPE (torchcrepe) para extração F0 e lógica tonal madura 
 - Features: listar, criar, revogar/ativar, limpar devices, editar, excluir tokens
 
 ## URLs
-- **Backend API:** `https://tom-certo-v2.preview.emergentagent.com/api/*`
-- **Admin UI:** `https://tom-certo-v2.preview.emergentagent.com/api/admin-ui`
-- **Expo Web Preview:** `https://tom-certo-v2.preview.emergentagent.com/`
+- **Backend API:** `https://credentials-deploy-1.preview.emergentagent.com/api/*`
+- **Admin UI:** `https://credentials-deploy-1.preview.emergentagent.com/api/admin-ui`
+- **Expo Web Preview:** `https://credentials-deploy-1.preview.emergentagent.com/`
 
 ## Stack
 - Frontend: Expo SDK + expo-router + react-native-reanimated

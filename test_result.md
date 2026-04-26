@@ -359,7 +359,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Migração para Railway — URLs de fallback corrigidas"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
