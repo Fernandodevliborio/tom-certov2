@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends, BackgroundTasks
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -799,20 +800,32 @@ async def admin_redirect_to_ui():
 # ─── Include router ─────────────────────────────────────────────────────
 app.include_router(api_router)
 
+# ─── Arquivos estáticos da landing page (CSS, JS) ────────────────────────
+LANDING_DIR = ROOT_DIR / "landing"
+if LANDING_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(LANDING_DIR / "static")), name="static")
+
 # ─── Landing page — serve no root "/" e em "/landing" ───────────────────
+LANDING_INDEX = LANDING_DIR / "index.html"
+
 @app.get("/", response_class=HTMLResponse)
 async def landing_root():
     """Página de vendas do Tom Certo (root)."""
-    if not LANDING_HTML_PATH.exists():
-        return HTMLResponse("<h1>landing.html não encontrado</h1>", status_code=500)
-    return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
+    if LANDING_INDEX.exists():
+        return HTMLResponse(LANDING_INDEX.read_text(encoding="utf-8"))
+    # Fallback para landing.html antigo
+    if LANDING_HTML_PATH.exists():
+        return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Landing page não encontrada</h1>", status_code=500)
 
 @app.get("/landing", response_class=HTMLResponse)
 async def landing_page():
     """Página de vendas do Tom Certo."""
-    if not LANDING_HTML_PATH.exists():
-        return HTMLResponse("<h1>landing.html não encontrado</h1>", status_code=500)
-    return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
+    if LANDING_INDEX.exists():
+        return HTMLResponse(LANDING_INDEX.read_text(encoding="utf-8"))
+    if LANDING_HTML_PATH.exists():
+        return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Landing page não encontrada</h1>", status_code=500)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
