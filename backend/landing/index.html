@@ -83,72 +83,271 @@ document.addEventListener('DOMContentLoaded', function() {
   }, 100);
 });
 </script>
-<!-- CSS Fix for Pricing Section Glitch -->
+<!-- TOM CERTO - Visual Enhancements CSS -->
 <style>
-/* AGGRESSIVE FIX: Disable ALL problematic GPU effects */
-*, *::before, *::after {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  -webkit-backface-visibility: visible !important;
-  backface-visibility: visible !important;
-  will-change: auto !important;
-  perspective: none !important;
-  transform-style: flat !important;
+/* ========================================
+   TOM CERTO - PREMIUM VISUAL DESIGN
+   ======================================== */
+
+/* Hide Emergent badge */
+#emergent-badge, [id*="emergent"], a[href*="emergent.sh"] {
+  display: none !important;
 }
 
-/* Disable transforms on cards and sections */
-[class*="tc-card"], 
-[class*="pricing"],
-[class*="plan"],
-[class*="card"],
-section > div,
-section > div > div,
-section > div > div > div {
-  -webkit-transform: none !important;
-  transform: none !important;
-  isolation: auto !important;
-  mix-blend-mode: normal !important;
-  filter: none !important;
-  -webkit-filter: none !important;
-}
+/* ===== 1. GRADIENTES E FUNDOS DINÂMICOS ===== */
 
-/* Fix text rendering */
+/* Body base - gradiente sutil azul marinho */
 body, html {
+  background: linear-gradient(180deg, 
+    #0a0a0a 0%, 
+    #0d1117 25%, 
+    #0a0f1a 50%, 
+    #0d1117 75%, 
+    #0a0a0a 100%) !important;
   -webkit-font-smoothing: antialiased !important;
   -moz-osx-font-smoothing: grayscale !important;
-  text-rendering: optimizeLegibility !important;
 }
 
-/* Ensure proper stacking context */
+/* Textura de ruído sutil */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* ===== 2. SEÇÕES COM VARIAÇÃO DE COR ===== */
+
+/* Seção Hero - gradiente radial com glow */
+section:first-of-type {
+  position: relative !important;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 176, 32, 0.08) 0%, transparent 60%),
+              linear-gradient(180deg, #0a0a0a 0%, #0d1420 100%) !important;
+}
+
+/* Seções alternadas */
+section:nth-of-type(odd) {
+  background: linear-gradient(180deg, 
+    rgba(13, 17, 23, 0.95) 0%, 
+    rgba(10, 15, 26, 0.98) 50%, 
+    rgba(13, 17, 23, 0.95) 100%) !important;
+}
+
+section:nth-of-type(even) {
+  background: linear-gradient(180deg, 
+    rgba(10, 10, 10, 0.98) 0%, 
+    rgba(15, 20, 30, 0.95) 50%, 
+    rgba(10, 10, 10, 0.98) 100%) !important;
+}
+
+/* ===== 3. EFEITOS DE GLOW E ILUMINAÇÃO ===== */
+
+/* Glow amarelo atrás de elementos principais */
+[class*="phone"], [class*="mockup"], [class*="device"] {
+  position: relative !important;
+}
+
+[class*="phone"]::before, [class*="mockup"]::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 120% !important;
+  height: 120% !important;
+  transform: translate(-50%, -50%) !important;
+  background: radial-gradient(circle, rgba(255, 176, 32, 0.2) 0%, transparent 60%) !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+}
+
+/* Glow para botões CTA */
+a[class*="btn-primary"], button[class*="btn-primary"],
+a[class*="bg-primary"], button[class*="bg-primary"] {
+  box-shadow: 0 0 30px rgba(255, 176, 32, 0.4),
+              0 0 60px rgba(255, 176, 32, 0.2),
+              0 4px 20px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.3s ease !important;
+}
+
+a[class*="btn-primary"]:hover, button[class*="btn-primary"]:hover,
+a[class*="bg-primary"]:hover, button[class*="bg-primary"]:hover {
+  box-shadow: 0 0 40px rgba(255, 176, 32, 0.5),
+              0 0 80px rgba(255, 176, 32, 0.3),
+              0 6px 25px rgba(0, 0, 0, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* ===== 4. GLASSMORPHISM PARA CARDS ===== */
+
+/* Cards com efeito glassmorphism */
+[class*="tc-card"], [class*="card"], 
+div[class*="border"][class*="rounded"] {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.05) 0%, 
+    rgba(255, 255, 255, 0.02) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+              inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Cards de preço com destaque especial */
+[class*="tc-card-gold"], [class*="pricing"][class*="gold"],
+div[class*="border-primary"], div[class*="border-\[\#FFB020\]"] {
+  background: linear-gradient(135deg, 
+    rgba(255, 176, 32, 0.1) 0%, 
+    rgba(255, 176, 32, 0.02) 100%) !important;
+  border: 1px solid rgba(255, 176, 32, 0.3) !important;
+  box-shadow: 0 0 40px rgba(255, 176, 32, 0.15),
+              0 8px 32px rgba(0, 0, 0, 0.4),
+              inset 0 1px 0 rgba(255, 176, 32, 0.1) !important;
+}
+
+/* ===== 5. TIPOGRAFIA E CENTRALIZAÇÃO ===== */
+
+/* Headlines centralizadas */
+h1, h2, [class*="text-5xl"], [class*="text-6xl"], [class*="text-7xl"] {
+  text-align: center !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* Subheadlines centralizadas */
+h1 + p, h2 + p, [class*="text-5xl"] + p, [class*="text-6xl"] + p,
+[class*="text-muted-foreground"][class*="text-lg"],
+[class*="text-muted-foreground"][class*="text-xl"] {
+  text-align: center !important;
+  max-width: 600px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Container de texto hero centralizado */
+section:first-of-type > div > div:first-child {
+  text-align: center !important;
+}
+
+/* Botões hero centralizados */
+section:first-of-type [class*="flex"][class*="gap"] {
+  justify-content: center !important;
+}
+
+/* ===== 6. BORDAS COM GRADIENTE ===== */
+
+/* Divisores com gradiente */
+hr, [class*="divider"], [class*="border-b"] {
+  border-image: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(255, 176, 32, 0.3) 50%, 
+    transparent 100%) 1 !important;
+}
+
+/* ===== 7. SOMBRAS PROJETADAS ===== */
+
+/* Sombras em botões secundários */
+a[class*="btn-secondary"], button[class*="btn-secondary"],
+a[class*="bg-secondary"], button[class*="bg-secondary"],
+a[class*="border"][class*="rounded-full"] {
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.3s ease !important;
+}
+
+a[class*="btn-secondary"]:hover, button[class*="btn-secondary"]:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ===== 8. EFEITOS DE GRID SUTIL ===== */
+
+/* Grid pattern no fundo de seções específicas */
+section:nth-of-type(3)::after,
+section:nth-of-type(5)::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+  opacity: 0.02 !important;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px) !important;
+  background-size: 50px 50px !important;
+  z-index: 0 !important;
+}
+
+/* ===== 9. ACENTOS DE COR MELHORADOS ===== */
+
+/* Amarelo mais vibrante */
+[class*="text-\[\#FFB020\]"], [class*="text-primary"],
+[class*="text-accent"] {
+  color: #FFB833 !important;
+  text-shadow: 0 0 20px rgba(255, 176, 32, 0.3) !important;
+}
+
+/* Ícones com glow */
+svg[class*="text-primary"], svg[class*="fill-primary"] {
+  filter: drop-shadow(0 0 8px rgba(255, 176, 32, 0.4)) !important;
+}
+
+/* ===== 10. ANIMAÇÕES SUTIS ===== */
+
+/* Pulse sutil para elementos de destaque */
+@keyframes subtle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+[class*="badge"], [class*="tag"] {
+  animation: subtle-pulse 3s ease-in-out infinite !important;
+}
+
+/* Glow pulsante para mockup */
+@keyframes glow-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 40px rgba(255, 176, 32, 0.2),
+                0 0 80px rgba(255, 176, 32, 0.1); 
+  }
+  50% { 
+    box-shadow: 0 0 60px rgba(255, 176, 32, 0.3),
+                0 0 100px rgba(255, 176, 32, 0.15); 
+  }
+}
+
+[class*="phone"], [class*="mockup"] {
+  animation: glow-pulse 4s ease-in-out infinite !important;
+}
+
+/* ===== 11. RESPONSIVIDADE ===== */
+
+@media (max-width: 768px) {
+  h1, h2 {
+    font-size: 2rem !important;
+  }
+  
+  [class*="text-5xl"], [class*="text-6xl"] {
+    font-size: 2.5rem !important;
+  }
+}
+
+/* ===== 12. CORREÇÕES DE GLITCH ===== */
+
+/* Mantém correções para evitar glitch em mobile */
 section {
   position: relative !important;
   z-index: 1 !important;
-  overflow: visible !important;
-  contain: none !important;
+  overflow: hidden !important;
 }
 
-/* Reset any parallax/sticky behavior */
-[class*="sticky"],
-[class*="fixed"],
-[class*="parallax"] {
+section > * {
   position: relative !important;
-}
-
-/* Force GPU layer reset for pricing section */
-[class*="gold"],
-[class*="border"] {
-  -webkit-transform: translateZ(0) !important;
-  transform: translateZ(0) !important;
-}
-
-/* Hide Emergent badge completely */
-#emergent-badge,
-[id*="emergent"],
-a[href*="emergent.sh"] {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
+  z-index: 2 !important;
 }
 </style>
 </head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><script>!function(e,t){var r,s,o,i;t.__SV||(window.posthog=t,t._i=[],t.init=function(n,a,p){function c(e,t){var r=t.split(".");2==r.length&&(e=e[r[0]],t=r[1]),e[t]=function(){e.push([t].concat(Array.prototype.slice.call(arguments,0)))}}(o=e.createElement("script")).type="text/javascript",o.crossOrigin="anonymous",o.async=!0,o.src=a.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(i=e.getElementsByTagName("script")[0]).parentNode.insertBefore(o,i);var g=t;for(void 0!==p?g=t[p]=[]:p="posthog",g.people=g.people||[],g.toString=function(e){var t="posthog";return"posthog"!==p&&(t+="."+p),e||(t+=" (stub)"),t},g.people.toString=function(){return g.toString(1)+".people (stub)"},r="init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(" "),s=0;s<r.length;s++)c(g,r[s]);t._i.push([n,a,p])},t.__SV=1)}(document,window.posthog||[]),posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs",{api_host:"https://us.i.posthog.com",person_profiles:"identified_only",session_recording:{recordCrossOriginIframes:!0,capturePerformance:!1}})</script></body></html>
