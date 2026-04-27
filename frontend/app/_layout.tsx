@@ -16,6 +16,7 @@ import {
 } from '@expo-google-fonts/manrope';
 import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 import ActivationScreen from '../src/auth/ActivationScreen';
+import { MetaPixel } from '../src/utils/metaPixel';
 
 SplashScreen.hideAsync().catch(() => {});
 
@@ -52,6 +53,10 @@ export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
     const t = setTimeout(kickBackgroundOtaCheck, 1000);
+    
+    // Track PageView no Meta Pixel ao abrir o app
+    MetaPixel.pageView('app_open');
+    
     return () => clearTimeout(t);
   }, []);
 
