@@ -797,6 +797,29 @@ async def admin_redirect_to_ui():
         return HTMLResponse("<h1>admin_ui.html não encontrado</h1>", status_code=500)
     return HTMLResponse(ADMIN_HTML_PATH.read_text(encoding="utf-8"))
 
+# ─── Preview da Landing Page via /api/preview ────────────────────────────
+LANDING_DIR = ROOT_DIR / "landing"
+LANDING_INDEX = LANDING_DIR / "index.html"
+
+@api_router.get("/preview", response_class=HTMLResponse)
+async def preview_landing():
+    """Preview da landing page para acesso via /api/preview."""
+    if LANDING_INDEX.exists():
+        # Modificar os paths de static para funcionar via /api/static
+        html_content = LANDING_INDEX.read_text(encoding="utf-8")
+        html_content = html_content.replace('"/static/', '"/api/static/')
+        html_content = html_content.replace("'/static/", "'/api/static/")
+        return HTMLResponse(html_content)
+    return HTMLResponse("<h1>Landing page não encontrada</h1>", status_code=500)
+
+@api_router.get("/static/{path:path}")
+async def serve_static(path: str):
+    """Serve arquivos estáticos da landing via /api/static/."""
+    file_path = LANDING_DIR / "static" / path
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="File not found")
+
 # ─── Include router ─────────────────────────────────────────────────────
 app.include_router(api_router)
 
