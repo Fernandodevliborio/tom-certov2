@@ -309,15 +309,27 @@ export function usePitchEngine(): PitchEngineHandle {
   }, []);
 
   const captureClip = useCallback(async (durationMs: number): Promise<CapturedClip | null> => {
-    if (!activeRef.current) return null;
+    // eslint-disable-next-line no-console
+    console.log(`[captureClip] Chamado. activeRef=${activeRef.current} ringFilled=${captureRingFilledRef.current} wantMs=${durationMs}`);
+    
+    if (!activeRef.current) {
+      // eslint-disable-next-line no-console
+      console.log('[captureClip] ERRO: activeRef é false - microfone não está ativo');
+      return null;
+    }
     // Snapshot INSTANTÂNEO do ring buffer contínuo — sem esperar acumular
     const wantSamples = Math.min(
       captureRingFilledRef.current,
       Math.round((durationMs / 1000) * SAMPLE_RATE)
     );
+    // eslint-disable-next-line no-console
+    console.log(`[captureClip] wantSamples=${wantSamples} (min 1s = ${SAMPLE_RATE})`);
+    
     // TURBO: reduzido para 1s mínimo (era 2s) para detecção mais rápida
     if (wantSamples < SAMPLE_RATE * 1) {
       // menos de 1s disponíveis ainda — ring ainda enchendo
+      // eslint-disable-next-line no-console
+      console.log(`[captureClip] Ring buffer ainda enchendo: ${wantSamples} < ${SAMPLE_RATE}`);
       return null;
     }
     const cap = captureRingRef.current;
@@ -333,6 +345,8 @@ export function usePitchEngine(): PitchEngineHandle {
       merged.set(cap.subarray(startIdx, capCapacity), 0);
       merged.set(cap.subarray(0, wantSamples - tail), tail);
     }
+    // eslint-disable-next-line no-console
+    console.log(`[captureClip] ✓ Retornando clip com ${merged.length} samples (${(merged.length/SAMPLE_RATE).toFixed(1)}s)`);
     return {
       samples: merged,
       sampleRate: SAMPLE_RATE,

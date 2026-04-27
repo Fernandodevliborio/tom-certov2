@@ -478,56 +478,59 @@ export function useKeyDetection(): UseKeyDetectionReturn {
 
   // ═══════════════════════════════════════════════════════════════
   // LOOP REATIVO TURBO — análises mais frequentes para resultado rápido
-  //
-  // Comportamento por estado:
-  //   'idle'      → início da sessão           → tenta após 300ms
-  //   'waiting'   → áudio insuficiente         → tenta novamente em 500ms
-  //   'done'      → backend respondeu          → próxima análise em 50ms
-  //   'listening' → capturando clip            → aguarda (sem ação)
-  //   'analyzing' → backend processando        → aguarda (sem ação)
-  //
-  // Meta: resultado em menos de 15 segundos com áudio claro
   // ═══════════════════════════════════════════════════════════════
+  // Ref para isRunning (evita stale closure)
+  const isRunningRef = useRef(isRunning);
+  useEffect(() => { isRunningRef.current = isRunning; }, [isRunning]);
+
   useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log(`[ML-LOOP] Effect disparado: isRunning=${isRunning} mlState=${mlState}`);
+    // Se não está rodando, não faz nada
+    if (!isRunning) return;
     
-    if (!isRunning) {
+    // Função que verifica estado atual e agenda próxima análise
+    const scheduleNextAnalysis = () => {
+      const currentState = mlStateRef.current;
+      const currentRunning = isRunningRef.current;
+      
       // eslint-disable-next-line no-console
-      console.log('[ML-LOOP] Não rodando, ignorando');
-      return;
-    }
-    if (mlState === 'listening' || mlState === 'analyzing') {
+      console.log(`[ML-LOOP] scheduleNextAnalysis: running=${currentRunning} state=${currentState}`);
+      
+      if (!currentRunning) return;
+      if (currentState === 'listening' || currentState === 'analyzing') return;
+      
+      // Delays baseados no estado atual
+      let delay: number;
+      switch (currentState) {
+        case 'idle': delay = 300; break;
+        case 'waiting': delay = 500; break;
+        case 'done': delay = 50; break;
+        default: delay = 500;
+      }
+      
       // eslint-disable-next-line no-console
-      console.log(`[ML-LOOP] Já em ${mlState}, aguardando`);
-      return;
-    }
+      console.log(`[ML-LOOP] Agendando em ${delay}ms`);
+      setTimeout(() => {
+        if (isRunningRef.current) {
+          // eslint-disable-next-line no-console
+          console.log('[ML-LOOP] Executando runMLAnalysis');
+          runMLAnalysisRef.current?.();
+        }
+      }, delay);
+    };
 
-    // Delays TURBO para detecção rápida
-    let delay: number;
-    switch (mlState) {
-      case 'idle':
-        delay = 300;    // início — começa rápido
-        break;
-      case 'waiting':
-        delay = 500;    // áudio insuficiente — tenta logo
-        break;
-      case 'done':
-        delay = 50;     // sucesso — próxima análise imediata
-        break;
-      default:
-        delay = 500;
-    }
-
-    // eslint-disable-next-line no-console
-    console.log(`[ML-LOOP] Agendando runMLAnalysis em ${delay}ms`);
-    const timer = setTimeout(() => {
-      // eslint-disable-next-line no-console
-      console.log('[ML-LOOP] Timer disparou, chamando runMLAnalysis');
-      runMLAnalysisRef.current?.();
-    }, delay);
-    return () => clearTimeout(timer);
-  }, [isRunning, mlState]);
+    // Inicia o loop
+    scheduleNextAnalysis();
+    
+    // Re-agenda quando mlState muda
+    const interval = setInterval(() => {
+      const currentState = mlStateRef.current;
+      if (currentState === 'done' || currentState === 'waiting' || currentState === 'idle') {
+        scheduleNextAnalysis();
+      }
+    }, 600);
+    
+    return () => clearInterval(interval);
+  }, [isRunning]); // Só depende de isRunning para iniciar/parar
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {

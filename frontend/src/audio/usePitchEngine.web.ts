@@ -117,10 +117,18 @@ export function usePitchEngine(): PitchEngineHandle {
     softInfoRef.current = handler;
   }, []);
 
+  // Web fallback - não tem ring buffer, retorna null
+  const captureClip = useCallback(async (_durationMs: number) => {
+    // eslint-disable-next-line no-console
+    console.warn('[captureClip.web] Web não suporta captureClip - usando versão errada do hook!');
+    return null;
+  }, []);
+
   return {
     isSupported: true,
     start,
     stop,
     setSoftInfoHandler,
+    captureClip,
   };
 }
