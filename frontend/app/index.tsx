@@ -420,19 +420,37 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════
-  // ESTRATÉGIA "TOM TURBO" — DETECÇÃO RÁPIDA EM < 15 SEGUNDOS
+  // ESTRATÉGIA "TOM ESTÁVEL" — CONFIANÇA VISUAL COERENTE
   // ═══════════════════════════════════════════════════════════════
-  // Agora aceita QUALQUER resultado válido do backend (success: true)
-  // A confiança é usada apenas para decidir quando "travar" definitivamente
-  const MIN_CONFIRM_CONF = 0.20;   // Trava com 2 análises concordando
-  const FAST_CONFIRM_CONF = 0.30;  // Trava imediato se conf >= 30%
-  const LOCK_WINDOW_SIZE = 2;      // 2 análises iguais = lock
+  // 
+  // REGRAS:
+  // 1. Após validar o tom, confiança visual ≥ 60% e cresce progressivamente
+  // 2. Separação entre confiança interna (algoritmo) e visual (UX)
+  // 3. Mudança de tom: analisa em segundo plano, mostra "Possível mudança..."
+  // 4. Só troca tom quando houver certeza real (múltiplas análises concordando)
+  //
+  const MIN_CONFIRM_CONF = 0.20;   // Mínimo para entrar na janela
+  const FAST_CONFIRM_CONF = 0.35;  // Trava imediato se conf >= 35%
+  const LOCK_WINDOW_SIZE = 3;      // 3 análises para estabilidade
+  const KEY_CHANGE_THRESHOLD = 4;  // 4 análises do novo tom para trocar
 
-  const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number }>>([]);
+  // Estado do tom travado
+  const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number; at: number }>>([]);
   const lockedKeyRef = useRef<{
-    tonic: number; quality: 'major' | 'minor'; key_name: string; confidence: number; at: number;
+    tonic: number; quality: 'major' | 'minor'; key_name: string; 
+    confidence: number; at: number; analysisCount: number;
   } | null>(null);
   const [lockedKeyTick, setLockedKeyTick] = useState(0);
+  
+  // Estado de possível mudança de tom
+  const [pendingKeyChange, setPendingKeyChange] = useState<{
+    tonic: number; quality: 'major' | 'minor'; key_name: string; count: number;
+  } | null>(null);
+  const pendingKeyWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor' }>>([]);
+
+  // Confiança visual progressiva (cresce com o tempo após validar)
+  const [visualConfidence, setVisualConfidence] = useState(0);
+  const visualConfTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
@@ -440,61 +458,133 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     const tonic = mlResult.tonic;
     const quality = mlResult.quality as 'major' | 'minor';
     const keyName = mlResult.key_name || '';
+    const now = Date.now();
 
-    // 🔒 Já travado? Não muda mais até reset (regra do produto).
-    if (lockedKeyRef.current) return;
+    // ═══ CASO 1: Ainda não tem tom travado ═══
+    if (!lockedKeyRef.current) {
+      // Adiciona à janela de lock
+      lockWindowRef.current = [
+        ...lockWindowRef.current.slice(-(LOCK_WINDOW_SIZE - 1)),
+        { tonic, quality, confidence: conf, at: now },
+      ];
 
-    // ⚡ CAMINHO RÁPIDO: confiança alta → trava direto
-    if (conf >= FAST_CONFIRM_CONF) {
-      lockedKeyRef.current = {
-        tonic, quality, key_name: keyName,
-        confidence: conf, at: Date.now(),
-      };
-      setLockedKeyTick(t => t + 1);
+      // Conta ocorrências de cada tom na janela
+      const counts = new Map<string, { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' }>();
+      for (const r of lockWindowRef.current) {
+        const k = `${r.tonic}-${r.quality}`;
+        const e = counts.get(k) || { count: 0, sumConf: 0, tonic: r.tonic, quality: r.quality };
+        e.count += 1;
+        e.sumConf += r.confidence;
+        counts.set(k, e);
+      }
+
+      // Tom mais frequente
+      let bestEntry: { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' } | null = null;
+      for (const v of counts.values()) {
+        if (!bestEntry || v.count > bestEntry.count ||
+            (v.count === bestEntry.count && v.sumConf > bestEntry.sumConf)) {
+          bestEntry = v;
+        }
+      }
+      if (!bestEntry) return;
+
+      // Trava: confiança alta OU 2+ análises concordando
+      const shouldLock = conf >= FAST_CONFIRM_CONF || bestEntry.count >= 2;
+      if (shouldLock) {
+        lockedKeyRef.current = {
+          tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
+          confidence: bestEntry.sumConf / bestEntry.count, at: now, analysisCount: 1,
+        };
+        // Inicia confiança visual em 60% (mínimo para tom validado)
+        setVisualConfidence(60);
+        setLockedKeyTick(t => t + 1);
+        pendingKeyWindowRef.current = [];
+        setPendingKeyChange(null);
+      }
       return;
     }
 
-    // 🎯 SEMPRE adiciona à janela (qualquer resultado válido conta)
-    lockWindowRef.current = [
-      ...lockWindowRef.current.slice(-(LOCK_WINDOW_SIZE - 1)),
-      { tonic, quality, confidence: conf },
-    ];
+    // ═══ CASO 2: Tom já travado — verificar se confirma ou se mudou ═══
+    const lockedKey = `${lockedKeyRef.current.tonic}-${lockedKeyRef.current.quality}`;
+    const newKey = `${tonic}-${quality}`;
 
-    // Conta ocorrências de cada tom na janela
-    const counts = new Map<string, { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' }>();
-    for (const r of lockWindowRef.current) {
-      const k = `${r.tonic}-${r.quality}`;
-      const e = counts.get(k) || { count: 0, sumConf: 0, tonic: r.tonic, quality: r.quality };
-      e.count += 1;
-      e.sumConf += r.confidence;
-      counts.set(k, e);
-    }
+    if (lockedKey === newKey) {
+      // Mesmo tom: incrementa contador e aumenta confiança visual
+      lockedKeyRef.current.analysisCount += 1;
+      lockedKeyRef.current.confidence = Math.max(lockedKeyRef.current.confidence, conf);
+      
+      // Limpa janela de mudança pendente
+      pendingKeyWindowRef.current = [];
+      setPendingKeyChange(null);
+      
+      // Aumenta confiança visual progressivamente (máx 95%)
+      setVisualConfidence(prev => {
+        const increment = 5 + Math.floor(lockedKeyRef.current!.analysisCount / 2) * 2;
+        return Math.min(95, prev + increment);
+      });
+    } else {
+      // Tom diferente: analisa se é mudança real
+      pendingKeyWindowRef.current = [
+        ...pendingKeyWindowRef.current.slice(-(KEY_CHANGE_THRESHOLD - 1)),
+        { tonic, quality },
+      ];
 
-    // Tom mais frequente (desempate por sumConf)
-    let bestEntry: { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' } | null = null;
-    for (const v of counts.values()) {
-      if (!bestEntry || v.count > bestEntry.count ||
-          (v.count === bestEntry.count && v.sumConf > bestEntry.sumConf)) {
-        bestEntry = v;
+      // Conta quantas vezes o novo tom apareceu
+      const newKeyCount = pendingKeyWindowRef.current.filter(
+        r => r.tonic === tonic && r.quality === quality
+      ).length;
+
+      if (newKeyCount >= KEY_CHANGE_THRESHOLD) {
+        // Mudança confirmada! Troca o tom principal
+        lockedKeyRef.current = {
+          tonic, quality, key_name: keyName,
+          confidence: conf, at: now, analysisCount: 1,
+        };
+        setVisualConfidence(65); // Reinicia em 65%
+        setLockedKeyTick(t => t + 1);
+        pendingKeyWindowRef.current = [];
+        setPendingKeyChange(null);
+      } else if (newKeyCount >= 2) {
+        // Possível mudança — mostra discretamente
+        setPendingKeyChange({ tonic, quality, key_name: keyName, count: newKeyCount });
       }
     }
-    if (!bestEntry) return;
-
-    // Trava se 2 análises concordam (independente da confiança - o backend já validou)
-    if (bestEntry.count >= 2) {
-      lockedKeyRef.current = {
-        tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
-        confidence: bestEntry.sumConf / bestEntry.count, at: Date.now(),
-      };
-      setLockedKeyTick(t => t + 1);
-    }
   }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
+
+  // Timer para aumentar confiança visual gradualmente enquanto tom estável
+  useEffect(() => {
+    if (!lockedKeyRef.current || !isRunning) {
+      if (visualConfTimerRef.current) {
+        clearInterval(visualConfTimerRef.current);
+        visualConfTimerRef.current = null;
+      }
+      return;
+    }
+    
+    visualConfTimerRef.current = setInterval(() => {
+      setVisualConfidence(prev => {
+        // Aumenta 1% a cada 2 segundos até 98%
+        if (prev >= 98) return prev;
+        return prev + 1;
+      });
+    }, 2000);
+    
+    return () => {
+      if (visualConfTimerRef.current) {
+        clearInterval(visualConfTimerRef.current);
+        visualConfTimerRef.current = null;
+      }
+    };
+  }, [lockedKeyRef.current?.tonic, isRunning]);
 
   // Reset quando para de gravar
   useEffect(() => {
     if (!isRunning) {
       lockedKeyRef.current = null;
       lockWindowRef.current = [];
+      pendingKeyWindowRef.current = [];
+      setPendingKeyChange(null);
+      setVisualConfidence(0);
       setLockedKeyTick(t => t + 1);
     }
   }, [isRunning]);
@@ -589,14 +679,29 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   // (friendlyHint removido — agora a UI usa statusInfo da máquina de estados)
 
   // Confidence do ML result atual (para a barra visual)
+  // Usa visualConfidence (progressiva) quando tem tom travado
   const confPct = (() => {
     if (lockedKeyRef.current) {
-      return Math.round(lockedKeyRef.current.confidence * 100);
+      // Tom validado: usa confiança visual progressiva (≥ 60%)
+      return visualConfidence;
     }
-    if (mlResult?.success) return Math.round((mlResult.confidence ?? 0) * 100);
+    if (mlResult?.success) {
+      // Tom provisório: mostra confiança real do backend, mas mínimo 30%
+      const rawConf = Math.round((mlResult.confidence ?? 0) * 100);
+      return Math.max(30, rawConf);
+    }
     return 0;
   })();
-  const confColor = confPct >= 60 ? C.green : confPct >= 35 ? C.amber : C.text2;
+  const confColor = confPct >= 70 ? C.green : confPct >= 50 ? C.amber : C.text2;
+  
+  // Texto de status da confiança
+  const confLabel = (() => {
+    if (!lockedKeyRef.current) return 'Analisando...';
+    if (visualConfidence >= 90) return 'Alta confiança';
+    if (visualConfidence >= 75) return 'Tom estável';
+    if (visualConfidence >= 60) return 'Tom validado';
+    return 'Verificando...';
+  })();
 
   // Log técnico (dev only)
   useEffect(() => {
@@ -767,8 +872,8 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   />
                   <Text style={[ss.keyCardBadgeTxt, { color: isProvisional ? C.amber : C.green }]}>
                     {isProvisional
-                      ? `PROVISÓRIO · ${analysisCount} análise${analysisCount !== 1 ? 's' : ''}`
-                      : 'TOM DETECTADO'
+                      ? `ANALISANDO · ${analysisCount} análise${analysisCount !== 1 ? 's' : ''}`
+                      : confLabel.toUpperCase()
                     }
                   </Text>
                 </View>
@@ -795,16 +900,16 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           ) : null}
         </View>
 
-        {/* ───── Change Banner — escondido quando travado ───── */}
-        {changeSuggestion && !confirmedKey && (
+        {/* ───── Change Banner — mostra possível mudança de tom ───── */}
+        {pendingKeyChange && lockedKeyRef.current && (
           <View style={ss.changeBanner}>
             <Ionicons name="swap-horizontal-outline" size={14} color={C.blue} />
             <Text style={ss.changeBannerTxt}>
               Possível mudança para{' '}
               <Text style={ss.changeBannerStrong}>
-                {formatKeyDisplay(changeSuggestion.root, changeSuggestion.quality).noteBr}{' '}
-                {formatKeyDisplay(changeSuggestion.root, changeSuggestion.quality).qualityLabel}
+                {pendingKeyChange.key_name}
               </Text>
+              {' '}({pendingKeyChange.count}/{KEY_CHANGE_THRESHOLD})
             </Text>
           </View>
         )}
