@@ -805,6 +805,16 @@ LANDING_DIR = ROOT_DIR / "landing"
 if LANDING_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(LANDING_DIR / "static")), name="static")
 
+# ─── Favicon ─────────────────────────────────────────────────────────────
+FAVICON_PATH = LANDING_DIR / "favicon.ico"
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve o favicon."""
+    if FAVICON_PATH.exists():
+        return FileResponse(str(FAVICON_PATH), media_type="image/x-icon")
+    return JSONResponse({"error": "favicon not found"}, status_code=404)
+
 # ─── Landing page — serve no root "/" e em "/landing" ───────────────────
 LANDING_INDEX = LANDING_DIR / "index.html"
 
