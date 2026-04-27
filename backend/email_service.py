@@ -2,17 +2,25 @@
 import os
 import logging
 from typing import Optional
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Carrega variáveis do .env
+load_dotenv(Path(__file__).parent / '.env')
 
 logger = logging.getLogger(__name__)
 
 # API Key do Resend
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 
-# URL base para download do APK (será configurado pelo usuário)
-APK_DOWNLOAD_URL = os.environ.get('APK_DOWNLOAD_URL', 'https://seudominio.com/download/AppTomCerto.apk')
+# Domínio principal
+DOMAIN = os.environ.get('DOMAIN', 'tomcerto.online')
 
-# Email remetente (usar onboarding@resend.dev até verificar domínio próprio)
-FROM_EMAIL = os.environ.get('FROM_EMAIL', 'Tom Certo <onboarding@resend.dev>')
+# URL base para download do APK
+APK_DOWNLOAD_URL = os.environ.get('APK_DOWNLOAD_URL', f'https://{DOMAIN}/download/AppTomCerto.apk')
+
+# Email remetente
+FROM_EMAIL = os.environ.get('FROM_EMAIL', f'Tom Certo <contato@{DOMAIN}>')
 
 
 async def send_welcome_email(

@@ -32,7 +32,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const SESSION_KEY = 'tc_session_v1';
 const TOKEN_KEY = 'tc_token_v1';
 
-const PROD_BACKEND_URL = 'https://tom-certov2-production.up.railway.app';
+const PROD_BACKEND_URL = 'https://tomcerto.online';
 
 function getBackendUrl(): string {
   const url =
