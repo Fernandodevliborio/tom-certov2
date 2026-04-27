@@ -265,18 +265,30 @@
       <div class="lbl">Ativos</div>
       <div class="val" id="stat-active">—</div>
     </div>
-    <div class="stat red">
-      <div class="lbl">Revogados</div>
-      <div class="val" id="stat-revoked">—</div>
+    <div class="stat" style="--accent: var(--gold);">
+      <div class="lbl">Expirados</div>
+      <div class="val" id="stat-expired" style="color: var(--gold);">—</div>
     </div>
-    <div class="stat">
-      <div class="lbl">Em uso (devices)</div>
-      <div class="val" id="stat-devices">—</div>
+    <div class="stat red">
+      <div class="lbl">Cancelados</div>
+      <div class="val" id="stat-cancelled">—</div>
     </div>
   </div>
 
   <div class="toolbar">
-    <input type="text" class="search" id="search" placeholder="Buscar por código ou nome do usuário…" />
+    <input type="text" class="search" id="search" placeholder="Buscar por código, nome ou email…" />
+    <select id="filter-status" style="width: auto; min-width: 130px;">
+      <option value="">Todos</option>
+      <option value="ativo">✓ Ativos</option>
+      <option value="expirado">⏱ Expirados</option>
+      <option value="cancelado">✕ Cancelados</option>
+    </select>
+    <select id="filter-plan" style="width: auto; min-width: 130px;">
+      <option value="">Todos os planos</option>
+      <option value="mensal">Mensal</option>
+      <option value="trimestral">Trimestral</option>
+      <option value="semestral">Semestral</option>
+    </select>
     <button class="btn btn-ghost" id="refresh-btn">↻ Atualizar</button>
     <button class="btn btn-primary" id="new-btn">+ Novo Token</button>
   </div>
@@ -499,12 +511,30 @@ $('logout-btn').addEventListener('click', () => doLogout(false));
 async function refresh() {
   try {
     const [stats, tokens] = await Promise.all([api('/admin/stats'), api('/admin/tokens')]);
-    $('stat-total').textContent = stats.total;
-    $('stat-active').textContent = stats.active;
-    $('stat-revoked').textContent = stats.revoked;
     TOKENS = tokens.tokens || [];
-    const totalDevices = TOKENS.reduce((s, t) => s + (t.active_devices || []).length, 0);
-    $('stat-devices').textContent = totalDevices;
+    
+    // Calcular stats localmente para incluir novos campos
+    const now = new Date();
+    let active = 0, expired = 0, cancelled = 0;
+    
+    for (const t of TOKENS) {
+      const tokenStatus = t.status || (t.active ? 'ativo' : 'cancelado');
+      const isExp = t.expires_at && new Date(t.expires_at) < now;
+      
+      if (tokenStatus === 'cancelado' || !t.active) {
+        cancelled++;
+      } else if (isExp) {
+        expired++;
+      } else {
+        active++;
+      }
+    }
+    
+    $('stat-total').textContent = TOKENS.length;
+    $('stat-active').textContent = active;
+    $('stat-expired').textContent = expired;
+    $('stat-cancelled').textContent = cancelled;
+    
     render();
     $('conn-pill').textContent = 'CONECTADO';
     $('conn-pill').style.background = 'var(--green-soft)';
@@ -553,59 +583,101 @@ function isExpired(t) {
 
 function render() {
   const q = ($('search').value || '').trim().toLowerCase();
+  const statusFilter = $('filter-status').value;
+  const planFilter = $('filter-plan').value;
+  
   const filtered = TOKENS.filter(t => {
-    if (!q) return true;
-    return (t.code || '').toLowerCase().includes(q) ||
-           (t.customer_name || '').toLowerCase().includes(q) ||
-           (t.notes || '').toLowerCase().includes(q);
+    // Filtro de texto
+    if (q) {
+      const matchText = (t.code || '').toLowerCase().includes(q) ||
+             (t.token || '').toLowerCase().includes(q) ||
+             (t.customer_name || '').toLowerCase().includes(q) ||
+             (t.nome_usuario || '').toLowerCase().includes(q) ||
+             (t.email_compra || '').toLowerCase().includes(q) ||
+             (t.notes || '').toLowerCase().includes(q);
+      if (!matchText) return false;
+    }
+    
+    // Filtro de status
+    if (statusFilter) {
+      const tokenStatus = t.status || (t.active ? 'ativo' : 'cancelado');
+      const expired = isExpired(t);
+      if (statusFilter === 'ativo' && (tokenStatus !== 'ativo' || expired)) return false;
+      if (statusFilter === 'expirado' && !expired) return false;
+      if (statusFilter === 'cancelado' && tokenStatus !== 'cancelado') return false;
+    }
+    
+    // Filtro de plano
+    if (planFilter && t.plano !== planFilter) return false;
+    
+    return true;
   });
+  
   const list = $('token-list');
   list.innerHTML = '';
   if (filtered.length === 0) {
     $('empty').style.display = 'block';
     $('empty').textContent = TOKENS.length === 0
       ? 'Nenhum token criado ainda. Clique em "+ Novo Token" para começar.'
-      : 'Nenhum token corresponde à busca.';
+      : 'Nenhum token corresponde aos filtros.';
     return;
   }
   $('empty').style.display = 'none';
   for (const t of filtered) {
     const expired = isExpired(t);
+    const tokenStatus = t.status || (t.active ? 'ativo' : 'cancelado');
     const isForever = !t.expires_at && t.active;
-    const statusBadge = !t.active
-      ? '<span class="badge badge-revoked">REVOGADO</span>'
+    const isCancelled = tokenStatus === 'cancelado' || !t.active;
+    
+    const statusBadge = isCancelled
+      ? '<span class="badge badge-revoked">CANCELADO</span>'
       : expired
         ? '<span class="badge badge-expired">EXPIRADO</span>'
         : isForever
           ? '<span class="badge badge-forever">SEM EXPIRAÇÃO</span>'
           : '<span class="badge badge-active">ATIVO</span>';
 
+    // Badge do plano
+    const planBadges = {
+      'mensal': '<span class="badge" style="background:rgba(96,165,250,0.14);color:var(--blue);">MENSAL</span>',
+      'trimestral': '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">TRIMESTRAL</span>',
+      'semestral': '<span class="badge" style="background:var(--green-soft);color:var(--green);">SEMESTRAL</span>',
+    };
+    const planBadge = t.plano ? planBadges[t.plano] || '' : '';
+
     const expRel = t.expires_at ? fmtRelative(t.expires_at) : null;
     const devCount = (t.active_devices || []).length;
-    const devLimit = t.device_limit || 3;
+    const devLimit = t.device_limit || t.max_devices || 1;
+    const tokenCode = t.token || t.code;
+    const customerName = t.nome_usuario || t.customer_name;
+    const customerEmail = t.email_compra;
 
     const card = document.createElement('div');
-    card.className = 'token-card' + (!t.active ? ' revoked' : '') + (expired ? ' expired' : '');
+    card.className = 'token-card' + (isCancelled ? ' revoked' : '') + (expired ? ' expired' : '');
     card.innerHTML = `
       <div class="tok-info">
         <div class="tok-row1">
-          <span class="tok-code" data-copy="${t.code}" title="Clique para copiar">${t.code}</span>
+          <span class="tok-code" data-copy="${tokenCode}" title="Clique para copiar">${tokenCode}</span>
           ${statusBadge}
-          <span class="${t.customer_name ? 'tok-name' : 'tok-name empty'}">${t.customer_name || 'Sem nome'}</span>
+          ${planBadge}
+        </div>
+        <div class="tok-row1" style="margin-top: 6px;">
+          <span class="${customerName ? 'tok-name' : 'tok-name empty'}">${customerName || 'Sem nome'}</span>
+          ${customerEmail ? `<span style="color:var(--text2);font-size:12px;">📧 ${customerEmail}</span>` : ''}
         </div>
         <div class="tok-meta">
-          <span>📱 <strong>${devCount}</strong>/${devLimit} dispositivos</span>
+          <span>📱 <strong>${devCount}</strong>/${devLimit} dispositivo${devLimit > 1 ? 's' : ''}</span>
           ${expRel ? `<span>⏱ ${expRel}</span>` : ''}
           <span>📅 criado ${fmtCreated(t.created_at)}</span>
           ${t.notes ? `<span>📝 ${t.notes}</span>` : ''}
         </div>
       </div>
       <div class="tok-actions">
-        <button class="btn btn-sm btn-amber" data-action="copy" data-code="${t.code}">📋 Copiar</button>
+        <button class="btn btn-sm btn-amber" data-action="copy" data-code="${tokenCode}">📋 Copiar</button>
         <button class="btn btn-sm btn-blue" data-action="edit" data-id="${t._id}">✎ Editar</button>
-        ${devCount > 0 ? `<button class="btn btn-sm btn-amber" data-action="clear" data-id="${t._id}">📱 Liberar devices</button>` : ''}
-        <button class="btn btn-sm ${t.active ? 'btn-danger' : 'btn-success'}" data-action="toggle" data-id="${t._id}" data-active="${t.active}">
-          ${t.active ? '✕ Revogar' : '✓ Reativar'}
+        ${devCount > 0 ? `<button class="btn btn-sm btn-amber" data-action="clear" data-id="${t._id}">📱 Liberar</button>` : ''}
+        <button class="btn btn-sm ${!isCancelled ? 'btn-danger' : 'btn-success'}" data-action="toggle" data-id="${t._id}" data-active="${!isCancelled}">
+          ${!isCancelled ? '✕ Cancelar' : '✓ Reativar'}
         </button>
         <button class="btn btn-sm btn-danger" data-action="delete" data-id="${t._id}">🗑</button>
       </div>
@@ -614,6 +686,8 @@ function render() {
   }
 }
 $('search').addEventListener('input', render);
+$('filter-status').addEventListener('change', render);
+$('filter-plan').addEventListener('change', render);
 
 // Action delegation
 $('token-list').addEventListener('click', async (e) => {

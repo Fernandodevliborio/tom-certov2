@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import JSONResponse, HTMLResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -8,6 +8,7 @@ import logging
 import uuid
 import jwt
 import bcrypt
+import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -16,6 +17,11 @@ from bson import ObjectId
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Imports dos serviços de token e email
+from models import PlanType, TokenStatus, PLAN_DURATIONS, PLAN_PRICES, WebhookCaktoPayload
+from token_service import create_token as create_new_token, cancel_token, validate_token as validate_token_service, expire_old_tokens
+from email_service import send_welcome_email, send_cancellation_email
 
 # ─── MongoDB ────────────────────────────────────────────────────────────
 mongo_url = os.environ['MONGO_URL']
@@ -360,6 +366,192 @@ async def analyze_key(request: Request):
             "error": "internal_error",
             "message": str(e),
         }, status_code=500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# WEBHOOK CAKTO — Recebe eventos de pagamento
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _parse_plan(plan_str: Optional[str]) -> PlanType:
+    """Converte string do plano para enum."""
+    if not plan_str:
+        return PlanType.MENSAL
+    plan_lower = plan_str.lower().strip()
+    if 'trimestral' in plan_lower or '90' in plan_lower or '3' in plan_lower:
+        return PlanType.TRIMESTRAL
+    if 'semestral' in plan_lower or '180' in plan_lower or '6' in plan_lower:
+        return PlanType.SEMESTRAL
+    return PlanType.MENSAL
+
+
+@api_router.post("/webhook/cakto")
+async def webhook_cakto(request: Request, background_tasks: BackgroundTasks):
+    """
+    Webhook para receber eventos da Cakto.
+    
+    Eventos suportados:
+    - pagamento_aprovado: Cria token e envia email
+    - pagamento_cancelado, reembolso, chargeback: Cancela token
+    """
+    try:
+        payload = await request.json()
+        logger.info(f"[Webhook Cakto] Recebido: {payload}")
+        
+        event = payload.get('event', '').lower()
+        customer_name = payload.get('customer_name') or payload.get('nome') or payload.get('name')
+        customer_email = payload.get('customer_email') or payload.get('email')
+        plan_str = payload.get('plan') or payload.get('plano') or payload.get('product_name')
+        transaction_id = payload.get('transaction_id') or payload.get('id') or payload.get('order_id')
+        
+        # Evento: Pagamento Aprovado
+        if event in ('pagamento_aprovado', 'payment_approved', 'approved', 'completed', 'paid'):
+            plano = _parse_plan(plan_str)
+            
+            # Cria o token
+            token, expires_at = await create_new_token(
+                db=db,
+                plano=plano,
+                nome_usuario=customer_name,
+                email_compra=customer_email,
+                transaction_id=transaction_id,
+            )
+            
+            # Envia email em background
+            if customer_email:
+                background_tasks.add_task(
+                    send_welcome_email,
+                    to_email=customer_email,
+                    customer_name=customer_name or "Cliente",
+                    token=token,
+                    plano=plano.value,
+                )
+            
+            logger.info(f"[Webhook Cakto] ✓ Token criado: {token[:4]}*** para {customer_email}")
+            
+            return JSONResponse({
+                "success": True,
+                "event": event,
+                "token_created": True,
+                "token_preview": f"{token[:4]}****",
+                "plano": plano.value,
+                "expires_at": expires_at.isoformat(),
+            })
+        
+        # Eventos: Cancelamento / Reembolso / Chargeback
+        elif event in ('pagamento_cancelado', 'reembolso', 'chargeback', 'refund', 'cancelled', 'refunded', 'disputed'):
+            reason = "reembolso" if event in ('reembolso', 'refund', 'refunded') else \
+                     "chargeback" if event in ('chargeback', 'disputed') else "cancelado"
+            
+            # Cancela o token
+            cancelled = await cancel_token(
+                db=db,
+                email=customer_email,
+                transaction_id=transaction_id,
+                reason=reason,
+            )
+            
+            # Envia email de cancelamento em background
+            if customer_email and cancelled:
+                background_tasks.add_task(
+                    send_cancellation_email,
+                    to_email=customer_email,
+                    customer_name=customer_name or "Cliente",
+                    reason=reason,
+                )
+            
+            logger.info(f"[Webhook Cakto] ✓ Token cancelado: email={customer_email} reason={reason}")
+            
+            return JSONResponse({
+                "success": True,
+                "event": event,
+                "token_cancelled": cancelled,
+                "reason": reason,
+            })
+        
+        else:
+            logger.warning(f"[Webhook Cakto] Evento desconhecido: {event}")
+            return JSONResponse({
+                "success": True,
+                "event": event,
+                "message": "Evento ignorado (não reconhecido)",
+            })
+            
+    except Exception as e:
+        logger.error(f"[Webhook Cakto] Erro: {e}", exc_info=True)
+        return JSONResponse({
+            "success": False,
+            "error": str(e),
+        }, status_code=500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# JOB DE EXPIRAÇÃO AUTOMÁTICA
+# ═══════════════════════════════════════════════════════════════════════════
+
+_expiration_task = None
+
+async def _expiration_loop():
+    """Loop que roda a cada hora para expirar tokens antigos."""
+    while True:
+        try:
+            await asyncio.sleep(3600)  # 1 hora
+            expired_count = await expire_old_tokens(db)
+            if expired_count > 0:
+                logger.info(f"[Expiration Job] Expirados: {expired_count} tokens")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"[Expiration Job] Erro: {e}")
+
+
+@app.on_event("startup")
+async def start_expiration_job():
+    """Inicia o job de expiração no startup."""
+    global _expiration_task
+    _expiration_task = asyncio.create_task(_expiration_loop())
+    logger.info("[Expiration Job] Iniciado")
+    
+    # Executa uma vez imediatamente
+    try:
+        expired = await expire_old_tokens(db)
+        if expired > 0:
+            logger.info(f"[Expiration Job] Expirados no startup: {expired} tokens")
+    except Exception as e:
+        logger.error(f"[Expiration Job] Erro no startup: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ENDPOINTS DE PLANOS (para exibir no frontend/landing)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@api_router.get("/plans")
+async def get_plans():
+    """Retorna os planos disponíveis."""
+    return JSONResponse({
+        "plans": [
+            {
+                "id": "mensal",
+                "name": "Mensal",
+                "price": PLAN_PRICES[PlanType.MENSAL],
+                "duration_days": PLAN_DURATIONS[PlanType.MENSAL],
+                "badge": None,
+            },
+            {
+                "id": "trimestral",
+                "name": "Trimestral",
+                "price": PLAN_PRICES[PlanType.TRIMESTRAL],
+                "duration_days": PLAN_DURATIONS[PlanType.TRIMESTRAL],
+                "badge": "MAIS ESCOLHIDO",
+            },
+            {
+                "id": "semestral",
+                "name": "Semestral",
+                "price": PLAN_PRICES[PlanType.SEMESTRAL],
+                "duration_days": PLAN_DURATIONS[PlanType.SEMESTRAL],
+                "badge": "MAIOR ECONOMIA",
+            },
+        ]
+    })
 
 
 def _generate_code() -> str:
