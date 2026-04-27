@@ -372,6 +372,10 @@ async def analyze_key(request: Request):
 # WEBHOOK CAKTO — Recebe eventos de pagamento
 # ═══════════════════════════════════════════════════════════════════════════
 
+# Credenciais Cakto (para validação opcional)
+CAKTO_API_ID = os.environ.get('CAKTO_API_ID', '')
+CAKTO_API_TOKEN = os.environ.get('CAKTO_API_TOKEN', '')
+
 def _parse_plan(plan_str: Optional[str]) -> PlanType:
     """Converte string do plano para enum."""
     if not plan_str:
@@ -397,14 +401,22 @@ async def webhook_cakto(request: Request, background_tasks: BackgroundTasks):
         payload = await request.json()
         logger.info(f"[Webhook Cakto] Recebido: {payload}")
         
+        # Validação opcional do token da Cakto (se enviado no header)
+        auth_header = request.headers.get('Authorization', '')
+        if CAKTO_API_TOKEN and auth_header:
+            expected = f"Bearer {CAKTO_API_TOKEN}"
+            if auth_header != expected:
+                logger.warning(f"[Webhook Cakto] Token inválido")
+                # Não bloqueia, apenas loga (para compatibilidade)
+        
         event = payload.get('event', '').lower()
-        customer_name = payload.get('customer_name') or payload.get('nome') or payload.get('name')
-        customer_email = payload.get('customer_email') or payload.get('email')
-        plan_str = payload.get('plan') or payload.get('plano') or payload.get('product_name')
-        transaction_id = payload.get('transaction_id') or payload.get('id') or payload.get('order_id')
+        customer_name = payload.get('customer_name') or payload.get('nome') or payload.get('name') or payload.get('buyer', {}).get('name')
+        customer_email = payload.get('customer_email') or payload.get('email') or payload.get('buyer', {}).get('email')
+        plan_str = payload.get('plan') or payload.get('plano') or payload.get('product_name') or payload.get('product', {}).get('name')
+        transaction_id = payload.get('transaction_id') or payload.get('id') or payload.get('order_id') or payload.get('sale_id')
         
         # Evento: Pagamento Aprovado
-        if event in ('pagamento_aprovado', 'payment_approved', 'approved', 'completed', 'paid'):
+        if event in ('pagamento_aprovado', 'payment_approved', 'approved', 'completed', 'paid', 'sale_approved'):
             plano = _parse_plan(plan_str)
             
             # Cria o token
