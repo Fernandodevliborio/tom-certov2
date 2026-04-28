@@ -8,17 +8,21 @@
 
 <!-- CRITICAL: Previne tela preta E prévia - carregamento invisível -->
 <style id="critical-prerender">
-/* Base: fundo escuro consistente */
-html,body,#root{background:#0a0a0a!important;min-height:100vh}
-
-/* Prerender: ESCONDIDO inicialmente, aparece suavemente */
-#prerender{
+/* Base: fundo escuro consistente - CARREGA IMEDIATAMENTE */
+html,body,#root{
   background:#0a0a0a!important;
-  opacity:0!important;
-  animation:fadeInPrerender 0.15s ease-out 0.05s forwards!important;
+  min-height:100vh;
+  color:#fff;
 }
 
-/* Quando React renderiza, prerender some instantaneamente */
+/* Prerender: Visível imediatamente com fundo correto */
+#prerender{
+  background:#0a0a0a!important;
+  opacity:1!important;
+  min-height:100vh;
+}
+
+/* Quando React renderiza, prerender some suavemente */
 #root>[data-reactroot] ~ #prerender,
 #root>.app-container ~ #prerender,
 #root>div:not(#prerender) ~ #prerender{
@@ -26,10 +30,9 @@ html,body,#root{background:#0a0a0a!important;min-height:100vh}
   opacity:0!important;
 }
 
-@keyframes fadeInPrerender{
-  from{opacity:0}
-  to{opacity:1}
-}
+/* Garante que não haja flash branco/preto */
+*{background-color:transparent}
+html,body,#root,#prerender{background-color:#0a0a0a!important}
 </style>
 
 <!-- Favicons -->
@@ -105,17 +108,73 @@ img {
 
 /* Reduz complexidade de animações em scroll */
 @media (hover: none), (pointer: coarse) {
-  /* Dispositivos touch/mobile - simplifica animações */
-  *{
-    transition-duration: 0.1s !important;
-    animation-duration: 0.3s !important;
-  }
+  /* Dispositivos touch/mobile - otimiza animações SEM quebrar */
   
   /* Desabilita hover effects pesados em mobile */
   .tc-cta-btn:hover,
   a[href*="cakto"]:hover {
     transform: none !important;
     box-shadow: 0 8px 20px -6px rgba(255,176,32,0.5) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE ESPECÍFICO - OTIMIZAÇÕES DE ANIMAÇÃO DO PREVIEW
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Garante que não haja tela preta */
+  html, body, #root {
+    background: #0a0a0a !important;
+  }
+  
+  /* Animações do phone preview - mais suaves no mobile */
+  [class*="phone"], [class*="Phone"], [class*="preview"], [class*="Preview"], [class*="mockup"], [class*="Mockup"] {
+    animation-duration: 10s !important;
+    animation-timing-function: ease-in-out !important;
+  }
+  
+  /* Ripples e ondas - bem mais sutis */
+  [class*="ripple"], [class*="Ripple"], [class*="ring"], [class*="Ring"] {
+    animation-duration: 5s !important;
+    opacity: 0.15 !important;
+  }
+  
+  /* Glow effects - reduzidos */
+  [class*="glow"], [class*="Glow"] {
+    animation-duration: 6s !important;
+    opacity: 0.3 !important;
+  }
+  
+  /* Waveform/barras de audio - mais lentas */
+  [class*="wave"], [class*="Wave"], [class*="bar"], [class*="Bar"] {
+    animation-duration: 2s !important;
+  }
+  
+  /* Pulso - suave */
+  [class*="pulse"], [class*="Pulse"] {
+    animation-duration: 4s !important;
+    opacity: 0.5 !important;
+  }
+  
+  /* Scan line - lenta */
+  [class*="scan"], [class*="Scan"] {
+    animation-duration: 5s !important;
+    opacity: 0.2 !important;
+  }
+  
+  /* Float do phone - quase imperceptível */
+  [class*="float"], [class*="Float"] {
+    animation-duration: 12s !important;
+  }
+  
+  /* Breathe - suave */
+  [class*="breathe"], [class*="Breathe"] {
+    animation-duration: 8s !important;
+  }
+  
+  /* Rotação - bem lenta */
+  [class*="rotate"], [class*="Rotate"] {
+    animation-duration: 20s !important;
   }
 }
 
@@ -247,99 +306,18 @@ button[data-plan]:active,
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   ANIMAÇÕES DO MOCKUP - MAIS SUAVES E LEVES
-   ═══════════════════════════════════════════════════════════════ */
-
-/* Reduz velocidade e intensidade das animações do phone mockup */
-[class*="phone"], [class*="Phone"], [class*="mockup"], [class*="Mockup"] {
-  animation-duration: 8s !important;
-}
-
-/* Ripples/ondas - mais lentos */
-[class*="ripple"], [class*="Ripple"], [class*="ring"], [class*="Ring"], [class*="pulse"], [class*="Pulse"] {
-  animation-duration: 4s !important;
-  opacity: 0.25 !important;
-}
-
-/* Glow - reduz intensidade */
-[class*="glow"], [class*="Glow"] {
-  animation-duration: 5s !important;
-  opacity: 0.5 !important;
-}
-
-/* Waveform/barras de audio */
-[class*="wave"], [class*="Wave"], [class*="bar"], [class*="Bar"] {
-  animation-duration: 1.5s !important;
-}
-
-/* Float/flutuação do phone */
-[class*="float"], [class*="Float"] {
-  animation-duration: 8s !important;
-}
-
-/* Breathe/respiração */
-[class*="breathe"], [class*="Breathe"] {
-  animation-duration: 6s !important;
-}
-
-/* Scan line */
-[class*="scan"], [class*="Scan"] {
-  animation-duration: 4s !important;
-  opacity: 0.3 !important;
-}
-
-/* Rotação de glow */
-[class*="rotate"], [class*="Rotate"] {
-  animation-duration: 12s !important;
-}
-
-/* Reduz scale de animações */
-@keyframes tc-subtle-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.03); opacity: 0.8; }
-}
-
-@keyframes tc-subtle-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-
-@keyframes tc-subtle-glow {
-  0%, 100% { box-shadow: 0 0 15px rgba(255,176,32,0.15); }
-  50% { box-shadow: 0 0 25px rgba(255,176,32,0.25); }
-}
-
-/* Aplica animações sutis aos elementos do mockup */
-[class*="hero"] [class*="phone"],
-[class*="Hero"] [class*="Phone"],
-[class*="preview"] [class*="phone"],
-[class*="Preview"] [class*="Phone"] {
-  animation: tc-subtle-float 8s ease-in-out infinite !important;
-}
-
-[class*="detector"], [class*="Detector"],
-[class*="mic"], [class*="Mic"] {
-  animation: tc-subtle-pulse 4s ease-in-out infinite !important;
-}
-
-/* Mobile - animações ainda mais sutis */
-@media (max-width: 768px) {
+/* Desktop: Animações normais (referência) */
+@media (min-width: 769px) {
+  [class*="phone"], [class*="Phone"], [class*="mockup"], [class*="Mockup"] {
+    animation-duration: 6s !important;
+  }
+  
   [class*="ripple"], [class*="Ripple"], [class*="ring"], [class*="Ring"] {
-    animation-duration: 5s !important;
-    opacity: 0.2 !important;
-  }
-  
-  [class*="phone"], [class*="Phone"] {
-    animation-duration: 10s !important;
-  }
-  
-  [class*="wave"], [class*="Wave"], [class*="bar"], [class*="Bar"] {
-    animation-duration: 2s !important;
+    animation-duration: 3s !important;
   }
   
   [class*="glow"], [class*="Glow"] {
-    opacity: 0.4 !important;
+    animation-duration: 4s !important;
   }
 }
 </style>
