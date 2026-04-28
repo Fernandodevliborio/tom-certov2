@@ -484,5 +484,172 @@ section:nth-of-type(8) [class*="tc-card-gold"] {
 [class*="text-\[\#FFB020\]"] {
   text-shadow: 0 0 15px rgba(255, 176, 32, 0.2) !important;
 }
+
+/* ========================================
+   REFATORAÇÃO DOS CARDS - DESIGN PREMIUM
+   ======================================== */
+
+/* Reset e estilo base para todos os cards */
+section:not(#new-hero) [class*="rounded"][class*="border"],
+section:not(#new-hero) [class*="tc-card"],
+section:not(#new-hero) div[class*="p-"][class*="rounded"] {
+  /* Fundo mais claro que a página */
+  background: linear-gradient(145deg, #161616 0%, #131313 100%) !important;
+  
+  /* Borda sutil */
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  
+  /* Bordas bem arredondadas */
+  border-radius: 20px !important;
+  
+  /* Padding generoso */
+  padding: 28px !important;
+  
+  /* Transições suaves */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  
+  /* Sem sombras pesadas */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Hover nos cards (desktop) */
+@media (min-width: 768px) {
+  section:not(#new-hero) [class*="rounded"][class*="border"]:hover,
+  section:not(#new-hero) [class*="tc-card"]:hover,
+  section:not(#new-hero) div[class*="p-"][class*="rounded"]:hover {
+    transform: translateY(-4px) !important;
+    background: linear-gradient(145deg, #1a1a1a 0%, #151515 100%) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25),
+                0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  }
+}
+
+/* Mobile - feedback de toque */
+@media (max-width: 767px) {
+  section:not(#new-hero) [class*="rounded"][class*="border"]:active,
+  section:not(#new-hero) [class*="tc-card"]:active,
+  section:not(#new-hero) div[class*="p-"][class*="rounded"]:active {
+    transform: scale(0.98) !important;
+    background: linear-gradient(145deg, #1a1a1a 0%, #151515 100%) !important;
+  }
+}
+
+/* Títulos dentro dos cards */
+section:not(#new-hero) [class*="rounded"] h3,
+section:not(#new-hero) [class*="rounded"] h4,
+section:not(#new-hero) [class*="tc-card"] h3,
+section:not(#new-hero) [class*="tc-card"] h4,
+section:not(#new-hero) [class*="rounded"] [class*="font-bold"],
+section:not(#new-hero) [class*="rounded"] [class*="font-semibold"] {
+  font-weight: 700 !important;
+  color: #FFFFFF !important;
+  margin-bottom: 12px !important;
+  line-height: 1.3 !important;
+}
+
+/* Descrições dentro dos cards */
+section:not(#new-hero) [class*="rounded"] p,
+section:not(#new-hero) [class*="tc-card"] p,
+section:not(#new-hero) [class*="rounded"] [class*="text-muted"],
+section:not(#new-hero) [class*="rounded"] [class*="text-gray"] {
+  color: rgba(255, 255, 255, 0.55) !important;
+  font-size: 14px !important;
+  line-height: 1.6 !important;
+  margin: 0 !important;
+}
+
+/* Ícones dentro dos cards */
+section:not(#new-hero) [class*="rounded"] svg,
+section:not(#new-hero) [class*="tc-card"] svg {
+  opacity: 0.7 !important;
+  margin-bottom: 16px !important;
+}
+
+/* Ícones amarelos */
+section:not(#new-hero) [class*="rounded"] svg[class*="text-\[\#FFB020\]"],
+section:not(#new-hero) [class*="rounded"] [class*="text-\[\#FFB020\]"] svg {
+  color: #FFB020 !important;
+  opacity: 1 !important;
+}
+
+/* Grid de cards - mais espaçamento */
+section:not(#new-hero) [class*="grid"] {
+  gap: 20px !important;
+}
+
+@media (min-width: 768px) {
+  section:not(#new-hero) [class*="grid"] {
+    gap: 24px !important;
+  }
+}
+
+/* Cards da seção de dores (com aspas) */
+section:nth-of-type(2) [class*="rounded"][class*="border"],
+section:nth-of-type(2) div[class*="p-"][class*="rounded"] {
+  background: linear-gradient(145deg, #141414 0%, #101010 100%) !important;
+  padding: 32px !important;
+}
+
+/* Cards da seção de benefícios/resultado */
+section:nth-of-type(5) [class*="rounded"][class*="border"],
+section:nth-of-type(5) div[class*="p-"][class*="rounded"] {
+  background: linear-gradient(145deg, #161616 0%, #121212 100%) !important;
+  padding: 32px 28px !important;
+}
+
+/* Cards dourados (pricing/destaque) - manter estilo especial */
+section [class*="border-\[\#FFB020\]"],
+section [class*="tc-card-gold"] {
+  background: linear-gradient(145deg, #1a1812 0%, #141210 100%) !important;
+  border: 1px solid rgba(255, 176, 32, 0.25) !important;
+  box-shadow: 0 0 30px rgba(255, 176, 32, 0.08),
+              0 4px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+section [class*="border-\[\#FFB020\]"]:hover,
+section [class*="tc-card-gold"]:hover {
+  border-color: rgba(255, 176, 32, 0.4) !important;
+  box-shadow: 0 0 40px rgba(255, 176, 32, 0.12),
+              0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* FAQ accordion items */
+section:nth-of-type(9) [class*="border"],
+section:nth-of-type(9) details,
+section:nth-of-type(9) [class*="accordion"] {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 0 !important;
+  padding: 20px 0 !important;
+  box-shadow: none !important;
+}
+
+section:nth-of-type(9) [class*="border"]:hover,
+section:nth-of-type(9) details:hover {
+  transform: none !important;
+  background: transparent !important;
+}
+
+/* Seção "Antes vs Com Tom Certo" - cards especiais */
+section:nth-of-type(3) [class*="rounded"][class*="border"] {
+  padding: 32px !important;
+}
+
+/* Card "Antes" - mais escuro */
+section:nth-of-type(3) [class*="rounded"][class*="border"]:first-of-type,
+section:nth-of-type(3) div[class*="rounded"]:has([class*="text-red"]),
+section:nth-of-type(3) div[class*="rounded"]:has(svg[class*="text-red"]) {
+  background: linear-gradient(145deg, #121212 0%, #0e0e0e 100%) !important;
+}
+
+/* Card "Com Tom Certo" - destaque dourado sutil */
+section:nth-of-type(3) [class*="rounded"][class*="border"]:last-of-type,
+section:nth-of-type(3) div[class*="rounded"]:has([class*="text-green"]),
+section:nth-of-type(3) div[class*="rounded"]:has(svg[class*="text-green"]) {
+  background: linear-gradient(145deg, #161614 0%, #121210 100%) !important;
+  border-color: rgba(255, 176, 32, 0.15) !important;
+}
 </style>
 </head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><script>!function(e,t){var r,s,o,i;t.__SV||(window.posthog=t,t._i=[],t.init=function(n,a,p){function c(e,t){var r=t.split(".");2==r.length&&(e=e[r[0]],t=r[1]),e[t]=function(){e.push([t].concat(Array.prototype.slice.call(arguments,0)))}}(o=e.createElement("script")).type="text/javascript",o.crossOrigin="anonymous",o.async=!0,o.src=a.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(i=e.getElementsByTagName("script")[0]).parentNode.insertBefore(o,i);var g=t;for(void 0!==p?g=t[p]=[]:p="posthog",g.people=g.people||[],g.toString=function(e){var t="posthog";return"posthog"!==p&&(t+="."+p),e||(t+=" (stub)"),t},g.people.toString=function(){return g.toString(1)+".people (stub)"},r="init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(" "),s=0;s<r.length;s++)c(g,r[s]);t._i.push([n,a,p])},t.__SV=1)}(document,window.posthog||[]),posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs",{api_host:"https://us.i.posthog.com",person_profiles:"identified_only",session_recording:{recordCrossOriginIframes:!0,capturePerformance:!1}})</script></body></html>
