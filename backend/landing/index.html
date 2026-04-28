@@ -3,8 +3,14 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta name="theme-color" content="#000000"/>
+<meta name="theme-color" content="#0a0a0a"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
+
+<!-- CRITICAL: Previne tela preta - deve ser o PRIMEIRO style -->
+<style id="critical-prerender">
+html,body,#root,#prerender{background:#0a0a0a!important;min-height:100vh}
+#prerender{display:block!important;visibility:visible!important;opacity:1!important}
+</style>
 
 <!-- Favicons -->
 <link rel="icon" type="image/x-icon" href="/favicon.ico"/>
@@ -32,7 +38,7 @@
 <style>
 :root{--tc-bg:#0a0a0a;--tc-gold:#FFB020;--tc-gold-light:#FFCA5C;--tc-gold-dark:#D4920F}
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;min-height:100vh;background:var(--tc-bg);overflow-x:hidden}
+html,body{width:100%;min-height:100vh;background:#0a0a0a!important;overflow-x:hidden}
 body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 #root{min-height:100vh;background:var(--tc-bg)}
 
@@ -275,8 +281,6 @@ Ver como funciona
 </div>
 <style>
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
-#prerender{animation:fadeIn 0.3s ease-out}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </div>
 
