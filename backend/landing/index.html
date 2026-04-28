@@ -173,7 +173,54 @@ button[data-plan]:active,
 </head>
 <body>
 <noscript>Habilite JavaScript para usar o Tom Certo.</noscript>
-<div id="root"></div>
+<div id="root">
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     CONTEÚDO PRÉ-RENDERIZADO - APARECE INSTANTANEAMENTE
+     Este HTML é substituído pelo React quando carrega, mas o usuário vê 
+     o conteúdo IMEDIATAMENTE sem esperar JavaScript.
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div id="prerender" style="min-height:100vh;background:#0a0a0a;color:#fff;font-family:Manrope,-apple-system,system-ui,sans-serif;">
+<!-- Hero Section -->
+<section style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 20px;text-align:center;position:relative;overflow:hidden;">
+<!-- Glow de fundo -->
+<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:400px;height:400px;background:radial-gradient(circle,rgba(255,176,32,0.08) 0%,transparent 70%);pointer-events:none;"></div>
+<!-- Badge -->
+<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(255,176,32,0.1);border:1px solid rgba(255,176,32,0.3);border-radius:20px;padding:8px 16px;margin-bottom:24px;">
+<span style="font-size:14px;">🎯</span>
+<span style="font-size:13px;font-weight:600;color:#FFB020;">SEM ENROLAÇÃO</span>
+</div>
+<!-- Título -->
+<h1 style="font-family:Outfit,sans-serif;font-size:clamp(28px,7vw,48px);font-weight:800;line-height:1.1;margin-bottom:16px;max-width:600px;">
+<span style="color:#fff;">Enquanto outros procuram o tom...</span><br/>
+<span style="color:#FFB020;">você já está tocando.</span>
+</h1>
+<!-- Subtítulo -->
+<p style="font-size:clamp(16px,4vw,20px);color:#9CA3AF;max-width:480px;line-height:1.5;margin-bottom:32px;">
+Descobrir o tom exato de qualquer música em <strong style="color:#FFB020;">segundos</strong>. Pare de perder tempo e comece a tocar.
+</p>
+<!-- Botões -->
+<div style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;">
+<a href="#planos" style="display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(135deg,#FFCA5C 0%,#FFB020 50%,#D4920F 100%);color:#000;font-size:16px;font-weight:700;padding:16px 32px;border-radius:12px;text-decoration:none;box-shadow:0 8px 32px rgba(255,176,32,0.4);">
+Quero o Tom Certo
+<span style="font-size:18px;">→</span>
+</a>
+<a href="#como-funciona" style="display:flex;align-items:center;justify-content:center;gap:8px;background:transparent;border:1px solid #333;color:#9CA3AF;font-size:14px;font-weight:500;padding:14px 24px;border-radius:12px;text-decoration:none;">
+Ver como funciona
+</a>
+</div>
+<!-- Indicador IA -->
+<div style="display:flex;align-items:center;gap:8px;margin-top:32px;padding:12px 20px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:24px;">
+<span style="width:8px;height:8px;background:#10B981;border-radius:50%;animation:pulse 2s infinite;"></span>
+<span style="font-size:13px;color:#9CA3AF;">IA analisando em tempo real</span>
+</div>
+</section>
+</div>
+<style>
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+#prerender{animation:fadeIn 0.3s ease-out}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+</style>
+</div>
 
 <!-- Script principal -->
 <script defer src="/static/js/main.946d9fec.js"></script>
