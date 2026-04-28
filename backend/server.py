@@ -861,29 +861,20 @@ app.include_router(api_router)
 # ─── Download do APK ─────────────────────────────────────────────────────
 DOWNLOADS_DIR = ROOT_DIR / "downloads"
 
+# URL externa do APK mais recente
+APK_EXTERNAL_URL = "https://customer-assets.emergentagent.com/job_credentials-deploy-1/artifacts/o2k0a39r_apptomcerto.apk"
+
 @app.get("/download/apk")
 async def download_apk():
-    """Rota para download direto do APK do Tom Certo."""
-    apk_path = DOWNLOADS_DIR / "AppTomCerto.apk"
-    if apk_path.exists():
-        return FileResponse(
-            path=str(apk_path),
-            filename="AppTomCerto.apk",
-            media_type="application/vnd.android.package-archive"
-        )
-    raise HTTPException(status_code=404, detail="APK não encontrado")
+    """Rota para download do APK do Tom Certo - redireciona para o APK externo."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=APK_EXTERNAL_URL, status_code=302)
 
 @app.get("/download/AppTomCerto.apk")
 async def download_apk_direct():
-    """Rota alternativa para download do APK."""
-    apk_path = DOWNLOADS_DIR / "AppTomCerto.apk"
-    if apk_path.exists():
-        return FileResponse(
-            path=str(apk_path),
-            filename="AppTomCerto.apk",
-            media_type="application/vnd.android.package-archive"
-        )
-    raise HTTPException(status_code=404, detail="APK não encontrado")
+    """Rota alternativa para download do APK - redireciona para o APK externo."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=APK_EXTERNAL_URL, status_code=302)
 
 # ─── Arquivos estáticos da landing page (CSS, JS) ────────────────────────
 LANDING_DIR = ROOT_DIR / "landing"
