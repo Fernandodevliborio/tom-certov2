@@ -55,8 +55,9 @@
     },
     "updates": {
       "enabled": true,
-      "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/6a910bde-ddfa-4d98-92ae-db275c2c4376"
+      "fallbackToCacheTimeout": 5000,
+      "url": "https://u.expo.dev/6a910bde-ddfa-4d98-92ae-db275c2c4376",
+      "checkAutomatically": "ON_LOAD"
     },
     "runtimeVersion": "2.0.0",
     "extra": {
