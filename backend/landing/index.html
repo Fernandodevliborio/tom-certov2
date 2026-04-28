@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" style="background:#0a0a0a">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta name="theme-color" content="#000000"/>
+<meta name="theme-color" content="#0a0a0a"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
 
 <!-- DNS Prefetch -->
@@ -15,24 +15,74 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link rel="preconnect" href="https://pay.cakto.com.br"/>
 
-<!-- Preload CSS -->
-<link rel="preload" href="/static/css/main.46588e3b.css" as="style"/>
-
 <title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
 
-<!-- CSS Crítico + Botões CTA Premium -->
+<!-- ═══════════════════════════════════════════════════════════════════════
+     CSS CRÍTICO - CARREGA PRIMEIRO PARA EVITAR FOUC
+     ═══════════════════════════════════════════════════════════════════════ -->
 <style>
-:root{--tc-bg:#0a0a0a;--tc-gold:#FFB020;--tc-gold-light:#FFCA5C;--tc-gold-dark:#D4920F}
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;min-height:100vh;background:var(--tc-bg);overflow-x:hidden}
-body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-#root{min-height:100vh;background:var(--tc-bg)}
+/* 1. ANTI-FOUC: Background preto ANTES de qualquer outro CSS */
+html,body,#root{background:#0a0a0a!important;background-color:#0a0a0a!important}
 
-/* Oculta badge Emergent */
+/* 2. Sobrescreve Tailwind reset que define body branco */
+body{background:#0a0a0a!important;background-color:#0a0a0a!important;margin:0;min-height:100vh}
+
+/* 3. Root também preto */
+:root{
+  --background:0 0% 4%;
+  --tc-bg:#0a0a0a;
+  --tc-gold:#FFB020;
+}
+
+/* 4. Cores padrão */
+*{margin:0;padding:0;box-sizing:border-box}
+html{overflow-x:hidden}
+body{
+  font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  color:#fff;
+}
+
+/* 5. Oculta badge Emergent */
 #emergent-badge,[id*="emergent"],a[href*="emergent"]{display:none!important;visibility:hidden!important}
 
-/* Scroll suave */
-html{scroll-behavior:smooth}
+/* 6. Fontes com font-display: swap para evitar FOUT */
+@font-face{font-family:Manrope;font-display:swap;src:local('Manrope')}
+@font-face{font-family:Outfit;font-display:swap;src:local('Outfit')}
+
+/* 7. Reserva de espaço para imagens (evita CLS) */
+.tc-hero-phone img,
+.tc-phone-frame img,
+.tc-official-logo-img,
+img[alt*="Tom Certo"],
+img[alt*="logo"],
+img[alt*="mockup"],
+img[alt*="celular"] {
+  width: 100%;
+  height: auto;
+  aspect-ratio: attr(width) / attr(height);
+}
+
+/* 8. Elementos principais com min-height para evitar CLS */
+.tc-hero-premium{min-height:100svh;min-height:100vh}
+.tc-ai-detector{min-height:230px}
+.tc-phone-frame{min-height:400px}
+.tc-app-screen{min-height:100%}
+
+/* 9. Animações com contain para evitar layout shifts */
+.tc-hero-phone,
+.tc-hero-radial-glow,
+.tc-ai-ring,
+[class*="animate"] {
+  contain: layout style;
+  will-change: transform, opacity;
+}
+
+/* 10. Scroll suave apenas em desktop e se não houver preferência por movimento reduzido */
+@media(min-width:768px) and (prefers-reduced-motion:no-preference){
+  html{scroll-behavior:smooth}
+}
 
 /* ═══════════════════════════════════════════════════════════════
    BOTÕES CTA PREMIUM - ALTA CONVERSÃO
@@ -46,7 +96,7 @@ button[data-plan],
 [class*="pricing"] a,
 [class*="plan"] button,
 [class*="plan"] a {
-  background: linear-gradient(180deg, var(--tc-gold-light) 0%, var(--tc-gold) 50%, var(--tc-gold-dark) 100%) !important;
+  background: linear-gradient(180deg, #FFCA5C 0%, #FFB020 50%, #D4920F 100%) !important;
   color: #000000 !important;
   font-weight: 700 !important;
   font-size: 15px !important;
@@ -71,11 +121,7 @@ button[data-plan],
 /* Hover/Focus nos botões */
 .tc-cta-btn:hover,
 a[href*="cakto"]:hover,
-button[data-plan]:hover,
-[class*="pricing"] button:hover,
-[class*="pricing"] a:hover,
-[class*="plan"] button:hover,
-[class*="plan"] a:hover {
+button[data-plan]:hover {
   transform: scale(1.03) translateY(-2px) !important;
   box-shadow: 
     0 1px 0 rgba(255,255,255,0.4) inset,
@@ -86,11 +132,7 @@ button[data-plan]:hover,
 /* Efeito de clique */
 .tc-cta-btn:active,
 a[href*="cakto"]:active,
-button[data-plan]:active,
-[class*="pricing"] button:active,
-[class*="pricing"] a:active,
-[class*="plan"] button:active,
-[class*="plan"] a:active {
+button[data-plan]:active {
   transform: scale(0.98) !important;
   box-shadow: 
     0 1px 0 rgba(255,255,255,0.2) inset,
@@ -98,8 +140,6 @@ button[data-plan]:active,
 }
 
 /* Card do plano principal (trimestral) - destaque extra */
-[class*="pricing"] > div:nth-child(2),
-[class*="plan"]:nth-child(2),
 .tc-plan-featured {
   transform: scale(1.03) !important;
   border: 2px solid var(--tc-gold) !important;
@@ -125,6 +165,7 @@ button[data-plan]:active,
   letter-spacing: 1px !important;
   white-space: nowrap !important;
   box-shadow: 0 4px 12px rgba(255,107,53,0.4) !important;
+  z-index: 20 !important;
 }
 
 /* Loading state no botão */
@@ -150,22 +191,35 @@ button[data-plan]:active,
 
 /* Respeita preferência por movimento reduzido */
 @media(prefers-reduced-motion:reduce){
-  .tc-hero-phone,.tc-hero-radial-glow,.tc-ai-ring,.tc-ai-scan-line,.tc-ai-mic-core,.tc-proof-mic-icon{
-    animation:none!important
+  *,*::before,*::after{
+    animation-duration:0.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:0.01ms!important;
   }
 }
 </style>
 
-<!-- Fontes otimizadas -->
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
-<noscript><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet"/></noscript>
+<!-- Preload das fontes críticas -->
+<link rel="preload" href="https://fonts.gstatic.com/s/manrope/v15/xn7_YHE41ni1AdIRqAuZuw1Bx9mbZk79FO_F87jxeN7B.woff2" as="font" type="font/woff2" crossorigin/>
+<link rel="preload" href="https://fonts.gstatic.com/s/outfit/v11/QGYyz_MVcBeNP4NjuGObqx1XmO1I4TC1O4a0EwItq6fNIg.woff2" as="font" type="font/woff2" crossorigin/>
+
+<!-- Preload do CSS principal -->
+<link rel="preload" href="/static/css/main.46588e3b.css" as="style"/>
+
+<!-- Fontes Google com font-display: swap -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet"/>
 
 <!-- CSS principal -->
 <link href="/static/css/main.46588e3b.css" rel="stylesheet"/>
+
+<!-- Override final para garantir background preto (depois do Tailwind) -->
+<style>
+body{background:#0a0a0a!important;background-color:#0a0a0a!important}
+</style>
 </head>
-<body>
+<body style="background:#0a0a0a">
 <noscript>Habilite JavaScript para usar o Tom Certo.</noscript>
-<div id="root"></div>
+<div id="root" style="background:#0a0a0a;min-height:100vh"></div>
 
 <!-- Script principal -->
 <script defer src="/static/js/main.946d9fec.js"></script>
@@ -331,17 +385,15 @@ button[data-plan]:active,
 })();
 </script>
 
-<!-- Meta Pixel - carrega após idle -->
+<!-- Meta Pixel - carrega no final, após tudo -->
 <script>
-(function(){
-  function loadPixel(){
+window.addEventListener('load', function() {
+  setTimeout(function(){
     !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
     fbq('init','1038468498015498');
     fbq('track','PageView');
-  }
-  if('requestIdleCallback' in window) requestIdleCallback(function(){setTimeout(loadPixel,1000)},{timeout:3000});
-  else setTimeout(loadPixel,2500);
-})();
+  }, 2000);
+});
 </script>
 </body>
 </html>
