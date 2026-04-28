@@ -6,33 +6,18 @@
 <meta name="theme-color" content="#0a0a0a"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
 
-<!-- CRITICAL: Previne tela preta E prévia - carregamento invisível -->
+<!-- CRITICAL: Fundo escuro imediato - SEM animações no carregamento -->
 <style id="critical-prerender">
-/* Base: fundo escuro consistente - CARREGA IMEDIATAMENTE */
-html,body,#root{
+html,body,#root,#prerender{
   background:#0a0a0a!important;
   min-height:100vh;
-  color:#fff;
+  margin:0;
+  padding:0;
 }
-
-/* Prerender: Visível imediatamente com fundo correto */
 #prerender{
-  background:#0a0a0a!important;
   opacity:1!important;
-  min-height:100vh;
+  visibility:visible!important;
 }
-
-/* Quando React renderiza, prerender some suavemente */
-#root>[data-reactroot] ~ #prerender,
-#root>.app-container ~ #prerender,
-#root>div:not(#prerender) ~ #prerender{
-  display:none!important;
-  opacity:0!important;
-}
-
-/* Garante que não haja flash branco/preto */
-*{background-color:transparent}
-html,body,#root,#prerender{background-color:#0a0a0a!important}
 </style>
 
 <!-- Favicons -->
@@ -104,87 +89,6 @@ button:not(:hover) {
 /* Lazy loading nativo para imagens */
 img {
   content-visibility: auto;
-}
-
-/* Reduz complexidade de animações em scroll */
-@media (hover: none), (pointer: coarse) {
-  /* Dispositivos touch/mobile - otimiza animações SEM quebrar */
-  
-  /* Desabilita hover effects pesados em mobile */
-  .tc-cta-btn:hover,
-  a[href*="cakto"]:hover {
-    transform: none !important;
-    box-shadow: 0 8px 20px -6px rgba(255,176,32,0.5) !important;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   MOBILE ESPECÍFICO - OTIMIZAÇÕES DE ANIMAÇÃO DO PREVIEW
-   ═══════════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  /* Garante que não haja tela preta */
-  html, body, #root {
-    background: #0a0a0a !important;
-  }
-  
-  /* Animações do phone preview - mais suaves no mobile */
-  [class*="phone"], [class*="Phone"], [class*="preview"], [class*="Preview"], [class*="mockup"], [class*="Mockup"] {
-    animation-duration: 10s !important;
-    animation-timing-function: ease-in-out !important;
-  }
-  
-  /* Ripples e ondas - bem mais sutis */
-  [class*="ripple"], [class*="Ripple"], [class*="ring"], [class*="Ring"] {
-    animation-duration: 5s !important;
-    opacity: 0.15 !important;
-  }
-  
-  /* Glow effects - reduzidos */
-  [class*="glow"], [class*="Glow"] {
-    animation-duration: 6s !important;
-    opacity: 0.3 !important;
-  }
-  
-  /* Waveform/barras de audio - mais lentas */
-  [class*="wave"], [class*="Wave"], [class*="bar"], [class*="Bar"] {
-    animation-duration: 2s !important;
-  }
-  
-  /* Pulso - suave */
-  [class*="pulse"], [class*="Pulse"] {
-    animation-duration: 4s !important;
-    opacity: 0.5 !important;
-  }
-  
-  /* Scan line - lenta */
-  [class*="scan"], [class*="Scan"] {
-    animation-duration: 5s !important;
-    opacity: 0.2 !important;
-  }
-  
-  /* Float do phone - quase imperceptível */
-  [class*="float"], [class*="Float"] {
-    animation-duration: 12s !important;
-  }
-  
-  /* Breathe - suave */
-  [class*="breathe"], [class*="Breathe"] {
-    animation-duration: 8s !important;
-  }
-  
-  /* Rotação - bem lenta */
-  [class*="rotate"], [class*="Rotate"] {
-    animation-duration: 20s !important;
-  }
-}
-
-/* Navegadores in-app (Facebook, Instagram, TikTok) */
-@supports (-webkit-touch-callout: none) {
-  /* iOS WebView otimizações */
-  body {
-    -webkit-transform: translateZ(0);
-    transform: translateZ(0);
-  }
 }
 
 /* Oculta badge Emergent */
@@ -303,21 +207,6 @@ button[data-plan]:active,
 @media(prefers-reduced-motion:reduce){
   .tc-hero-phone,.tc-hero-radial-glow,.tc-ai-ring,.tc-ai-scan-line,.tc-ai-mic-core,.tc-proof-mic-icon{
     animation:none!important
-  }
-}
-
-/* Desktop: Animações normais (referência) */
-@media (min-width: 769px) {
-  [class*="phone"], [class*="Phone"], [class*="mockup"], [class*="Mockup"] {
-    animation-duration: 6s !important;
-  }
-  
-  [class*="ripple"], [class*="Ripple"], [class*="ring"], [class*="Ring"] {
-    animation-duration: 3s !important;
-  }
-  
-  [class*="glow"], [class*="Glow"] {
-    animation-duration: 4s !important;
   }
 }
 </style>
