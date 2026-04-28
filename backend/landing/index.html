@@ -165,52 +165,7 @@ button[data-plan]:active,
 </head>
 <body>
 <noscript>Habilite JavaScript para usar o Tom Certo.</noscript>
-<div id="root">
-<!-- Loading placeholder - 100% inline, sem dependências externas -->
-<div id="tc-initial-loader" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0a;padding:20px;text-align:center;">
-<!-- Logo SVG inline - não depende de requisições externas -->
-<svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:20px;animation:tc-pulse 1.5s ease-in-out infinite">
-<circle cx="50" cy="50" r="45" stroke="#FFB020" stroke-width="3" fill="none" opacity="0.3"/>
-<circle cx="50" cy="50" r="35" stroke="#FFB020" stroke-width="2" fill="none" opacity="0.5"/>
-<path d="M50 25C50 25 35 35 35 50C35 65 50 75 50 75" stroke="#FFB020" stroke-width="4" stroke-linecap="round" fill="none"/>
-<circle cx="50" cy="50" r="8" fill="#FFB020"/>
-</svg>
-<div style="color:#FFB020;font-family:system-ui,-apple-system,sans-serif;font-size:24px;font-weight:700;margin-bottom:8px;letter-spacing:-0.5px;">Tom Certo</div>
-<div style="color:#666;font-size:13px;font-family:system-ui,-apple-system,sans-serif;">Carregando...</div>
-<style>@keyframes tc-pulse{0%,100%{opacity:0.7;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}</style>
-</div>
-</div>
-<script>
-// Remove loader assim que React renderizar
-(function(){
-  var loader = document.getElementById('tc-initial-loader');
-  if (!loader) return;
-  var root = document.getElementById('root');
-  var observer = new MutationObserver(function(mutations) {
-    for (var i = 0; i < mutations.length; i++) {
-      if (mutations[i].addedNodes.length > 0) {
-        for (var j = 0; j < mutations[i].addedNodes.length; j++) {
-          var node = mutations[i].addedNodes[j];
-          if (node.nodeType === 1 && node.id !== 'tc-initial-loader') {
-            if (loader && loader.parentNode) loader.parentNode.removeChild(loader);
-            observer.disconnect();
-            return;
-          }
-        }
-      }
-    }
-  });
-  observer.observe(root, { childList: true });
-  // Fallback: remove após 8 segundos
-  setTimeout(function() {
-    if (loader && loader.parentNode) {
-      loader.style.opacity = '0';
-      loader.style.transition = 'opacity 0.3s';
-      setTimeout(function() { if (loader && loader.parentNode) loader.parentNode.removeChild(loader); }, 300);
-    }
-  }, 8000);
-})();
-</script>
+<div id="root"></div>
 
 <!-- Script principal -->
 <script defer src="/static/js/main.946d9fec.js"></script>
