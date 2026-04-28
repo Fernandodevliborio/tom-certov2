@@ -11,14 +11,14 @@
         "buildType": "apk",
         "gradleCommand": ":app:assembleDebug"
       },
-      "channel": "development"
+      "channel": "production"
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
-      "channel": "preview",
+      "channel": "production",
       "env": {
         "EXPO_PUBLIC_BACKEND_URL": "https://tom-certov2-production.up.railway.app"
       }
