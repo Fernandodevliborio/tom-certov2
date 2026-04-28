@@ -211,15 +211,6 @@ function TunerScreen() {
       return { status: 'idle', message: 'Toque para iniciar', color: C.text2 };
     }
     
-    // Check if native pitch detection is not supported
-    if (Platform.OS !== 'web' && !tuner.isNativeSupported) {
-      return { 
-        status: 'native_limited', 
-        message: 'Modo de visualização de áudio ativo', 
-        color: C.amber 
-      };
-    }
-    
     if (!tuner.frequency || tuner.frequency < 30) {
       return { status: 'waiting', message: 'Aproxime o instrumento do microfone', color: C.text2 };
     }
@@ -342,9 +333,6 @@ function TunerScreen() {
     outputRange: ['-45deg', '45deg'],
   });
   
-  // Determine if we should show the "limited mode" banner
-  const showLimitedBanner = Platform.OS !== 'web' && tuner.isActive && !tuner.isNativeSupported;
-  
   return (
     <SafeAreaView style={ss.safe}>
       {/* Header with BETA Badge */}
@@ -368,17 +356,6 @@ function TunerScreen() {
         <Ionicons name="flask-outline" size={14} color={C.amber} />
         <Text style={ss.betaNoticeText}>Em testes — melhorias em andamento</Text>
       </View>
-      
-      {/* Limited Mode Banner for Native */}
-      {showLimitedBanner && (
-        <View style={ss.limitedBanner}>
-          <Ionicons name="information-circle" size={16} color={C.orange} />
-          <Text style={ss.limitedBannerText}>
-            Detecção de pitch completa disponível na versão web. 
-            No app, mostramos o nível de áudio.
-          </Text>
-        </View>
-      )}
       
       {/* Seletor de Instrumento */}
       <View style={ss.instrumentSelector}>
@@ -499,7 +476,6 @@ function TunerScreen() {
                   tuningStatus.status === 'low' ? 'arrow-up' :
                   tuningStatus.status === 'high' ? 'arrow-down' :
                   tuningStatus.status === 'loading' ? 'hourglass' :
-                  tuningStatus.status === 'native_limited' ? 'pulse' :
                   'mic'
                 }
                 size={24}
