@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Tom Certo",
+    "slug": "tom-certo-v2",
+    "owner": "fernandosliborio",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "tomcerto",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tomcerto.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Captura voz para detectar tonalidade musical",
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.tomcerto.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "@siteed/audio-studio",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 280,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/6a910bde-ddfa-4d98-92ae-db275c2c4376"
+    },
+    "runtimeVersion": "2.0.0",
+    "extra": {
+      "router": {},
+      "backendUrl": "https://tom-certov2-production.up.railway.app",
+      "eas": {
+        "projectId": "6a910bde-ddfa-4d98-92ae-db275c2c4376"
+      }
+    }
+  }
+}
