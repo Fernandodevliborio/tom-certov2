@@ -55,7 +55,7 @@
     },
     "updates": {
       "enabled": true,
-      "fallbackToCacheTimeout": 5000,
+      "fallbackToCacheTimeout": 30000,
       "url": "https://u.expo.dev/6a910bde-ddfa-4d98-92ae-db275c2c4376",
       "checkAutomatically": "ON_LOAD"
     },
