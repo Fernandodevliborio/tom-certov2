@@ -82,49 +82,295 @@ document.addEventListener('DOMContentLoaded', function() {
     if (badge) badge.remove();
   }, 100);
   
-  // === AJUSTES DO HERO ===
-  function adjustHero() {
-    // 1. Trocar "louvor" por "ensaio" na subheadline
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-      null,
-      false
-    );
+  // === REFATORAÇÃO COMPLETA DO HERO ===
+  function rebuildHero() {
+    const heroSection = document.querySelector('section:first-of-type');
+    if (!heroSection) return;
     
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (node.nodeValue.includes('travar no louvor')) {
-        node.nodeValue = node.nodeValue.replace('travar no louvor', 'travar no ensaio');
-      }
-    }
+    // Ocultar conteúdo original do hero
+    heroSection.style.display = 'none';
     
-    // 2. Remover botão "Quero o Tom Certo" do Hero (apenas o primeiro)
-    const allLinks = document.querySelectorAll('a, button');
-    let heroButtonRemoved = false;
+    // Criar novo hero
+    const newHero = document.createElement('section');
+    newHero.id = 'new-hero';
+    newHero.innerHTML = `
+      <div class="hero-container">
+        <!-- Headline -->
+        <h1 class="hero-headline">
+          Descubra o tom<br>em segundos
+        </h1>
+        
+        <!-- Subheadline -->
+        <p class="hero-subheadline">
+          Veja o tom e o campo harmônico em tempo real — sem travar no ensaio
+        </p>
+        
+        <!-- Visual Element - Detection Orb -->
+        <div class="hero-visual">
+          <div class="detection-orb">
+            <div class="orb-core"></div>
+            <div class="orb-ring ring-1"></div>
+            <div class="orb-ring ring-2"></div>
+            <div class="orb-ring ring-3"></div>
+          </div>
+          <span class="orb-label">Tom encontrado: <strong>G</strong></span>
+        </div>
+        
+        <!-- CTA Button -->
+        <a href="#como-funciona" class="hero-cta">
+          Ver como funciona
+        </a>
+        
+        <!-- Benefits - 3 bullets -->
+        <ul class="hero-benefits">
+          <li>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M13.5 4.5L6 12L2.5 8.5" stroke="#FFB020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Detecta o tom na hora
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M13.5 4.5L6 12L2.5 8.5" stroke="#FFB020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Mostra campo harmônico
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M13.5 4.5L6 12L2.5 8.5" stroke="#FFB020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Funciona com voz ou instrumento
+          </li>
+        </ul>
+      </div>
+    `;
     
-    allLinks.forEach(el => {
-      if (heroButtonRemoved) return;
-      const text = el.textContent.toLowerCase().trim();
-      
-      // Encontrar o botão "Quero o Tom Certo" no hero (primeiro da página)
-      if (text.includes('quero o tom certo') && !text.includes('agora')) {
-        // Verificar se está na primeira seção (hero)
-        const section = el.closest('section');
-        if (section && section === document.querySelector('section:first-of-type')) {
-          el.style.display = 'none';
-          heroButtonRemoved = true;
-        }
-      }
-    });
+    // Inserir novo hero antes do hero original
+    heroSection.parentNode.insertBefore(newHero, heroSection);
   }
   
   // Executar após React renderizar
-  setTimeout(adjustHero, 500);
-  setTimeout(adjustHero, 1500);
-  setTimeout(adjustHero, 3000);
+  setTimeout(rebuildHero, 300);
+  setTimeout(rebuildHero, 1000);
 });
 </script>
+
+<!-- NOVO HERO - CSS Premium -->
+<style>
+/* ========================================
+   TOM CERTO - NOVO HERO PREMIUM
+   ======================================== */
+
+#new-hero {
+  background: #0A0A0A !important;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Glow sutil no fundo */
+#new-hero::before {
+  content: '';
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(255, 176, 32, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-container {
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+/* Headline */
+.hero-headline {
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: #FFFFFF;
+  margin: 0 0 20px 0;
+}
+
+/* Subheadline */
+.hero-subheadline {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 48px 0;
+  max-width: 340px;
+}
+
+/* Visual Element - Detection Orb */
+.hero-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 48px;
+}
+
+.detection-orb {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orb-core {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #FFB020 0%, #FF8C00 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 40px rgba(255, 176, 32, 0.5),
+              0 0 80px rgba(255, 176, 32, 0.3);
+  animation: pulse-core 2s ease-in-out infinite;
+}
+
+.orb-ring {
+  position: absolute;
+  border: 1px solid rgba(255, 176, 32, 0.3);
+  border-radius: 50%;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
+.ring-1 {
+  width: 80px;
+  height: 80px;
+  animation-delay: 0s;
+}
+
+.ring-2 {
+  width: 110px;
+  height: 110px;
+  animation-delay: 0.3s;
+}
+
+.ring-3 {
+  width: 140px;
+  height: 140px;
+  animation-delay: 0.6s;
+}
+
+@keyframes pulse-core {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.2); opacity: 0; }
+}
+
+.orb-label {
+  margin-top: 20px;
+  font-family: 'Inter', monospace;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.05em;
+}
+
+.orb-label strong {
+  color: #FFB020;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+/* CTA Button */
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 40px;
+  background: #FFB020;
+  color: #000000;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 100px;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 30px rgba(255, 176, 32, 0.3);
+  margin-bottom: 48px;
+}
+
+.hero-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px rgba(255, 176, 32, 0.4);
+}
+
+/* Benefits */
+.hero-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hero-benefits li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.hero-benefits svg {
+  flex-shrink: 0;
+}
+
+/* Desktop adjustments */
+@media (min-width: 768px) {
+  .hero-headline {
+    font-size: 56px;
+  }
+  
+  .hero-subheadline {
+    font-size: 18px;
+    max-width: 400px;
+  }
+  
+  .detection-orb {
+    width: 180px;
+    height: 180px;
+  }
+  
+  .orb-core {
+    width: 80px;
+    height: 80px;
+  }
+  
+  .ring-1 { width: 110px; height: 110px; }
+  .ring-2 { width: 145px; height: 145px; }
+  .ring-3 { width: 180px; height: 180px; }
+  
+  .hero-benefits {
+    flex-direction: row;
+    gap: 24px;
+  }
+}
+</style>
 <!-- TOM CERTO - Visual Enhancements CSS -->
 <style>
 /* ========================================
