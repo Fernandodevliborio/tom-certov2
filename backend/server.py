@@ -826,10 +826,33 @@ async def preview_landing():
 
 @api_router.get("/static/{path:path}")
 async def serve_static(path: str):
-    """Serve arquivos estáticos da landing via /api/static/."""
+    """Serve arquivos estáticos da landing via /api/static/ com cache otimizado."""
     file_path = LANDING_DIR / "static" / path
     if file_path.exists() and file_path.is_file():
-        return FileResponse(file_path)
+        # Determinar content-type e cache baseado na extensão
+        ext = path.split('.')[-1].lower() if '.' in path else ''
+        media_types = {
+            'js': 'application/javascript',
+            'css': 'text/css',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'webp': 'image/webp',
+            'svg': 'image/svg+xml',
+            'woff': 'font/woff',
+            'woff2': 'font/woff2',
+        }
+        media_type = media_types.get(ext, 'application/octet-stream')
+        # Cache de 1 ano para assets com hash no nome, 1 hora para outros
+        cache_time = 31536000 if any(c.isalnum() and len(c) > 6 for c in path.split('.')) else 3600
+        return FileResponse(
+            file_path,
+            media_type=media_type,
+            headers={
+                "Cache-Control": f"public, max-age={cache_time}, immutable" if cache_time > 3600 else f"public, max-age={cache_time}",
+                "Vary": "Accept-Encoding"
+            }
+        )
     raise HTTPException(status_code=404, detail="File not found")
 
 # ─── Include router ─────────────────────────────────────────────────────

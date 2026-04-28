@@ -6,218 +6,117 @@
 <meta name="theme-color" content="#000000"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
 
-<!-- Preload crítico para primeira dobra -->
-<link rel="preload" href="/tom-certo-logo-256.png" as="image" type="image/png"/>
-<link rel="preload" href="/static/css/main.46588e3b.css" as="style"/>
+<!-- DNS Prefetch para recursos externos -->
+<link rel="dns-prefetch" href="https://fonts.googleapis.com"/>
+<link rel="dns-prefetch" href="https://fonts.gstatic.com"/>
+<link rel="dns-prefetch" href="https://connect.facebook.net"/>
 
-<!-- Preconnect para fontes (reduzido para só o essencial) -->
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<!-- Preconnect crítico -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 
-<!-- CSS crítico inline para primeira dobra instantânea -->
-<style>
-/* Critical CSS - Primeira dobra sem flash branco */
-*{margin:0;padding:0;box-sizing:border-box}
-html,body,#root{width:100%;min-height:100vh;background:#000}
-body{font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:#fff;overflow-x:hidden}
-
-/* Loading state premium */
-.initial-loader{position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;opacity:1;transition:opacity .3s ease}
-.initial-loader.hidden{opacity:0;pointer-events:none}
-.initial-loader img{width:120px;height:120px;object-fit:contain;animation:pulse 2s ease-in-out infinite}
-.initial-loader p{color:#FFB020;font-size:14px;font-weight:500;letter-spacing:1px}
-@keyframes pulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.02)}}
-
-/* Skeleton para conteúdo abaixo da dobra */
-.skeleton{background:linear-gradient(90deg,#111 25%,#1a1a1a 50%,#111 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
-@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-</style>
-
-<!-- Fonte carregada de forma otimizada -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
-<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/></noscript>
+<!-- Preload do CSS crítico -->
+<link rel="preload" href="/static/css/main.46588e3b.css" as="style"/>
 
 <title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
 
-<!-- Meta Pixel Code - carregado após conteúdo principal -->
-<script>
-// Defer Meta Pixel para não bloquear renderização
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    !function(f,b,e,v,n,t,s)
-    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-    n.queue=[];t=b.createElement(e);t.async=!0;
-    t.src=v;s=b.getElementsByTagName(e)[0];
-    s.parentNode.insertBefore(t,s)}(window, document,'script',
-    'https://connect.facebook.net/en_US/fbevents.js');
-    fbq('init', '1038468498015498');
-    fbq('track', 'PageView');
-  }, 1500);
-});
-</script>
-
-<!-- Cakto Payment Links Script - Otimizado -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var paymentLinks = {
-    mensal: 'https://pay.cakto.com.br/x6hmjp3_864389',
-    trimestral: 'https://pay.cakto.com.br/3mp6tpt',
-    semestral: 'https://pay.cakto.com.br/9gcmz9j'
-  };
-  
-  function setPaymentLinks() {
-    document.querySelectorAll('a, button').forEach(function(el) {
-      var text = (el.textContent || '').toLowerCase().trim();
-      var link = null;
-      
-      if (text.indexOf('mensal') > -1 && text.indexOf('trimestral') === -1 && text.indexOf('semestral') === -1) {
-        link = paymentLinks.mensal;
-      } else if (text.indexOf('trimestral') > -1) {
-        link = paymentLinks.trimestral;
-      } else if (text.indexOf('semestral') > -1 || text.indexOf('economizar') > -1) {
-        link = paymentLinks.semestral;
-      }
-      
-      if (link) {
-        if (el.tagName === 'A') {
-          el.href = link;
-          el.target = '_blank';
-          el.rel = 'noopener';
-        } else {
-          el.onclick = function() { window.open(link, '_blank', 'noopener'); };
-        }
-      }
-    });
-    
-    // Remove Emergent badge
-    var badge = document.getElementById('emergent-badge');
-    if (badge) badge.remove();
-    document.querySelectorAll('a[href*="emergent"]').forEach(function(el) { el.remove(); });
-  }
-  
-  // Executar após renderização
-  requestAnimationFrame(function() {
-    setTimeout(setPaymentLinks, 300);
-    setTimeout(setPaymentLinks, 1000);
-  });
-});
-</script>
-
-<!-- Hide Emergent Badge + Performance CSS -->
+<!-- CSS Crítico Inline - Primeira dobra instantânea -->
 <style>
-#emergent-badge, [id*="emergent"], a[href*="emergent.sh"] {
-  display: none !important;
-  visibility: hidden !important;
-}
+:root{--tc-bg:#000;--tc-gold:#FFB020;--tc-white:#fff}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#root{width:100%;min-height:100vh;background:var(--tc-bg)}
+body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:var(--tc-white);overflow-x:hidden;-webkit-font-smoothing:antialiased}
 
-/* Performance: usar GPU para animações */
-.animate-gpu {
-  will-change: transform, opacity;
-  transform: translateZ(0);
-}
+/* Loader otimizado - aparece instantâneo, some rápido */
+#loader{position:fixed;inset:0;z-index:9999;background:var(--tc-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .2s ease-out,visibility .2s}
+#loader.done{opacity:0;visibility:hidden;pointer-events:none}
+#loader svg{width:80px;height:80px;animation:breathe 2s ease-in-out infinite}
+#loader p{color:var(--tc-gold);font-size:13px;font-weight:500;letter-spacing:1.5px;opacity:.9}
+@keyframes breathe{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.03)}}
 
-/* Lazy load images abaixo da dobra */
-img[loading="lazy"] {
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-img[loading="lazy"].loaded, img[loading="lazy"][src] {
-  opacity: 1;
-}
+/* Hide badge */
+#emergent-badge,[id*="emergent"],a[href*="emergent"]{display:none!important}
 
-/* Otimizar scroll */
-html {
-  scroll-behavior: smooth;
-}
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* Fix para logo */
-.logo-container img, img[alt*="logo" i], img[alt*="Tom Certo" i] {
-  object-fit: contain !important;
-  max-width: 100%;
-  height: auto;
-}
+/* Smooth scroll apenas em desktop */
+@media(min-width:768px){html{scroll-behavior:smooth}}
+@media(prefers-reduced-motion:reduce){*,::before,::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 
-<!-- CSS principal carregado de forma não-bloqueante -->
-<link href="/static/css/main.46588e3b.css" rel="stylesheet"/>
+<!-- Fontes - só os pesos usados, com swap -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet"/></noscript>
 
+<!-- CSS principal -->
+<link href="/static/css/main.46588e3b.css" rel="stylesheet"/>
 </head>
 <body>
-<!-- Loading inicial premium -->
-<div class="initial-loader" id="initial-loader">
-  <img src="/tom-certo-logo-256.png" alt="Tom Certo" width="120" height="120"/>
-  <p>Carregando...</p>
+<!-- Loader SVG inline (sem request externo) -->
+<div id="loader">
+  <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="50" r="45" stroke="#FFB020" stroke-width="2" opacity="0.2"/>
+    <circle cx="50" cy="50" r="35" stroke="#FFB020" stroke-width="1.5" opacity="0.3"/>
+    <circle cx="50" cy="50" r="25" stroke="#FFB020" stroke-width="1" opacity="0.4"/>
+    <path d="M50 25 L50 35 M50 65 L50 75 M25 50 L35 50 M65 50 L75 50" stroke="#FFB020" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="50" cy="50" r="12" fill="#FFB020" opacity="0.9"/>
+    <path d="M47 46 L47 54 M53 46 L53 54 M44 50 L56 50" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>
+  <p>TOM CERTO</p>
 </div>
 
-<noscript>You need to enable JavaScript to run this app.</noscript>
+<noscript>Habilite JavaScript para usar o Tom Certo.</noscript>
 <div id="root"></div>
 
-<!-- Script principal com defer -->
+<!-- Script principal -->
 <script defer src="/static/js/main.946d9fec.js"></script>
 
-<!-- Ocultar loader quando app estiver pronto -->
+<!-- Loader controller - remove assim que React renderiza -->
 <script>
-(function() {
-  var loader = document.getElementById('initial-loader');
-  var hideLoader = function() {
-    if (loader) {
-      loader.classList.add('hidden');
-      setTimeout(function() { 
-        loader.style.display = 'none'; 
-      }, 300);
-    }
-  };
-  
-  // Verificar se React renderizou
-  var checkReady = function() {
-    var root = document.getElementById('root');
-    if (root && root.children.length > 0) {
-      hideLoader();
-    } else {
-      requestAnimationFrame(checkReady);
-    }
-  };
-  
-  // Iniciar verificação após pequeno delay
-  setTimeout(checkReady, 100);
-  
-  // Fallback: esconder loader após 4s max
-  setTimeout(hideLoader, 4000);
+(function(){
+  var l=document.getElementById('loader'),r=document.getElementById('root'),t;
+  function hide(){l&&l.classList.add('done');clearTimeout(t)}
+  function check(){r&&r.children.length>0?hide():requestAnimationFrame(check)}
+  setTimeout(check,50);
+  t=setTimeout(hide,2500);
 })();
 </script>
 
-<!-- Preload de imagens abaixo da dobra após carregamento -->
+<!-- Scripts não-críticos: Meta Pixel + Cakto (carregados após idle) -->
 <script>
-window.addEventListener('load', function() {
-  // Lazy load observer para imagens
-  if ('IntersectionObserver' in window) {
-    var imgObserver = new IntersectionObserver(function(entries) {
-      entries.forEach(function(entry) {
-        if (entry.isIntersecting) {
-          var img = entry.target;
-          if (img.dataset.src) {
-            img.src = img.dataset.src;
-            img.classList.add('loaded');
-          }
-          imgObserver.unobserve(img);
+(function(){
+  // Aguarda o browser ficar idle ou 3s (o que vier primeiro)
+  var loaded=false;
+  function loadScripts(){
+    if(loaded)return;loaded=true;
+    
+    // Meta Pixel - delay adicional para não competir com interações
+    setTimeout(function(){
+      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init','1038468498015498');fbq('track','PageView');
+    },2000);
+    
+    // Cakto Links - executa uma vez após render estável
+    setTimeout(function(){
+      var links={m:'https://pay.cakto.com.br/x6hmjp3_864389',t:'https://pay.cakto.com.br/3mp6tpt',s:'https://pay.cakto.com.br/9gcmz9j'};
+      document.querySelectorAll('a,button').forEach(function(el){
+        var txt=(el.textContent||'').toLowerCase();
+        var href=txt.indexOf('trimestral')>-1?links.t:txt.indexOf('semestral')>-1||txt.indexOf('economizar')>-1?links.s:txt.indexOf('mensal')>-1&&txt.indexOf('trimestral')===-1?links.m:null;
+        if(href){
+          if(el.tagName==='A'){el.href=href;el.target='_blank';el.rel='noopener'}
+          else el.onclick=function(){window.open(href,'_blank','noopener')}
         }
       });
-    }, { rootMargin: '50px' });
-    
-    document.querySelectorAll('img[data-src]').forEach(function(img) {
-      imgObserver.observe(img);
-    });
+      // Remove badge
+      var b=document.getElementById('emergent-badge');if(b)b.remove();
+      document.querySelectorAll('a[href*="emergent"]').forEach(function(e){e.remove()});
+    },500);
   }
-});
+  
+  // Usa requestIdleCallback se disponível, senão setTimeout
+  if('requestIdleCallback' in window){
+    requestIdleCallback(loadScripts,{timeout:3000});
+  }else{
+    setTimeout(loadScripts,3000);
+  }
+})();
 </script>
 </body>
 </html>
