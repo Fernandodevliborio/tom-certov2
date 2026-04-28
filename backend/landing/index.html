@@ -82,295 +82,49 @@ document.addEventListener('DOMContentLoaded', function() {
     if (badge) badge.remove();
   }, 100);
   
-  // === REFATORAÇÃO COMPLETA DO HERO ===
-  function rebuildHero() {
-    const heroSection = document.querySelector('section:first-of-type');
-    if (!heroSection) return;
+  // === AJUSTES DO HERO ===
+  function adjustHero() {
+    // 1. Trocar "louvor" por "ensaio" na subheadline
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
     
-    // Ocultar conteúdo original do hero
-    heroSection.style.display = 'none';
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.nodeValue.includes('travar no louvor')) {
+        node.nodeValue = node.nodeValue.replace('travar no louvor', 'travar no ensaio');
+      }
+    }
     
-    // Criar novo hero
-    const newHero = document.createElement('section');
-    newHero.id = 'new-hero';
-    newHero.innerHTML = `
-      <div class="hero-container">
-        <!-- Headline -->
-        <h1 class="hero-headline">
-          Descubra o tom<br>em segundos
-        </h1>
-        
-        <!-- Subheadline -->
-        <p class="hero-subheadline">
-          Veja o tom e o campo harmônico em tempo real — sem travar no ensaio
-        </p>
-        
-        <!-- Visual Element - Detection Orb -->
-        <div class="hero-visual">
-          <div class="detection-orb">
-            <div class="orb-core"></div>
-            <div class="orb-ring ring-1"></div>
-            <div class="orb-ring ring-2"></div>
-            <div class="orb-ring ring-3"></div>
-          </div>
-          <span class="orb-label">Tom encontrado: <strong>G</strong></span>
-        </div>
-        
-        <!-- CTA Button -->
-        <a href="#como-funciona" class="hero-cta">
-          Ver como funciona
-        </a>
-        
-        <!-- Benefits - 3 bullets -->
-        <ul class="hero-benefits">
-          <li>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M13.5 4.5L6 12L2.5 8.5" stroke="#FFB020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Detecta o tom na hora
-          </li>
-          <li>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M13.5 4.5L6 12L2.5 8.5" stroke="#FFB020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Mostra campo harmônico
-          </li>
-          <li>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M13.5 4.5L6 12L2.5 8.5" stroke="#FFB020" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Funciona com voz ou instrumento
-          </li>
-        </ul>
-      </div>
-    `;
+    // 2. Remover botão "Quero o Tom Certo" do Hero (apenas o primeiro)
+    const allLinks = document.querySelectorAll('a, button');
+    let heroButtonRemoved = false;
     
-    // Inserir novo hero antes do hero original
-    heroSection.parentNode.insertBefore(newHero, heroSection);
+    allLinks.forEach(el => {
+      if (heroButtonRemoved) return;
+      const text = el.textContent.toLowerCase().trim();
+      
+      // Encontrar o botão "Quero o Tom Certo" no hero (primeiro da página)
+      if (text.includes('quero o tom certo') && !text.includes('agora')) {
+        // Verificar se está na primeira seção (hero)
+        const section = el.closest('section');
+        if (section && section === document.querySelector('section:first-of-type')) {
+          el.style.display = 'none';
+          heroButtonRemoved = true;
+        }
+      }
+    });
   }
   
   // Executar após React renderizar
-  setTimeout(rebuildHero, 300);
-  setTimeout(rebuildHero, 1000);
+  setTimeout(adjustHero, 500);
+  setTimeout(adjustHero, 1500);
+  setTimeout(adjustHero, 3000);
 });
 </script>
-
-<!-- NOVO HERO - CSS Premium -->
-<style>
-/* ========================================
-   TOM CERTO - NOVO HERO PREMIUM
-   ======================================== */
-
-#new-hero {
-  background: #0A0A0A !important;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 24px 80px;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Glow sutil no fundo */
-#new-hero::before {
-  content: '';
-  position: absolute;
-  top: 30%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(255, 176, 32, 0.08) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.hero-container {
-  max-width: 440px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  position: relative;
-  z-index: 1;
-}
-
-/* Headline */
-.hero-headline {
-  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 42px;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
-  color: #FFFFFF;
-  margin: 0 0 20px 0;
-}
-
-/* Subheadline */
-.hero-subheadline {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 17px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.6);
-  margin: 0 0 48px 0;
-  max-width: 340px;
-}
-
-/* Visual Element - Detection Orb */
-.hero-visual {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 48px;
-}
-
-.detection-orb {
-  position: relative;
-  width: 140px;
-  height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.orb-core {
-  width: 60px;
-  height: 60px;
-  background: linear-gradient(135deg, #FFB020 0%, #FF8C00 100%);
-  border-radius: 50%;
-  box-shadow: 0 0 40px rgba(255, 176, 32, 0.5),
-              0 0 80px rgba(255, 176, 32, 0.3);
-  animation: pulse-core 2s ease-in-out infinite;
-}
-
-.orb-ring {
-  position: absolute;
-  border: 1px solid rgba(255, 176, 32, 0.3);
-  border-radius: 50%;
-  animation: pulse-ring 2s ease-out infinite;
-}
-
-.ring-1 {
-  width: 80px;
-  height: 80px;
-  animation-delay: 0s;
-}
-
-.ring-2 {
-  width: 110px;
-  height: 110px;
-  animation-delay: 0.3s;
-}
-
-.ring-3 {
-  width: 140px;
-  height: 140px;
-  animation-delay: 0.6s;
-}
-
-@keyframes pulse-core {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
-@keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 0.8; }
-  100% { transform: scale(1.2); opacity: 0; }
-}
-
-.orb-label {
-  margin-top: 20px;
-  font-family: 'Inter', monospace;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.5);
-  letter-spacing: 0.05em;
-}
-
-.orb-label strong {
-  color: #FFB020;
-  font-weight: 600;
-  font-size: 18px;
-}
-
-/* CTA Button */
-.hero-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 40px;
-  background: #FFB020;
-  color: #000000;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  text-decoration: none;
-  border-radius: 100px;
-  transition: all 0.2s ease;
-  box-shadow: 0 0 30px rgba(255, 176, 32, 0.3);
-  margin-bottom: 48px;
-}
-
-.hero-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 40px rgba(255, 176, 32, 0.4);
-}
-
-/* Benefits */
-.hero-benefits {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.hero-benefits li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.hero-benefits svg {
-  flex-shrink: 0;
-}
-
-/* Desktop adjustments */
-@media (min-width: 768px) {
-  .hero-headline {
-    font-size: 56px;
-  }
-  
-  .hero-subheadline {
-    font-size: 18px;
-    max-width: 400px;
-  }
-  
-  .detection-orb {
-    width: 180px;
-    height: 180px;
-  }
-  
-  .orb-core {
-    width: 80px;
-    height: 80px;
-  }
-  
-  .ring-1 { width: 110px; height: 110px; }
-  .ring-2 { width: 145px; height: 145px; }
-  .ring-3 { width: 180px; height: 180px; }
-  
-  .hero-benefits {
-    flex-direction: row;
-    gap: 24px;
-  }
-}
-</style>
 <!-- TOM CERTO - Visual Enhancements CSS -->
 <style>
 /* ========================================
@@ -483,173 +237,6 @@ section:nth-of-type(8) [class*="tc-card-gold"] {
 /* Amarelo vibrante mantido */
 [class*="text-\[\#FFB020\]"] {
   text-shadow: 0 0 15px rgba(255, 176, 32, 0.2) !important;
-}
-
-/* ========================================
-   REFATORAÇÃO DOS CARDS - DESIGN PREMIUM
-   ======================================== */
-
-/* Reset e estilo base para todos os cards */
-section:not(#new-hero) [class*="rounded"][class*="border"],
-section:not(#new-hero) [class*="tc-card"],
-section:not(#new-hero) div[class*="p-"][class*="rounded"] {
-  /* Fundo mais claro que a página */
-  background: linear-gradient(145deg, #161616 0%, #131313 100%) !important;
-  
-  /* Borda sutil */
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
-  
-  /* Bordas bem arredondadas */
-  border-radius: 20px !important;
-  
-  /* Padding generoso */
-  padding: 28px !important;
-  
-  /* Transições suaves */
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  
-  /* Sem sombras pesadas */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
-}
-
-/* Hover nos cards (desktop) */
-@media (min-width: 768px) {
-  section:not(#new-hero) [class*="rounded"][class*="border"]:hover,
-  section:not(#new-hero) [class*="tc-card"]:hover,
-  section:not(#new-hero) div[class*="p-"][class*="rounded"]:hover {
-    transform: translateY(-4px) !important;
-    background: linear-gradient(145deg, #1a1a1a 0%, #151515 100%) !important;
-    border-color: rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25),
-                0 0 0 1px rgba(255, 255, 255, 0.05) !important;
-  }
-}
-
-/* Mobile - feedback de toque */
-@media (max-width: 767px) {
-  section:not(#new-hero) [class*="rounded"][class*="border"]:active,
-  section:not(#new-hero) [class*="tc-card"]:active,
-  section:not(#new-hero) div[class*="p-"][class*="rounded"]:active {
-    transform: scale(0.98) !important;
-    background: linear-gradient(145deg, #1a1a1a 0%, #151515 100%) !important;
-  }
-}
-
-/* Títulos dentro dos cards */
-section:not(#new-hero) [class*="rounded"] h3,
-section:not(#new-hero) [class*="rounded"] h4,
-section:not(#new-hero) [class*="tc-card"] h3,
-section:not(#new-hero) [class*="tc-card"] h4,
-section:not(#new-hero) [class*="rounded"] [class*="font-bold"],
-section:not(#new-hero) [class*="rounded"] [class*="font-semibold"] {
-  font-weight: 700 !important;
-  color: #FFFFFF !important;
-  margin-bottom: 12px !important;
-  line-height: 1.3 !important;
-}
-
-/* Descrições dentro dos cards */
-section:not(#new-hero) [class*="rounded"] p,
-section:not(#new-hero) [class*="tc-card"] p,
-section:not(#new-hero) [class*="rounded"] [class*="text-muted"],
-section:not(#new-hero) [class*="rounded"] [class*="text-gray"] {
-  color: rgba(255, 255, 255, 0.55) !important;
-  font-size: 14px !important;
-  line-height: 1.6 !important;
-  margin: 0 !important;
-}
-
-/* Ícones dentro dos cards */
-section:not(#new-hero) [class*="rounded"] svg,
-section:not(#new-hero) [class*="tc-card"] svg {
-  opacity: 0.7 !important;
-  margin-bottom: 16px !important;
-}
-
-/* Ícones amarelos */
-section:not(#new-hero) [class*="rounded"] svg[class*="text-\[\#FFB020\]"],
-section:not(#new-hero) [class*="rounded"] [class*="text-\[\#FFB020\]"] svg {
-  color: #FFB020 !important;
-  opacity: 1 !important;
-}
-
-/* Grid de cards - mais espaçamento */
-section:not(#new-hero) [class*="grid"] {
-  gap: 20px !important;
-}
-
-@media (min-width: 768px) {
-  section:not(#new-hero) [class*="grid"] {
-    gap: 24px !important;
-  }
-}
-
-/* Cards da seção de dores (com aspas) */
-section:nth-of-type(2) [class*="rounded"][class*="border"],
-section:nth-of-type(2) div[class*="p-"][class*="rounded"] {
-  background: linear-gradient(145deg, #141414 0%, #101010 100%) !important;
-  padding: 32px !important;
-}
-
-/* Cards da seção de benefícios/resultado */
-section:nth-of-type(5) [class*="rounded"][class*="border"],
-section:nth-of-type(5) div[class*="p-"][class*="rounded"] {
-  background: linear-gradient(145deg, #161616 0%, #121212 100%) !important;
-  padding: 32px 28px !important;
-}
-
-/* Cards dourados (pricing/destaque) - manter estilo especial */
-section [class*="border-\[\#FFB020\]"],
-section [class*="tc-card-gold"] {
-  background: linear-gradient(145deg, #1a1812 0%, #141210 100%) !important;
-  border: 1px solid rgba(255, 176, 32, 0.25) !important;
-  box-shadow: 0 0 30px rgba(255, 176, 32, 0.08),
-              0 4px 16px rgba(0, 0, 0, 0.2) !important;
-}
-
-section [class*="border-\[\#FFB020\]"]:hover,
-section [class*="tc-card-gold"]:hover {
-  border-color: rgba(255, 176, 32, 0.4) !important;
-  box-shadow: 0 0 40px rgba(255, 176, 32, 0.12),
-              0 8px 24px rgba(0, 0, 0, 0.3) !important;
-}
-
-/* FAQ accordion items */
-section:nth-of-type(9) [class*="border"],
-section:nth-of-type(9) details,
-section:nth-of-type(9) [class*="accordion"] {
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 0 !important;
-  padding: 20px 0 !important;
-  box-shadow: none !important;
-}
-
-section:nth-of-type(9) [class*="border"]:hover,
-section:nth-of-type(9) details:hover {
-  transform: none !important;
-  background: transparent !important;
-}
-
-/* Seção "Antes vs Com Tom Certo" - cards especiais */
-section:nth-of-type(3) [class*="rounded"][class*="border"] {
-  padding: 32px !important;
-}
-
-/* Card "Antes" - mais escuro */
-section:nth-of-type(3) [class*="rounded"][class*="border"]:first-of-type,
-section:nth-of-type(3) div[class*="rounded"]:has([class*="text-red"]),
-section:nth-of-type(3) div[class*="rounded"]:has(svg[class*="text-red"]) {
-  background: linear-gradient(145deg, #121212 0%, #0e0e0e 100%) !important;
-}
-
-/* Card "Com Tom Certo" - destaque dourado sutil */
-section:nth-of-type(3) [class*="rounded"][class*="border"]:last-of-type,
-section:nth-of-type(3) div[class*="rounded"]:has([class*="text-green"]),
-section:nth-of-type(3) div[class*="rounded"]:has(svg[class*="text-green"]) {
-  background: linear-gradient(145deg, #161614 0%, #121210 100%) !important;
-  border-color: rgba(255, 176, 32, 0.15) !important;
 }
 </style>
 </head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><script>!function(e,t){var r,s,o,i;t.__SV||(window.posthog=t,t._i=[],t.init=function(n,a,p){function c(e,t){var r=t.split(".");2==r.length&&(e=e[r[0]],t=r[1]),e[t]=function(){e.push([t].concat(Array.prototype.slice.call(arguments,0)))}}(o=e.createElement("script")).type="text/javascript",o.crossOrigin="anonymous",o.async=!0,o.src=a.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(i=e.getElementsByTagName("script")[0]).parentNode.insertBefore(o,i);var g=t;for(void 0!==p?g=t[p]=[]:p="posthog",g.people=g.people||[],g.toString=function(e){var t="posthog";return"posthog"!==p&&(t+="."+p),e||(t+=" (stub)"),t},g.people.toString=function(){return g.toString(1)+".people (stub)"},r="init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(" "),s=0;s<r.length;s++)c(g,r[s]);t._i.push([n,a,p])},t.__SV=1)}(document,window.posthog||[]),posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs",{api_host:"https://us.i.posthog.com",person_profiles:"identified_only",session_recording:{recordCrossOriginIframes:!0,capturePerformance:!1}})</script></body></html>
