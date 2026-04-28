@@ -52,100 +52,85 @@ async def send_welcome_email(
         import resend
         resend.api_key = RESEND_API_KEY
         
-        # Template do email
+        # Template do email - Estilo simples e profissional
         html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; }}
-        .header h1 {{ margin: 0; font-size: 24px; }}
-        .header .emoji {{ font-size: 48px; margin-bottom: 10px; }}
-        .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 12px 12px; }}
-        .token-box {{ background: #1a1a2e; color: #00ff88; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; font-family: monospace; font-size: 24px; letter-spacing: 2px; }}
-        .download-btn {{ display: inline-block; background: #22c55e; color: white; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 20px 0; }}
-        .download-btn:hover {{ background: #16a34a; }}
-        .steps {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }}
-        .steps ol {{ margin: 0; padding-left: 20px; }}
-        .steps li {{ margin: 10px 0; }}
-        .footer {{ text-align: center; color: #666; font-size: 12px; margin-top: 30px; }}
-        .plan-badge {{ display: inline-block; background: #fbbf24; color: #000; padding: 5px 15px; border-radius: 20px; font-weight: bold; font-size: 14px; }}
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body>
-    <div class="header">
-        <div class="emoji">🎵</div>
-        <h1>Seu acesso ao Tom Certo foi liberado!</h1>
-    </div>
-    <div class="content">
-        <p>Olá, <strong>{customer_name or 'Músico'}</strong>!</p>
-        <p>Seu pagamento foi aprovado e seu acesso está ativo.</p>
-        
-        <p style="text-align: center;"><span class="plan-badge">Plano {plano.upper()}</span></p>
-        
-        <h3>📲 Baixar o app:</h3>
-        <p style="text-align: center;">
-            <a href="{APK_DOWNLOAD_URL}" class="download-btn">⬇️ Baixar AppTomCerto.apk</a>
-        </p>
-        
-        <h3>🔐 Seu token de acesso:</h3>
-        <div class="token-box">{token}</div>
-        
-        <div class="steps">
-            <h4>Como usar:</h4>
-            <ol>
-                <li>Baixe o app clicando no botão acima</li>
-                <li>Instale no seu celular Android</li>
-                <li>Abra o app e insira o token</li>
-                <li>Pronto! Acesso liberado 🎉</li>
-            </ol>
-        </div>
-        
-        <p style="color: #666; font-size: 14px;">
-            ⚠️ <strong>Importante:</strong> Guarde este token com segurança. 
-            Ele funciona em apenas 1 dispositivo.
-        </p>
-    </div>
-    <div class="footer">
-        <p>Tom Certo - Descubra o tom da sua voz</p>
-        <p>Dúvidas? Responda este email.</p>
-    </div>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333; background-color: #ffffff; margin: 0; padding: 0;">
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+        <tr>
+            <td>
+                <h1 style="font-size: 22px; font-weight: 600; color: #111111; margin: 0 0 24px 0;">
+                    Acesso ao Tom Certo
+                </h1>
+                
+                <p style="margin: 0 0 24px 0; color: #333333;">
+                    Olá{', ' + customer_name if customer_name else ''}, seu acesso ao aplicativo Tom Certo foi liberado.
+                </p>
+                
+                <p style="margin: 0 0 8px 0; color: #333333; font-weight: 600;">
+                    Credenciais de acesso:
+                </p>
+                <p style="margin: 0 0 24px 0; color: #333333;">
+                    Token: <strong style="font-family: monospace; font-size: 18px; color: #111111;">{token}</strong>
+                </p>
+                
+                <p style="margin: 0 0 8px 0; color: #333333; font-weight: 600;">
+                    Link para baixar o aplicativo:
+                </p>
+                <p style="margin: 0 0 24px 0;">
+                    <a href="{APK_DOWNLOAD_URL}" style="color: #0066cc; text-decoration: underline;">{APK_DOWNLOAD_URL}</a>
+                </p>
+                
+                <p style="margin: 0 0 8px 0; color: #333333; font-weight: 600;">
+                    Instruções:
+                </p>
+                <ol style="margin: 0 0 32px 0; padding-left: 20px; color: #333333;">
+                    <li style="margin-bottom: 8px;">Baixe o aplicativo pelo link acima.</li>
+                    <li style="margin-bottom: 8px;">Abra o app Tom Certo.</li>
+                    <li style="margin-bottom: 8px;">Insira o token para ativar seu acesso.</li>
+                </ol>
+                
+                <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;">
+                
+                <p style="margin: 0; color: #888888; font-size: 13px;">
+                    Este é um email automático. Não responda esta mensagem.
+                </p>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>
         """
         
         text_content = f"""
-Seu acesso ao Tom Certo foi liberado! 🎵
+Acesso ao Tom Certo
 
-Olá, {customer_name or 'Músico'}!
+Olá{', ' + customer_name if customer_name else ''}, seu acesso ao aplicativo Tom Certo foi liberado.
 
-Seu pagamento foi aprovado e seu acesso está ativo.
-Plano: {plano.upper()}
+Credenciais de acesso:
+Token: {token}
 
-📲 Baixar o app:
+Link para baixar o aplicativo:
 {APK_DOWNLOAD_URL}
 
-🔐 Seu token de acesso:
-{token}
+Instruções:
+1. Baixe o aplicativo pelo link acima.
+2. Abra o app Tom Certo.
+3. Insira o token para ativar seu acesso.
 
-Como usar:
-1. Baixe o app pelo link acima
-2. Instale no seu celular Android
-3. Abra o app e insira o token
-4. Pronto! Acesso liberado.
-
-⚠️ Importante: Guarde este token com segurança. Ele funciona em apenas 1 dispositivo.
-
---
-Tom Certo - Descubra o tom da sua voz
+---
+Este é um email automático. Não responda esta mensagem.
         """
         
         response = resend.Emails.send({
             "from": FROM_EMAIL,
             "to": [to_email],
-            "subject": "🎵 Seu acesso ao Tom Certo foi liberado!",
+            "subject": "Acesso ao Tom Certo",
             "html": html_content,
             "text": text_content,
         })
