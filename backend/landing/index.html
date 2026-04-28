@@ -81,6 +81,48 @@ document.addEventListener('DOMContentLoaded', function() {
     const badge = document.getElementById('emergent-badge');
     if (badge) badge.remove();
   }, 100);
+  
+  // === AJUSTES DO HERO ===
+  function adjustHero() {
+    // 1. Trocar "louvor" por "ensaio" na subheadline
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.nodeValue.includes('travar no louvor')) {
+        node.nodeValue = node.nodeValue.replace('travar no louvor', 'travar no ensaio');
+      }
+    }
+    
+    // 2. Remover botão "Quero o Tom Certo" do Hero (apenas o primeiro)
+    const allLinks = document.querySelectorAll('a, button');
+    let heroButtonRemoved = false;
+    
+    allLinks.forEach(el => {
+      if (heroButtonRemoved) return;
+      const text = el.textContent.toLowerCase().trim();
+      
+      // Encontrar o botão "Quero o Tom Certo" no hero (primeiro da página)
+      if (text.includes('quero o tom certo') && !text.includes('agora')) {
+        // Verificar se está na primeira seção (hero)
+        const section = el.closest('section');
+        if (section && section === document.querySelector('section:first-of-type')) {
+          el.style.display = 'none';
+          heroButtonRemoved = true;
+        }
+      }
+    });
+  }
+  
+  // Executar após React renderizar
+  setTimeout(adjustHero, 500);
+  setTimeout(adjustHero, 1500);
+  setTimeout(adjustHero, 3000);
 });
 </script>
 <!-- TOM CERTO - Visual Enhancements CSS -->
