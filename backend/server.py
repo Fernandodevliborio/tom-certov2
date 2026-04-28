@@ -887,8 +887,12 @@ async def download_apk_direct():
 
 # ─── Arquivos estáticos da landing page (CSS, JS) ────────────────────────
 LANDING_DIR = ROOT_DIR / "landing"
+LANDING_V2_DIR = ROOT_DIR / "landing_v2"
 if LANDING_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(LANDING_DIR / "static")), name="static")
+# Monta os estáticos da v2 em /app/static
+if LANDING_V2_DIR.exists() and (LANDING_V2_DIR / "static").exists():
+    app.mount("/app/static", StaticFiles(directory=str(LANDING_V2_DIR / "static")), name="static_v2")
 
 # ─── Logos otimizadas da landing page ─────────────────────────────────────
 @app.get("/tom-certo-logo-128.png")
@@ -996,10 +1000,28 @@ LANDING_V2_INDEX = LANDING_V2_DIR / "index.html"
 
 @app.get("/app", response_class=HTMLResponse)
 async def landing_v2():
-    """Nova página de vendas V2 - otimizada e limpa."""
+    """Nova página de vendas V2 - idêntica à raiz mas sem bugs.
+    Usa o mesmo HTML da landing principal mas força a rota para '/'
+    para que o React Router funcione corretamente.
+    """
     if LANDING_V2_INDEX.exists():
+        html_content = LANDING_V2_INDEX.read_text(encoding="utf-8")
+        
+        # Adiciona script para forçar a história do browser para '/'
+        # Isso faz o React Router pensar que está na raiz
+        route_fix_script = '''<script>
+// Força React Router a ver a rota como '/'
+if (window.location.pathname === '/app') {
+    window.history.replaceState({}, '', '/');
+}
+</script>
+</head>'''
+        
+        # Insere o script antes do </head>
+        html_content = html_content.replace('</head>', route_fix_script)
+        
         return HTMLResponse(
-            LANDING_V2_INDEX.read_text(encoding="utf-8"),
+            html_content,
             headers={
                 "Cache-Control": "no-cache, no-store, must-revalidate",
                 "Pragma": "no-cache",
