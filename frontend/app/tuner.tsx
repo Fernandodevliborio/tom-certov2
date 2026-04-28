@@ -77,6 +77,8 @@ type InstrumentKey = 'violao' | 'guitarra' | 'baixo' | 'ukulele';
 
 export default function TunerScreen() {
   const [instrument, setInstrument] = useState<InstrumentKey>('violao');
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const tuner = useTuner();
   const arcAnim = useRef(new Animated.Value(0)).current;
   
@@ -113,6 +115,7 @@ export default function TunerScreen() {
   
   // Status da afinação
   const getTuningStatus = () => {
+    if (hasError) return { status: 'error', message: 'Erro ao iniciar. Tente novamente.', color: C.red };
     if (!tuner.isActive) return { status: 'idle', message: 'Toque uma corda para começar', color: C.text2 };
     if (!tuner.frequency || tuner.frequency < 30) return { status: 'waiting', message: 'Aproxime o instrumento do microfone', color: C.text2 };
     if (tuner.noiseLevel > 0.7) return { status: 'noise', message: 'Ambiente com muito ruído. Tente novamente.', color: C.red };
@@ -143,11 +146,48 @@ export default function TunerScreen() {
     }).start();
   }, [cents]);
   
-  // Inicia o tuner ao montar
+  // Inicia o tuner ao montar COM TRATAMENTO DE ERROS
   useEffect(() => {
-    tuner.start();
-    return () => tuner.stop();
+    let mounted = true;
+    
+    const initTuner = async () => {
+      try {
+        setIsLoading(true);
+        setHasError(false);
+        await tuner.start();
+        if (mounted) setIsLoading(false);
+      } catch (err) {
+        console.error('[Tuner] Erro ao iniciar:', err);
+        if (mounted) {
+          setHasError(true);
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    // Pequeno delay para garantir que a tela montou
+    const timeout = setTimeout(initTuner, 100);
+    
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+      tuner.stop().catch(() => {});
+    };
   }, []);
+  
+  // Handler para tentar novamente
+  const handleRetry = async () => {
+    try {
+      setIsLoading(true);
+      setHasError(false);
+      await tuner.start();
+      setIsLoading(false);
+    } catch (err) {
+      console.error('[Tuner] Erro ao reiniciar:', err);
+      setHasError(true);
+      setIsLoading(false);
+    }
+  };
   
   const arcRotation = arcAnim.interpolate({
     inputRange: [-1, 1],

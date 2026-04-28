@@ -1,27 +1,23 @@
 # Tom Certo · Test Credentials
 
 ## 🔐 Admin Panel (PRODUÇÃO)
-URL: https://tom-certov2-production.up.railway.app/api/admin
-- **Usuário:** `Admin01`
-- **Senha:** `adminfernando`
-- (Legacy backup) X-Admin-Key: `tomcerto-admin-2026`
+URL: https://tom-certov2-production.up.railway.app/admin
+User: Admin01
+Password: adminfernando
 
-## 🎫 Tokens de teste no MongoDB Atlas
-- `TESTE` (Fernando 2 — sem expiração — 3 devices)
-- `TEST-DEV2026` (Dev/Tester — sem expiração — 10 devices)
+## 🎟️ Tokens de Teste
+| Token | Status | Max Devices |
+|-------|--------|-------------|
+| TC-DDA7-FB9E | Ativo | 10 |
+| TESTE | Limite atingido | 3 |
+| TEST-DEV2026 | Limite atingido | 3 |
 
-## 🔑 EAS / Expo
-- EXPO_TOKEN: `BgyiRbQ57L3VE6_vfUULhB8NkycJCjja_f9t7YeA`
-- Project: `fernandosliborio/tom-certo-v2`
-- Channel ativo: `production`
-- Runtime version: `2.0.0`
+## 📱 Para Testar
+Use o token `TC-DDA7-FB9E` para acessar o app.
 
-## ☁️ MongoDB Atlas
-- Username: `tomcerto`
-- Password: `JErN86dGd7EwSrR5`
-- Database: `tom_certo_db`
+## 🔧 Backend Local
+URL: http://localhost:8001
 
-## 🚀 Railway
-- Service: `tom-certov2`
-- URL: https://tom-certov2-production.up.railway.app
-- Build: Dockerfile
+## 🌐 Railway (Produção)
+URL: https://tom-certov2-production.up.railway.app
+Build: Dockerfile
