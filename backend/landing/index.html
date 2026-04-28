@@ -79,42 +79,81 @@ body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;c
 })();
 </script>
 
-<!-- Scripts não-críticos: Meta Pixel + Cakto (carregados após idle) -->
+<!-- Cakto Payment Links - executa imediatamente após React renderizar -->
 <script>
 (function(){
-  // Aguarda o browser ficar idle ou 3s (o que vier primeiro)
-  var loaded=false;
-  function loadScripts(){
-    if(loaded)return;loaded=true;
-    
-    // Meta Pixel - delay adicional para não competir com interações
-    setTimeout(function(){
-      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-      fbq('init','1038468498015498');fbq('track','PageView');
-    },2000);
-    
-    // Cakto Links - executa uma vez após render estável
-    setTimeout(function(){
-      var links={m:'https://pay.cakto.com.br/x6hmjp3_864389',t:'https://pay.cakto.com.br/3mp6tpt',s:'https://pay.cakto.com.br/9gcmz9j'};
-      document.querySelectorAll('a,button').forEach(function(el){
-        var txt=(el.textContent||'').toLowerCase();
-        var href=txt.indexOf('trimestral')>-1?links.t:txt.indexOf('semestral')>-1||txt.indexOf('economizar')>-1?links.s:txt.indexOf('mensal')>-1&&txt.indexOf('trimestral')===-1?links.m:null;
-        if(href){
-          if(el.tagName==='A'){el.href=href;el.target='_blank';el.rel='noopener'}
-          else el.onclick=function(){window.open(href,'_blank','noopener')}
+  var links={
+    m:'https://pay.cakto.com.br/x6hmjp3_864389',
+    t:'https://pay.cakto.com.br/3mp6tpt',
+    s:'https://pay.cakto.com.br/9gcmz9j'
+  };
+  
+  function setLinks(){
+    document.querySelectorAll('a,button').forEach(function(el){
+      var txt=(el.textContent||'').toLowerCase();
+      var href=null;
+      
+      // Prioridade: trimestral > semestral/economizar > mensal
+      if(txt.indexOf('trimestral')>-1){
+        href=links.t;
+      }else if(txt.indexOf('semestral')>-1||txt.indexOf('economizar')>-1){
+        href=links.s;
+      }else if(txt.indexOf('mensal')>-1){
+        href=links.m;
+      }
+      
+      if(href){
+        if(el.tagName==='A'){
+          el.href=href;
+          el.target='_blank';
+          el.rel='noopener noreferrer';
+        }else{
+          el.onclick=function(e){
+            e.preventDefault();
+            window.open(href,'_blank','noopener');
+          };
         }
-      });
-      // Remove badge
-      var b=document.getElementById('emergent-badge');if(b)b.remove();
-      document.querySelectorAll('a[href*="emergent"]').forEach(function(e){e.remove()});
-    },500);
+      }
+    });
+    
+    // Remove badge Emergent
+    var badge=document.getElementById('emergent-badge');
+    if(badge)badge.remove();
+    document.querySelectorAll('a[href*="emergent"]').forEach(function(e){e.remove()});
   }
   
-  // Usa requestIdleCallback se disponível, senão setTimeout
-  if('requestIdleCallback' in window){
-    requestIdleCallback(loadScripts,{timeout:3000});
+  // Executar múltiplas vezes para garantir que pega todos os elementos
+  // (React pode renderizar em fases)
+  function init(){
+    setLinks();
+    setTimeout(setLinks,500);
+    setTimeout(setLinks,1500);
+    setTimeout(setLinks,3000);
+  }
+  
+  // Executar quando DOM estiver pronto
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',init);
   }else{
-    setTimeout(loadScripts,3000);
+    init();
+  }
+})();
+</script>
+
+<!-- Meta Pixel - carrega após página estável -->
+<script>
+(function(){
+  function loadPixel(){
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init','1038468498015498');
+    fbq('track','PageView');
+  }
+  
+  // Carregar após 2s ou quando idle
+  if('requestIdleCallback' in window){
+    requestIdleCallback(function(){setTimeout(loadPixel,1000)},{timeout:3000});
+  }else{
+    setTimeout(loadPixel,2500);
   }
 })();
 </script>
