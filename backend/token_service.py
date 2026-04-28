@@ -42,7 +42,18 @@ async def create_token(
     
     Returns:
         Tuple com (token, expires_at)
+    
+    Raises:
+        ValueError: Se já existe token para essa transaction_id
     """
+    # PROTEÇÃO CONTRA DUPLICIDADE: Verifica se já existe token para essa transação
+    if transaction_id:
+        existing = await db.tokens.find_one({"transaction_id": transaction_id})
+        if existing:
+            logger.warning(f"[Token] ⚠ Duplicidade detectada: transaction_id={transaction_id}")
+            # Retorna o token existente ao invés de criar novo
+            return existing["token"], existing["expires_at"]
+    
     # Gera token único
     token = generate_token()
     
@@ -73,11 +84,12 @@ async def create_token(
         "active": True,
         "active_devices": [],
         "transaction_id": transaction_id,
+        "origin": "cakto",  # Origem da compra
         "notes": f"Compra via Cakto - {plano.value}",
     }
     
     await db.tokens.insert_one(doc)
-    logger.info(f"[Token] ✓ Criado: {token[:4]}*** plano={plano.value} expires={expires_at.isoformat()}")
+    logger.info(f"[Token] ✓ Criado: {token[:4]}*** plano={plano.value} expires={expires_at.isoformat()} transaction_id={transaction_id}")
     
     return token, expires_at
 

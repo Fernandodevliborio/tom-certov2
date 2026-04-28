@@ -153,9 +153,21 @@ async def validate_token(body: ValidateRequest):
     if not code or not device_id:
         return JSONResponse({"valid": False, "reason": "invalid_request"}, status_code=400)
 
-    token_doc = await db.tokens.find_one({"code": code})
+    # Busca por token ou code (compatibilidade)
+    token_doc = await db.tokens.find_one({
+        "$or": [
+            {"token": code},
+            {"code": code}
+        ]
+    })
+    
     if not token_doc:
         return JSONResponse({"valid": False, "reason": "not_found"}, status_code=200)
+
+    # Verifica status de cancelamento
+    status = token_doc.get("status", "ativo")
+    if status in ("cancelado", "cancelled"):
+        return JSONResponse({"valid": False, "reason": "cancelled"}, status_code=200)
 
     if not token_doc.get("active", True):
         return JSONResponse({"valid": False, "reason": "revoked"}, status_code=200)

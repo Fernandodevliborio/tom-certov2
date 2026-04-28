@@ -52,6 +52,18 @@ async def send_welcome_email(
         import resend
         resend.api_key = RESEND_API_KEY
         
+        # Calcula prazo de validade
+        plano_lower = plano.lower() if plano else 'mensal'
+        if 'semestral' in plano_lower or '6' in plano_lower:
+            prazo_validade = "6 meses"
+            dias = 180
+        elif 'trimestral' in plano_lower or '3' in plano_lower:
+            prazo_validade = "3 meses"
+            dias = 90
+        else:
+            prazo_validade = "1 mês"
+            dias = 30
+        
         # Template do email - Estilo simples e profissional
         html_content = f"""
 <!DOCTYPE html>
@@ -75,8 +87,11 @@ async def send_welcome_email(
                 <p style="margin: 0 0 8px 0; color: #333333; font-weight: 600;">
                     Credenciais de acesso:
                 </p>
-                <p style="margin: 0 0 24px 0; color: #333333;">
+                <p style="margin: 0 0 8px 0; color: #333333;">
                     Token: <strong style="font-family: monospace; font-size: 18px; color: #111111;">{token}</strong>
+                </p>
+                <p style="margin: 0 0 24px 0; color: #333333;">
+                    Plano: <strong>{plano.capitalize() if plano else 'Mensal'}</strong> (válido por {prazo_validade})
                 </p>
                 
                 <p style="margin: 0 0 8px 0; color: #333333; font-weight: 600;">
