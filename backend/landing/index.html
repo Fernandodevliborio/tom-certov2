@@ -246,6 +246,102 @@ button[data-plan]:active,
     animation:none!important
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ANIMAÇÕES DO MOCKUP - MAIS SUAVES E LEVES
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Reduz velocidade e intensidade das animações do phone mockup */
+[class*="phone"], [class*="Phone"], [class*="mockup"], [class*="Mockup"] {
+  animation-duration: 8s !important;
+}
+
+/* Ripples/ondas - mais lentos */
+[class*="ripple"], [class*="Ripple"], [class*="ring"], [class*="Ring"], [class*="pulse"], [class*="Pulse"] {
+  animation-duration: 4s !important;
+  opacity: 0.25 !important;
+}
+
+/* Glow - reduz intensidade */
+[class*="glow"], [class*="Glow"] {
+  animation-duration: 5s !important;
+  opacity: 0.5 !important;
+}
+
+/* Waveform/barras de audio */
+[class*="wave"], [class*="Wave"], [class*="bar"], [class*="Bar"] {
+  animation-duration: 1.5s !important;
+}
+
+/* Float/flutuação do phone */
+[class*="float"], [class*="Float"] {
+  animation-duration: 8s !important;
+}
+
+/* Breathe/respiração */
+[class*="breathe"], [class*="Breathe"] {
+  animation-duration: 6s !important;
+}
+
+/* Scan line */
+[class*="scan"], [class*="Scan"] {
+  animation-duration: 4s !important;
+  opacity: 0.3 !important;
+}
+
+/* Rotação de glow */
+[class*="rotate"], [class*="Rotate"] {
+  animation-duration: 12s !important;
+}
+
+/* Reduz scale de animações */
+@keyframes tc-subtle-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.03); opacity: 0.8; }
+}
+
+@keyframes tc-subtle-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes tc-subtle-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(255,176,32,0.15); }
+  50% { box-shadow: 0 0 25px rgba(255,176,32,0.25); }
+}
+
+/* Aplica animações sutis aos elementos do mockup */
+[class*="hero"] [class*="phone"],
+[class*="Hero"] [class*="Phone"],
+[class*="preview"] [class*="phone"],
+[class*="Preview"] [class*="Phone"] {
+  animation: tc-subtle-float 8s ease-in-out infinite !important;
+}
+
+[class*="detector"], [class*="Detector"],
+[class*="mic"], [class*="Mic"] {
+  animation: tc-subtle-pulse 4s ease-in-out infinite !important;
+}
+
+/* Mobile - animações ainda mais sutis */
+@media (max-width: 768px) {
+  [class*="ripple"], [class*="Ripple"], [class*="ring"], [class*="Ring"] {
+    animation-duration: 5s !important;
+    opacity: 0.2 !important;
+  }
+  
+  [class*="phone"], [class*="Phone"] {
+    animation-duration: 10s !important;
+  }
+  
+  [class*="wave"], [class*="Wave"], [class*="bar"], [class*="Bar"] {
+    animation-duration: 2s !important;
+  }
+  
+  [class*="glow"], [class*="Glow"] {
+    opacity: 0.4 !important;
+  }
+}
 </style>
 
 <!-- Fontes otimizadas -->
