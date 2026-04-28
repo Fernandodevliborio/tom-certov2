@@ -123,33 +123,14 @@ function InitialScreen({
   }, [errorMessage]);
 
   // ═══════════════════════════════════════════════════════════════
-  // ANIMAÇÕES PREMIUM
+  // ANIMAÇÕES PREMIUM - SIMPLIFICADAS
   // ═══════════════════════════════════════════════════════════════
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(20)).current;
   const breathe = useRef(new Animated.Value(0)).current;
   const ring1 = useRef(new Animated.Value(0)).current;
-  const ring2 = useRef(new Animated.Value(0)).current;
-  const ring3 = useRef(new Animated.Value(0)).current;
   const micScale = useRef(new Animated.Value(1)).current;
   const logoGlow = useRef(new Animated.Value(0.7)).current;
-
-  // Side waves
-  const WAVE_COUNT = 12;
-  const waveLeft = useRef(Array.from({ length: WAVE_COUNT }, () => new Animated.Value(Math.random()))).current;
-  const waveRight = useRef(Array.from({ length: WAVE_COUNT }, () => new Animated.Value(Math.random()))).current;
-  
-  // Particles
-  const PARTICLE_COUNT = 10;
-  const particles = useRef(
-    Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
-      angle: (i / PARTICLE_COUNT) * Math.PI * 2 + Math.random() * 0.3,
-      radius: 100 + Math.random() * 40,
-      val: new Animated.Value(Math.random()),
-      size: 2 + Math.random() * 2,
-      dur: 2200 + Math.random() * 1800,
-    }))
-  ).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -163,62 +144,26 @@ function InitialScreen({
     ]));
 
     const breatheLoop = Animated.loop(Animated.sequence([
-      Animated.timing(breathe, { toValue: 1, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(breathe, { toValue: 0, duration: 2400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
     ]));
 
-    const makeRing = (val: Animated.Value, delay: number) =>
-      Animated.loop(Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(val, { toValue: 1, duration: 3200, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-        Animated.timing(val, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ]));
-    const r1 = makeRing(ring1, 0), r2 = makeRing(ring2, 1066), r3 = makeRing(ring3, 2133);
+    // Único anel pulsante
+    const ringLoop = Animated.loop(Animated.sequence([
+      Animated.timing(ring1, { toValue: 1, duration: 2500, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(ring1, { toValue: 0, duration: 0, useNativeDriver: true }),
+    ]));
 
-    const waveLoops: Animated.CompositeAnimation[] = [];
-    [waveLeft, waveRight].forEach(arr => {
-      arr.forEach((val) => {
-        const dur = 700 + Math.random() * 900;
-        const loop = Animated.loop(Animated.sequence([
-          Animated.timing(val, { toValue: 1, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
-          Animated.timing(val, { toValue: 0, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
-        ]));
-        waveLoops.push(loop);
-      });
-    });
-
-    const particleLoops = particles.map(p =>
-      Animated.loop(Animated.sequence([
-        Animated.timing(p.val, { toValue: 1, duration: p.dur, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(p.val, { toValue: 0, duration: p.dur, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ]))
-    );
-
-    logoLoop.start(); breatheLoop.start(); r1.start(); r2.start(); r3.start();
-    waveLoops.forEach(l => l.start());
-    particleLoops.forEach(l => l.start());
+    logoLoop.start();
+    breatheLoop.start();
+    ringLoop.start();
 
     return () => {
-      logoLoop.stop(); breatheLoop.stop(); r1.stop(); r2.stop(); r3.stop();
-      waveLoops.forEach(l => l.stop());
-      particleLoops.forEach(l => l.stop());
+      logoLoop.stop();
+      breatheLoop.stop();
+      ringLoop.stop();
     };
   }, []);
-
-  const breatheScale = breathe.interpolate({ inputRange: [0, 1], outputRange: [0.99, 1.02] });
-
-  const renderRing = (val: Animated.Value, idx: number) => (
-    <Animated.View pointerEvents="none" style={[
-      ss.micRingPremium,
-      {
-        opacity: val.interpolate({
-          inputRange: [0, 0.4, 1],
-          outputRange: [0.4 - idx * 0.08, 0.2 - idx * 0.04, 0],
-        }),
-        transform: [{ scale: val.interpolate({ inputRange: [0, 1], outputRange: [1, 1.8 + idx * 0.15] }) }],
-      },
-    ]} />
-  );
 
   return (
     <Animated.View testID="initial-screen" style={[ss.initialRoot, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
@@ -261,82 +206,54 @@ function InitialScreen({
         <Text style={ss.brandSub}>Detecção inteligente de tonalidade</Text>
       </View>
 
-      {/* ═══ MIC SECTION — FOCO PRINCIPAL ═══ */}
+      {/* ═══ MIC SECTION — NÚCLEO DE DETECÇÃO LIMPO ═══ */}
       <View style={ss.micSection}>
-        {/* Side waves esquerda */}
-        <View style={[ss.sideWaves, ss.sideWavesLeft]} pointerEvents="none">
-          {waveLeft.map((val, i) => {
-            const cw = 1 - Math.abs((i - WAVE_COUNT / 2) / (WAVE_COUNT / 2));
-            return (
-              <Animated.View key={`wl-${i}`} style={[
-                ss.waveBar,
-                {
-                  height: val.interpolate({ inputRange: [0, 1], outputRange: [4 + cw * 6, 14 + cw * 36] }),
-                  opacity: val.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.5] }),
-                },
-              ]} />
-            );
-          })}
-        </View>
+        {/* Glow de fundo sutil */}
+        <Animated.View 
+          style={[
+            ss.micBackgroundGlow,
+            { opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.35] }) }
+          ]} 
+          pointerEvents="none"
+        />
         
-        {/* Side waves direita */}
-        <View style={[ss.sideWaves, ss.sideWavesRight]} pointerEvents="none">
-          {waveRight.map((val, i) => {
-            const cw = 1 - Math.abs((i - WAVE_COUNT / 2) / (WAVE_COUNT / 2));
-            return (
-              <Animated.View key={`wr-${i}`} style={[
-                ss.waveBar,
-                {
-                  height: val.interpolate({ inputRange: [0, 1], outputRange: [4 + cw * 6, 14 + cw * 36] }),
-                  opacity: val.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.5] }),
-                },
-              ]} />
-            );
-          })}
-        </View>
+        {/* Anel pulsante único (sutil) */}
+        <Animated.View 
+          pointerEvents="none" 
+          style={[
+            ss.micPulseRing,
+            {
+              opacity: ring1.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.4, 0.15, 0] }),
+              transform: [{ scale: ring1.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] }) }],
+            },
+          ]}
+        />
 
-        {/* Partículas douradas */}
-        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-          <View style={ss.particlesCenter}>
-            {particles.map((p, i) => {
-              const x = Math.cos(p.angle) * p.radius;
-              const y = Math.sin(p.angle) * p.radius;
-              const opacity = p.val.interpolate({
-                inputRange: [0, 0.5, 1],
-                outputRange: [0.1, 0.5, 0.1],
-              });
-              return (
-                <Animated.View
-                  key={`p-${i}`}
-                  style={[
-                    ss.particle,
-                    { width: p.size, height: p.size, opacity, transform: [{ translateX: x }, { translateY: y }] },
-                  ]}
-                />
-              );
-            })}
-          </View>
-        </View>
-
-        {/* 3 anéis pulsantes */}
-        {renderRing(ring3, 2)}
-        {renderRing(ring2, 1)}
-        {renderRing(ring1, 0)}
-
-        {/* Botão central */}
+        {/* Botão central do microfone - FOCO TOTAL */}
         <TouchableOpacity
           testID="start-btn"
-          onPressIn={() => Animated.spring(micScale, { toValue: 0.94, useNativeDriver: true }).start()}
-          onPressOut={() => Animated.spring(micScale, { toValue: 1, friction: 4, useNativeDriver: true }).start()}
+          onPressIn={() => Animated.spring(micScale, { toValue: 0.92, useNativeDriver: true, tension: 300, friction: 10 }).start()}
+          onPressOut={() => Animated.spring(micScale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 8 }).start()}
           onPress={onStart}
           activeOpacity={1}
         >
           <Animated.View style={[
-            ss.micBtnPremium,
-            { transform: [{ scale: Animated.multiply(micScale, breatheScale) }] },
+            ss.micButtonOuter,
+            { 
+              transform: [
+                { scale: Animated.multiply(micScale, breathe.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.02] })) }
+              ] 
+            },
           ]}>
-            <View style={ss.micInnerPremium}>
-              <Ionicons name="mic" size={48} color={C.amber} />
+            {/* Borda luminosa */}
+            <Animated.View style={[
+              ss.micGlowBorder,
+              { opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }
+            ]} />
+            
+            {/* Círculo interno com gradiente visual */}
+            <View style={ss.micButtonInner}>
+              <Ionicons name="mic" size={56} color={C.amber} />
             </View>
           </Animated.View>
         </TouchableOpacity>
@@ -345,7 +262,10 @@ function InitialScreen({
       {/* ═══ CALL TO ACTION ═══ */}
       <View style={ss.ctaBlock}>
         <Text style={ss.ctaMain}>Toque para detectar o tom</Text>
-        <Text style={ss.ctaSub}>IA ouvindo em tempo real</Text>
+        <View style={ss.ctaSubRow}>
+          <View style={ss.ctaDot} />
+          <Text style={ss.ctaSub}>IA ouvindo em tempo real</Text>
+        </View>
       </View>
 
       {/* ═══ FERRAMENTAS ═══ */}
@@ -1026,75 +946,103 @@ const ss = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Mic Section
+  // Mic Section - LIMPO E FOCADO
   micSection: {
     alignItems: 'center', justifyContent: 'center',
     flex: 1,
     maxHeight: 280,
     position: 'relative',
   },
-  micRingPremium: {
-    position: 'absolute', width: MIC_SIZE, height: MIC_SIZE,
-    borderRadius: MIC_SIZE / 2,
-    borderWidth: 1, borderColor: C.amber,
-  },
-  micBtnPremium: {
-    width: MIC_SIZE, height: MIC_SIZE, borderRadius: MIC_SIZE / 2,
-    borderWidth: 2, borderColor: C.amber,
-    alignItems: 'center', justifyContent: 'center',
-    backgroundColor: '#0E0905',
-    ...Platform.select({
-      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 20 },
-      android: { elevation: 12 },
-      default: {},
-    }),
-  },
-  micInnerPremium: {
-    width: MIC_SIZE - 16, height: MIC_SIZE - 16, borderRadius: (MIC_SIZE - 16) / 2,
-    backgroundColor: '#0A0A0A',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: 'rgba(255,176,32,0.25)',
+  
+  // Glow de fundo sutil
+  micBackgroundGlow: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,176,32,0.06)',
   },
   
-  sideWaves: {
-    position: 'absolute', top: '50%',
-    height: 70, width: SW * 0.25,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    transform: [{ translateY: -35 }],
-  },
-  sideWavesLeft: { left: 0 },
-  sideWavesRight: { right: 0 },
-  waveBar: {
-    width: 1.5, backgroundColor: C.amber, borderRadius: 1,
-  },
-  particlesCenter: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-  },
-  particle: {
+  // Anel pulsante único
+  micPulseRing: {
     position: 'absolute',
-    borderRadius: 3, backgroundColor: C.amber,
+    width: MIC_SIZE + 40,
+    height: MIC_SIZE + 40,
+    borderRadius: (MIC_SIZE + 40) / 2,
+    borderWidth: 2,
+    borderColor: C.amber,
+  },
+  
+  // Botão do microfone - exterior
+  micButtonOuter: {
+    width: MIC_SIZE,
+    height: MIC_SIZE,
+    borderRadius: MIC_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0A0A0A',
     ...Platform.select({
-      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 3 },
+      ios: {
+        shadowColor: C.amber,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 30,
+      },
+      android: { elevation: 16 },
       default: {},
     }),
   },
+  
+  // Borda luminosa
+  micGlowBorder: {
+    position: 'absolute',
+    width: MIC_SIZE,
+    height: MIC_SIZE,
+    borderRadius: MIC_SIZE / 2,
+    borderWidth: 2.5,
+    borderColor: C.amber,
+  },
+  
+  // Círculo interno
+  micButtonInner: {
+    width: MIC_SIZE - 24,
+    height: MIC_SIZE - 24,
+    borderRadius: (MIC_SIZE - 24) / 2,
+    backgroundColor: '#0E0E0E',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,32,0.15)',
+  },
 
-  // CTA
+  // CTA Block - Melhorado
   ctaBlock: { 
     alignItems: 'center', 
-    marginBottom: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
   },
   ctaMain: {
-    fontFamily: 'Manrope_600SemiBold',
-    fontSize: 16,
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 17,
     color: C.amber,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    marginBottom: 8,
+  },
+  ctaSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ctaDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.green,
   },
   ctaSub: {
-    fontFamily: 'Manrope_400Regular',
+    fontFamily: 'Manrope_500Medium',
     fontSize: 13,
-    color: C.text3,
-    marginTop: 4,
+    color: C.text2,
   },
 
   // Tools Section
