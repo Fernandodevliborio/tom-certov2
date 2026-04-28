@@ -6,42 +6,42 @@
 <meta name="theme-color" content="#000000"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
 
-<!-- DNS Prefetch para recursos externos -->
+<!-- DNS Prefetch -->
 <link rel="dns-prefetch" href="https://fonts.googleapis.com"/>
 <link rel="dns-prefetch" href="https://fonts.gstatic.com"/>
-<link rel="dns-prefetch" href="https://connect.facebook.net"/>
 
 <!-- Preconnect crítico -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 
-<!-- Preload do CSS crítico -->
+<!-- Preload CSS -->
 <link rel="preload" href="/static/css/main.46588e3b.css" as="style"/>
 
 <title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
 
-<!-- CSS Crítico Inline - Primeira dobra instantânea -->
+<!-- CSS Crítico - Fundo preto instantâneo, sem flash -->
 <style>
-:root{--tc-bg:#000;--tc-gold:#FFB020;--tc-white:#fff}
+:root{--tc-bg:#0a0a0a;--tc-gold:#FFB020}
 *{margin:0;padding:0;box-sizing:border-box}
-html,body,#root{width:100%;min-height:100vh;background:var(--tc-bg)}
-body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;color:var(--tc-white);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+html,body{width:100%;min-height:100vh;background:var(--tc-bg);overflow-x:hidden}
+body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+#root{min-height:100vh;background:var(--tc-bg)}
 
-/* Loader otimizado - aparece instantâneo, some rápido */
-#loader{position:fixed;inset:0;z-index:9999;background:var(--tc-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity .2s ease-out,visibility .2s}
-#loader.done{opacity:0;visibility:hidden;pointer-events:none}
-#loader svg{width:80px;height:80px;animation:breathe 2s ease-in-out infinite}
-#loader p{color:var(--tc-gold);font-size:13px;font-weight:500;letter-spacing:1.5px;opacity:.9}
-@keyframes breathe{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.03)}}
+/* Oculta badge Emergent */
+#emergent-badge,[id*="emergent"],a[href*="emergent"]{display:none!important;visibility:hidden!important}
 
-/* Hide badge */
-#emergent-badge,[id*="emergent"],a[href*="emergent"]{display:none!important}
+/* Scroll suave */
+html{scroll-behavior:smooth}
 
-/* Smooth scroll apenas em desktop */
-@media(min-width:768px){html{scroll-behavior:smooth}}
-@media(prefers-reduced-motion:reduce){*,::before,::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* IMPORTANTE: NÃO desabilitar animações no mobile */
+/* Apenas respeita preferência do usuário por movimento reduzido */
+@media(prefers-reduced-motion:reduce){
+  .tc-hero-phone,.tc-hero-radial-glow,.tc-ai-ring,.tc-ai-scan-line,.tc-ai-mic-core,.tc-proof-mic-icon{
+    animation:none!important
+  }
+}
 </style>
 
-<!-- Fontes - só os pesos usados, com swap -->
+<!-- Fontes otimizadas -->
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
 <noscript><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet"/></noscript>
 
@@ -49,37 +49,13 @@ body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;c
 <link href="/static/css/main.46588e3b.css" rel="stylesheet"/>
 </head>
 <body>
-<!-- Loader SVG inline (sem request externo) -->
-<div id="loader">
-  <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="50" r="45" stroke="#FFB020" stroke-width="2" opacity="0.2"/>
-    <circle cx="50" cy="50" r="35" stroke="#FFB020" stroke-width="1.5" opacity="0.3"/>
-    <circle cx="50" cy="50" r="25" stroke="#FFB020" stroke-width="1" opacity="0.4"/>
-    <path d="M50 25 L50 35 M50 65 L50 75 M25 50 L35 50 M65 50 L75 50" stroke="#FFB020" stroke-width="2" stroke-linecap="round"/>
-    <circle cx="50" cy="50" r="12" fill="#FFB020" opacity="0.9"/>
-    <path d="M47 46 L47 54 M53 46 L53 54 M44 50 L56 50" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
-  </svg>
-  <p>TOM CERTO</p>
-</div>
-
 <noscript>Habilite JavaScript para usar o Tom Certo.</noscript>
 <div id="root"></div>
 
 <!-- Script principal -->
 <script defer src="/static/js/main.946d9fec.js"></script>
 
-<!-- Loader controller - remove assim que React renderiza -->
-<script>
-(function(){
-  var l=document.getElementById('loader'),r=document.getElementById('root'),t;
-  function hide(){l&&l.classList.add('done');clearTimeout(t)}
-  function check(){r&&r.children.length>0?hide():requestAnimationFrame(check)}
-  setTimeout(check,50);
-  t=setTimeout(hide,2500);
-})();
-</script>
-
-<!-- Cakto Payment Links - executa imediatamente após React renderizar -->
+<!-- Cakto Payment Links -->
 <script>
 (function(){
   var links={
@@ -92,38 +68,19 @@ body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;c
     document.querySelectorAll('a,button').forEach(function(el){
       var txt=(el.textContent||'').toLowerCase();
       var href=null;
-      
-      // Prioridade: trimestral > semestral/economizar > mensal
-      if(txt.indexOf('trimestral')>-1){
-        href=links.t;
-      }else if(txt.indexOf('semestral')>-1||txt.indexOf('economizar')>-1){
-        href=links.s;
-      }else if(txt.indexOf('mensal')>-1){
-        href=links.m;
-      }
-      
+      if(txt.indexOf('trimestral')>-1) href=links.t;
+      else if(txt.indexOf('semestral')>-1||txt.indexOf('economizar')>-1) href=links.s;
+      else if(txt.indexOf('mensal')>-1) href=links.m;
       if(href){
-        if(el.tagName==='A'){
-          el.href=href;
-          el.target='_blank';
-          el.rel='noopener noreferrer';
-        }else{
-          el.onclick=function(e){
-            e.preventDefault();
-            window.open(href,'_blank','noopener');
-          };
-        }
+        if(el.tagName==='A'){el.href=href;el.target='_blank';el.rel='noopener noreferrer'}
+        else el.onclick=function(e){e.preventDefault();window.open(href,'_blank','noopener')}
       }
     });
-    
-    // Remove badge Emergent
     var badge=document.getElementById('emergent-badge');
     if(badge)badge.remove();
     document.querySelectorAll('a[href*="emergent"]').forEach(function(e){e.remove()});
   }
   
-  // Executar múltiplas vezes para garantir que pega todos os elementos
-  // (React pode renderizar em fases)
   function init(){
     setLinks();
     setTimeout(setLinks,500);
@@ -131,16 +88,12 @@ body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;c
     setTimeout(setLinks,3000);
   }
   
-  // Executar quando DOM estiver pronto
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',init);
-  }else{
-    init();
-  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+  else init();
 })();
 </script>
 
-<!-- Meta Pixel - carrega após página estável -->
+<!-- Meta Pixel - carrega após idle -->
 <script>
 (function(){
   function loadPixel(){
@@ -148,13 +101,8 @@ body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;c
     fbq('init','1038468498015498');
     fbq('track','PageView');
   }
-  
-  // Carregar após 2s ou quando idle
-  if('requestIdleCallback' in window){
-    requestIdleCallback(function(){setTimeout(loadPixel,1000)},{timeout:3000});
-  }else{
-    setTimeout(loadPixel,2500);
-  }
+  if('requestIdleCallback' in window) requestIdleCallback(function(){setTimeout(loadPixel,1000)},{timeout:3000});
+  else setTimeout(loadPixel,2500);
 })();
 </script>
 </body>
