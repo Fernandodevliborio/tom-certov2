@@ -838,6 +838,18 @@ async def download_apk():
         )
     raise HTTPException(status_code=404, detail="APK não encontrado")
 
+@app.get("/download/AppTomCerto.apk")
+async def download_apk_direct():
+    """Rota alternativa para download do APK."""
+    apk_path = DOWNLOADS_DIR / "AppTomCerto.apk"
+    if apk_path.exists():
+        return FileResponse(
+            path=str(apk_path),
+            filename="AppTomCerto.apk",
+            media_type="application/vnd.android.package-archive"
+        )
+    raise HTTPException(status_code=404, detail="APK não encontrado")
+
 # ─── Arquivos estáticos da landing page (CSS, JS) ────────────────────────
 LANDING_DIR = ROOT_DIR / "landing"
 if LANDING_DIR.exists():
