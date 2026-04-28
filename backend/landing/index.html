@@ -28,7 +28,7 @@
 
 <title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
 
-<!-- CSS Crítico + Botões CTA Premium -->
+<!-- CSS Crítico + Botões CTA Premium + OTIMIZAÇÕES DE PERFORMANCE -->
 <style>
 :root{--tc-bg:#0a0a0a;--tc-gold:#FFB020;--tc-gold-light:#FFCA5C;--tc-gold-dark:#D4920F}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -36,14 +36,77 @@ html,body{width:100%;min-height:100vh;background:var(--tc-bg);overflow-x:hidden}
 body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 #root{min-height:100vh;background:var(--tc-bg)}
 
+/* ═══════════════════════════════════════════════════════════════
+   OTIMIZAÇÕES CRÍTICAS DE PERFORMANCE - ANTI-TRAVAMENTO
+   ═══════════════════════════════════════════════════════════════ */
+
+/* GPU Acceleration para scroll suave */
+html{
+  scroll-behavior:smooth;
+  -webkit-overflow-scrolling:touch; /* iOS smooth scroll */
+}
+
+/* Força GPU em elementos que animam */
+*{
+  -webkit-backface-visibility:hidden;
+  backface-visibility:hidden;
+}
+
+/* Content-visibility: pula renderização fora da viewport */
+section, [class*="section"], [class*="pricing"], [class*="testimonial"], [class*="faq"] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+/* Will-change APENAS quando necessário (não global) */
+.tc-cta-btn:hover,
+a[href*="cakto"]:hover,
+button:hover {
+  will-change: transform;
+}
+
+/* Remove will-change após animação */
+.tc-cta-btn:not(:hover),
+a[href*="cakto"]:not(:hover),
+button:not(:hover) {
+  will-change: auto;
+}
+
+/* Lazy loading nativo para imagens */
+img {
+  content-visibility: auto;
+}
+
+/* Reduz complexidade de animações em scroll */
+@media (hover: none), (pointer: coarse) {
+  /* Dispositivos touch/mobile - simplifica animações */
+  *{
+    transition-duration: 0.1s !important;
+    animation-duration: 0.3s !important;
+  }
+  
+  /* Desabilita hover effects pesados em mobile */
+  .tc-cta-btn:hover,
+  a[href*="cakto"]:hover {
+    transform: none !important;
+    box-shadow: 0 8px 20px -6px rgba(255,176,32,0.5) !important;
+  }
+}
+
+/* Navegadores in-app (Facebook, Instagram, TikTok) */
+@supports (-webkit-touch-callout: none) {
+  /* iOS WebView otimizações */
+  body {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
+}
+
 /* Oculta badge Emergent */
 #emergent-badge,[id*="emergent"],a[href*="emergent"]{display:none!important;visibility:hidden!important}
 
-/* Scroll suave */
-html{scroll-behavior:smooth}
-
 /* ═══════════════════════════════════════════════════════════════
-   BOTÕES CTA PREMIUM - ALTA CONVERSÃO
+   BOTÕES CTA PREMIUM - ALTA CONVERSÃO (OTIMIZADOS)
    ═══════════════════════════════════════════════════════════════ */
 
 /* Estilo base para TODOS os botões de plano */
@@ -67,16 +130,20 @@ button[data-plan],
   align-items: center !important;
   justify-content: center !important;
   text-decoration: none !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  /* OTIMIZADO: transition apenas em transform */
+  transition: transform 0.15s ease-out !important;
   box-shadow: 
     0 1px 0 rgba(255,255,255,0.3) inset,
     0 8px 20px -6px rgba(255,176,32,0.5),
     0 0 0 1px rgba(255,176,32,0.1) !important;
   position: relative !important;
   overflow: hidden !important;
+  /* GPU acceleration */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
-/* Hover/Focus nos botões */
+/* Hover/Focus nos botões - SIMPLIFICADO */
 .tc-cta-btn:hover,
 a[href*="cakto"]:hover,
 button[data-plan]:hover,
@@ -84,14 +151,10 @@ button[data-plan]:hover,
 [class*="pricing"] a:hover,
 [class*="plan"] button:hover,
 [class*="plan"] a:hover {
-  transform: scale(1.03) translateY(-2px) !important;
-  box-shadow: 
-    0 1px 0 rgba(255,255,255,0.4) inset,
-    0 12px 28px -6px rgba(255,176,32,0.6),
-    0 0 24px -4px rgba(255,176,32,0.4) !important;
+  transform: scale(1.02) translateZ(0) !important;
 }
 
-/* Efeito de clique */
+/* Efeito de clique - SIMPLIFICADO */
 .tc-cta-btn:active,
 a[href*="cakto"]:active,
 button[data-plan]:active,
@@ -99,21 +162,16 @@ button[data-plan]:active,
 [class*="pricing"] a:active,
 [class*="plan"] button:active,
 [class*="plan"] a:active {
-  transform: scale(0.98) !important;
-  box-shadow: 
-    0 1px 0 rgba(255,255,255,0.2) inset,
-    0 4px 12px -4px rgba(255,176,32,0.4) !important;
+  transform: scale(0.98) translateZ(0) !important;
 }
 
 /* Card do plano principal (trimestral) - destaque extra */
 [class*="pricing"] > div:nth-child(2),
 [class*="plan"]:nth-child(2),
 .tc-plan-featured {
-  transform: scale(1.03) !important;
+  transform: scale(1.02) translateZ(0) !important;
   border: 2px solid var(--tc-gold) !important;
-  box-shadow: 
-    0 0 40px -10px rgba(255,176,32,0.35),
-    0 20px 40px -20px rgba(0,0,0,0.5) !important;
+  box-shadow: 0 0 40px -10px rgba(255,176,32,0.35) !important;
   position: relative !important;
   z-index: 10 !important;
 }
@@ -396,6 +454,150 @@ Ver como funciona
   }
   if('requestIdleCallback' in window) requestIdleCallback(function(){setTimeout(loadPixel,1000)},{timeout:3000});
   else setTimeout(loadPixel,2500);
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PERFORMANCE OPTIMIZER - ANTI-TRAVAMENTO TOTAL
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+  
+  // 1. PASSIVE EVENT LISTENERS - Melhora responsividade do scroll
+  var supportsPassive = false;
+  try {
+    var opts = Object.defineProperty({}, 'passive', {
+      get: function() { supportsPassive = true; return true; }
+    });
+    window.addEventListener('testPassive', null, opts);
+    window.removeEventListener('testPassive', null, opts);
+  } catch (e) {}
+  
+  // Força passive em todos os touch/scroll events
+  var originalAddEventListener = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function(type, listener, options) {
+    var passiveEvents = ['touchstart', 'touchmove', 'wheel', 'mousewheel', 'scroll'];
+    if (passiveEvents.indexOf(type) > -1 && supportsPassive) {
+      if (typeof options === 'boolean') {
+        options = { capture: options, passive: true };
+      } else if (typeof options === 'object' && options.passive === undefined) {
+        options = Object.assign({}, options, { passive: true });
+      } else if (options === undefined) {
+        options = { passive: true };
+      }
+    }
+    return originalAddEventListener.call(this, type, listener, options);
+  };
+  
+  // 2. LAZY LOADING DE IMAGENS COM INTERSECTION OBSERVER
+  function lazyLoadImages() {
+    var images = document.querySelectorAll('img[data-src], img:not([loading])');
+    
+    if ('IntersectionObserver' in window) {
+      var imageObserver = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            var img = entry.target;
+            if (img.dataset.src) {
+              img.src = img.dataset.src;
+              img.removeAttribute('data-src');
+            }
+            img.setAttribute('loading', 'lazy');
+            imageObserver.unobserve(img);
+          }
+        });
+      }, { rootMargin: '100px' });
+      
+      images.forEach(function(img) {
+        imageObserver.observe(img);
+      });
+    }
+  }
+  
+  // 3. DESABILITA ANIMAÇÕES DURANTE SCROLL (evita jank)
+  var scrollTimeout;
+  var body = document.body;
+  
+  function onScroll() {
+    if (!body.classList.contains('is-scrolling')) {
+      body.classList.add('is-scrolling');
+    }
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(function() {
+      body.classList.remove('is-scrolling');
+    }, 150);
+  }
+  
+  window.addEventListener('scroll', onScroll, { passive: true });
+  
+  // 4. REDUZ QUALIDADE DE ANIMAÇÕES EM DISPOSITIVOS LENTOS
+  function detectLowEndDevice() {
+    // Detecta dispositivos com pouca memória ou CPU lenta
+    var isLowEnd = false;
+    
+    if (navigator.deviceMemory && navigator.deviceMemory < 4) {
+      isLowEnd = true;
+    }
+    if (navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4) {
+      isLowEnd = true;
+    }
+    // Navegadores in-app geralmente são mais lentos
+    var ua = navigator.userAgent.toLowerCase();
+    if (ua.indexOf('fban') > -1 || ua.indexOf('fbav') > -1 || 
+        ua.indexOf('instagram') > -1 || ua.indexOf('twitter') > -1 ||
+        ua.indexOf('tiktok') > -1 || ua.indexOf('snapchat') > -1) {
+      isLowEnd = true;
+    }
+    
+    return isLowEnd;
+  }
+  
+  if (detectLowEndDevice()) {
+    body.classList.add('low-end-device');
+    // Injeta CSS para simplificar animações
+    var style = document.createElement('style');
+    style.textContent = '.low-end-device *{animation-duration:0.1s!important;transition-duration:0.1s!important}.low-end-device .is-scrolling *{animation:none!important;transition:none!important}';
+    document.head.appendChild(style);
+  }
+  
+  // 5. CSS PARA PAUSAR ANIMAÇÕES DURANTE SCROLL
+  var scrollStyle = document.createElement('style');
+  scrollStyle.textContent = '.is-scrolling *{animation-play-state:paused!important;transition:none!important}';
+  document.head.appendChild(scrollStyle);
+  
+  // Executa lazy load após DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', lazyLoadImages);
+  } else {
+    lazyLoadImages();
+  }
+  
+  // 6. REMOVE CONTEÚDO PRÉ-RENDERIZADO APÓS REACT CARREGAR
+  function removePrerender() {
+    var prerender = document.getElementById('prerender');
+    if (prerender && prerender.parentNode) {
+      // Verifica se React já renderizou algo
+      var root = document.getElementById('root');
+      if (root && root.children.length > 1) {
+        prerender.remove();
+      }
+    }
+  }
+  
+  // Monitora quando React renderiza
+  var observer = new MutationObserver(function(mutations) {
+    removePrerender();
+  });
+  
+  var root = document.getElementById('root');
+  if (root) {
+    observer.observe(root, { childList: true });
+  }
+  
+  // Fallback
+  setTimeout(removePrerender, 3000);
+  
 })();
 </script>
 </body>
