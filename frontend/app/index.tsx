@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
+import { router } from 'expo-router';
 
 import { useKeyDetection } from '../src/hooks/useKeyDetection';
 import { NOTES_BR, NOTES_INTL, formatKeyDisplay, getHarmonicField } from '../src/utils/noteUtils';
@@ -333,7 +334,7 @@ function InitialScreen({
         </TouchableOpacity>
       ) : null}
 
-      {/* FOOTER: 2 ícones com borda dourada circular */}
+      {/* FOOTER: 3 ícones com borda dourada circular */}
       <View style={ss.footerIcons}>
         <TouchableOpacity
           testID="settings-btn"
@@ -342,6 +343,15 @@ function InitialScreen({
           activeOpacity={0.6}
         >
           <Ionicons name="options-outline" size={20} color={C.amber} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          testID="tuner-btn"
+          onPress={() => router.push('/tuner')}
+          style={ss.footerIconBtnLarge}
+          activeOpacity={0.6}
+        >
+          <Ionicons name="musical-note" size={24} color={C.amber} />
+          <Text style={ss.footerBtnLabel}>Afinador</Text>
         </TouchableOpacity>
         <TouchableOpacity
           testID="info-btn"
@@ -1145,12 +1155,27 @@ const ss = StyleSheet.create({
   footerIcons: {
     flexDirection: 'row', justifyContent: 'space-between',
     width: '100%', paddingHorizontal: 18,
+    alignItems: 'center',
   },
   footerIconBtn: {
     width: 44, height: 44, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: 'rgba(255,176,32,0.45)',
     backgroundColor: 'rgba(255,176,32,0.04)',
+  },
+  footerIconBtnLarge: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 20, paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1, borderColor: C.amber,
+    backgroundColor: 'rgba(255,176,32,0.08)',
+    gap: 4,
+  },
+  footerBtnLabel: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 11,
+    color: C.amber,
+    letterSpacing: 0.5,
   },
 
   // Settings list (modal)
