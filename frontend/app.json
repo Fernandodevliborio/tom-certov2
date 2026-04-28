@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tom Certo",
     "slug": "tom-certo-v2",
-    "owner": "fernandosliborio",
+    "owner": "apptomcertoapk",
     "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -56,7 +56,7 @@
     "updates": {
       "enabled": true,
       "fallbackToCacheTimeout": 30000,
-      "url": "https://u.expo.dev/6a910bde-ddfa-4d98-92ae-db275c2c4376",
+      "url": "https://u.expo.dev/aed3cb23-58bc-49d6-af3d-4fc5ed19a04f",
       "checkAutomatically": "ON_LOAD"
     },
     "runtimeVersion": "2.0.0",
@@ -64,7 +64,7 @@
       "router": {},
       "backendUrl": "https://tom-certov2-production.up.railway.app",
       "eas": {
-        "projectId": "6a910bde-ddfa-4d98-92ae-db275c2c4376"
+        "projectId": "aed3cb23-58bc-49d6-af3d-4fc5ed19a04f"
       }
     }
   }
