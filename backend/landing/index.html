@@ -6,24 +6,28 @@
 <meta name="theme-color" content="#0a0a0a"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
 
-<!-- CRITICAL: Fundo + previne layout shift -->
+<!-- CRITICAL: Conteúdo visível IMEDIATAMENTE - antes de qualquer JS -->
 <style id="critical-prerender">
-html,body,#root,#prerender{
+/* FORÇA fundo escuro e conteúdo visível INSTANTANEAMENTE */
+html{background:#0a0a0a!important}
+body{background:#0a0a0a!important;margin:0;padding:0}
+#root{background:#0a0a0a!important;min-height:100vh}
+#prerender{
+  display:block!important;
+  visibility:visible!important;
+  opacity:1!important;
   background:#0a0a0a!important;
   min-height:100vh;
-  margin:0;
-  padding:0;
-}
-#prerender{
-  opacity:1!important;
-  visibility:visible!important;
 }
 
-/* PREVINE LAYOUT SHIFT - tamanhos fixos */
-html,body{
-  overflow-x:hidden;
-  width:100%;
+/* Esconde prerender APENAS quando React renderizar algo */
+#root>div:not(#prerender):first-child~#prerender,
+#root>[data-reactroot]~#prerender{
+  display:none!important;
 }
+
+/* PREVINE layout shift */
+html,body{overflow-x:hidden;width:100%}
 
 /* Animações do mockup MAIS LENTAS */
 .tc-hero-phone,
