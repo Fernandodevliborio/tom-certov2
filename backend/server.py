@@ -944,15 +944,50 @@ async def logo_clean():
         return FileResponse(str(logo_path_orig), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
     raise HTTPException(status_code=404, detail="Logo não encontrada")
 
-# ─── Favicon ─────────────────────────────────────────────────────────────
-FAVICON_PATH = LANDING_DIR / "favicon.ico"
+# ─── Favicon e ícones ─────────────────────────────────────────────────────
 
 @app.get("/favicon.ico")
 async def favicon():
-    """Serve o favicon."""
-    if FAVICON_PATH.exists():
-        return FileResponse(str(FAVICON_PATH), media_type="image/x-icon")
+    """Serve o favicon ICO."""
+    path = LANDING_DIR / "favicon.ico"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/x-icon")
     return JSONResponse({"error": "favicon not found"}, status_code=404)
+
+@app.get("/favicon-16.png")
+async def favicon_16():
+    path = LANDING_DIR / "favicon-16.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(status_code=404)
+
+@app.get("/favicon-32.png")
+async def favicon_32():
+    path = LANDING_DIR / "favicon-32.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(status_code=404)
+
+@app.get("/favicon-192.png")
+async def favicon_192():
+    path = LANDING_DIR / "favicon-192.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(status_code=404)
+
+@app.get("/favicon-512.png")
+async def favicon_512():
+    path = LANDING_DIR / "favicon-512.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(status_code=404)
+
+@app.get("/apple-touch-icon.png")
+async def apple_touch_icon():
+    path = LANDING_DIR / "apple-touch-icon.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(status_code=404)
 
 # ─── Landing page — serve no root "/" e em "/landing" ───────────────────
 LANDING_INDEX = LANDING_DIR / "index.html"
