@@ -9,18 +9,20 @@
 <!-- DNS Prefetch -->
 <link rel="dns-prefetch" href="https://fonts.googleapis.com"/>
 <link rel="dns-prefetch" href="https://fonts.gstatic.com"/>
+<link rel="dns-prefetch" href="https://pay.cakto.com.br"/>
 
-<!-- Preconnect crítico -->
+<!-- Preconnect -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link rel="preconnect" href="https://pay.cakto.com.br"/>
 
 <!-- Preload CSS -->
 <link rel="preload" href="/static/css/main.46588e3b.css" as="style"/>
 
 <title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
 
-<!-- CSS Crítico - Fundo preto instantâneo, sem flash -->
+<!-- CSS Crítico + Botões CTA Premium -->
 <style>
-:root{--tc-bg:#0a0a0a;--tc-gold:#FFB020}
+:root{--tc-bg:#0a0a0a;--tc-gold:#FFB020;--tc-gold-light:#FFCA5C;--tc-gold-dark:#D4920F}
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;min-height:100vh;background:var(--tc-bg);overflow-x:hidden}
 body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -32,8 +34,121 @@ body{font-family:Manrope,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-
 /* Scroll suave */
 html{scroll-behavior:smooth}
 
-/* IMPORTANTE: NÃO desabilitar animações no mobile */
-/* Apenas respeita preferência do usuário por movimento reduzido */
+/* ═══════════════════════════════════════════════════════════════
+   BOTÕES CTA PREMIUM - ALTA CONVERSÃO
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Estilo base para TODOS os botões de plano */
+.tc-cta-btn,
+a[href*="cakto"],
+button[data-plan],
+[class*="pricing"] button,
+[class*="pricing"] a,
+[class*="plan"] button,
+[class*="plan"] a {
+  background: linear-gradient(180deg, var(--tc-gold-light) 0%, var(--tc-gold) 50%, var(--tc-gold-dark) 100%) !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+  font-size: 15px !important;
+  letter-spacing: 0.3px !important;
+  padding: 16px 32px !important;
+  border-radius: 14px !important;
+  border: none !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-decoration: none !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  box-shadow: 
+    0 1px 0 rgba(255,255,255,0.3) inset,
+    0 8px 20px -6px rgba(255,176,32,0.5),
+    0 0 0 1px rgba(255,176,32,0.1) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* Hover/Focus nos botões */
+.tc-cta-btn:hover,
+a[href*="cakto"]:hover,
+button[data-plan]:hover,
+[class*="pricing"] button:hover,
+[class*="pricing"] a:hover,
+[class*="plan"] button:hover,
+[class*="plan"] a:hover {
+  transform: scale(1.03) translateY(-2px) !important;
+  box-shadow: 
+    0 1px 0 rgba(255,255,255,0.4) inset,
+    0 12px 28px -6px rgba(255,176,32,0.6),
+    0 0 24px -4px rgba(255,176,32,0.4) !important;
+}
+
+/* Efeito de clique */
+.tc-cta-btn:active,
+a[href*="cakto"]:active,
+button[data-plan]:active,
+[class*="pricing"] button:active,
+[class*="pricing"] a:active,
+[class*="plan"] button:active,
+[class*="plan"] a:active {
+  transform: scale(0.98) !important;
+  box-shadow: 
+    0 1px 0 rgba(255,255,255,0.2) inset,
+    0 4px 12px -4px rgba(255,176,32,0.4) !important;
+}
+
+/* Card do plano principal (trimestral) - destaque extra */
+[class*="pricing"] > div:nth-child(2),
+[class*="plan"]:nth-child(2),
+.tc-plan-featured {
+  transform: scale(1.03) !important;
+  border: 2px solid var(--tc-gold) !important;
+  box-shadow: 
+    0 0 40px -10px rgba(255,176,32,0.35),
+    0 20px 40px -20px rgba(0,0,0,0.5) !important;
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+/* Badge "MAIS ESCOLHIDO" */
+.tc-badge-popular {
+  position: absolute !important;
+  top: -12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: linear-gradient(135deg, #FF6B35 0%, #F7931A 100%) !important;
+  color: white !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 6px 14px !important;
+  border-radius: 20px !important;
+  letter-spacing: 1px !important;
+  white-space: nowrap !important;
+  box-shadow: 0 4px 12px rgba(255,107,53,0.4) !important;
+}
+
+/* Loading state no botão */
+.tc-cta-loading {
+  pointer-events: none !important;
+  opacity: 0.8 !important;
+}
+
+.tc-cta-loading::after {
+  content: "" !important;
+  position: absolute !important;
+  width: 18px !important;
+  height: 18px !important;
+  border: 2px solid transparent !important;
+  border-top-color: #000 !important;
+  border-radius: 50% !important;
+  animation: tc-spin 0.6s linear infinite !important;
+}
+
+@keyframes tc-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Respeita preferência por movimento reduzido */
 @media(prefers-reduced-motion:reduce){
   .tc-hero-phone,.tc-hero-radial-glow,.tc-ai-ring,.tc-ai-scan-line,.tc-ai-mic-core,.tc-proof-mic-icon{
     animation:none!important
@@ -55,41 +170,164 @@ html{scroll-behavior:smooth}
 <!-- Script principal -->
 <script defer src="/static/js/main.946d9fec.js"></script>
 
-<!-- Cakto Payment Links -->
+<!-- ═══════════════════════════════════════════════════════════════
+     CAKTO PAYMENT LINKS - FUNCIONA IMEDIATAMENTE
+     ═══════════════════════════════════════════════════════════════ -->
 <script>
 (function(){
-  var links={
-    m:'https://pay.cakto.com.br/x6hmjp3_864389',
-    t:'https://pay.cakto.com.br/3mp6tpt',
-    s:'https://pay.cakto.com.br/9gcmz9j'
+  // Links de pagamento Cakto
+  var LINKS = {
+    mensal: 'https://pay.cakto.com.br/x6hmjp3_864389',
+    trimestral: 'https://pay.cakto.com.br/3mp6tpt',
+    semestral: 'https://pay.cakto.com.br/9gcmz9j'
   };
   
-  function setLinks(){
-    document.querySelectorAll('a,button').forEach(function(el){
-      var txt=(el.textContent||'').toLowerCase();
-      var href=null;
-      if(txt.indexOf('trimestral')>-1) href=links.t;
-      else if(txt.indexOf('semestral')>-1||txt.indexOf('economizar')>-1) href=links.s;
-      else if(txt.indexOf('mensal')>-1) href=links.m;
-      if(href){
-        if(el.tagName==='A'){el.href=href;el.target='_blank';el.rel='noopener noreferrer'}
-        else el.onclick=function(e){e.preventDefault();window.open(href,'_blank','noopener')}
+  // Novos textos persuasivos dos botões
+  var NEW_TEXTS = {
+    mensal: 'Começar agora',
+    trimestral: 'Acesso imediato',
+    semestral: 'Garantir acesso'
+  };
+  
+  // Detecta qual plano baseado no texto
+  function detectPlan(text) {
+    text = (text || '').toLowerCase().trim();
+    if (text.indexOf('trimestral') > -1 || text.indexOf('3 meses') > -1 || text.indexOf('quero o trimestral') > -1) return 'trimestral';
+    if (text.indexOf('semestral') > -1 || text.indexOf('6 meses') > -1 || text.indexOf('economizar') > -1) return 'semestral';
+    if (text.indexOf('mensal') > -1 || text.indexOf('1 mês') > -1 || text.indexOf('quero o mensal') > -1) return 'mensal';
+    return null;
+  }
+  
+  // Aplica o link e estilo ao elemento
+  function setupButton(el, plan) {
+    var link = LINKS[plan];
+    var newText = NEW_TEXTS[plan];
+    
+    // Marca o elemento como configurado
+    if (el.dataset.caktoConfigured) return;
+    el.dataset.caktoConfigured = 'true';
+    el.dataset.plan = plan;
+    
+    // Adiciona classe para estilo
+    el.classList.add('tc-cta-btn');
+    
+    // Configura o clique - ABRE NA MESMA ABA
+    el.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Efeito de loading breve
+      el.classList.add('tc-cta-loading');
+      
+      // Redireciona após 150ms (feedback visual)
+      setTimeout(function() {
+        window.location.href = link;
+      }, 150);
+    });
+    
+    // Atualiza texto se for um dos textos antigos
+    var currentText = (el.textContent || '').toLowerCase().trim();
+    if (currentText.indexOf('quero') > -1 || currentText.indexOf('economizar') > -1) {
+      el.textContent = newText;
+    }
+    
+    // Se for link <a>, configura href também (para SEO/acessibilidade)
+    if (el.tagName === 'A') {
+      el.href = link;
+      el.removeAttribute('target'); // Abre na mesma aba
+    }
+    
+    // Cursor pointer garantido
+    el.style.cursor = 'pointer';
+  }
+  
+  // Encontra e configura todos os botões de plano
+  function configureAllButtons() {
+    // Busca todos elementos clicáveis
+    var elements = document.querySelectorAll('a, button, [role="button"]');
+    
+    elements.forEach(function(el) {
+      // Verifica texto do elemento e elementos pai
+      var text = el.textContent || '';
+      var parentText = el.closest('[class*="card"], [class*="plan"], [class*="pricing"]');
+      if (parentText) {
+        text += ' ' + parentText.textContent;
+      }
+      
+      var plan = detectPlan(text);
+      if (plan) {
+        setupButton(el, plan);
       }
     });
-    var badge=document.getElementById('emergent-badge');
-    if(badge)badge.remove();
-    document.querySelectorAll('a[href*="emergent"]').forEach(function(e){e.remove()});
+    
+    // Remove badge Emergent
+    var badge = document.getElementById('emergent-badge');
+    if (badge) badge.remove();
+    document.querySelectorAll('a[href*="emergent"]').forEach(function(e) { e.remove(); });
+    
+    // Adiciona badge "MAIS ESCOLHIDO" no plano trimestral
+    addPopularBadge();
   }
   
-  function init(){
-    setLinks();
-    setTimeout(setLinks,500);
-    setTimeout(setLinks,1500);
-    setTimeout(setLinks,3000);
+  // Adiciona badge no plano mais popular
+  function addPopularBadge() {
+    var trimestralBtns = document.querySelectorAll('[data-plan="trimestral"]');
+    trimestralBtns.forEach(function(btn) {
+      var card = btn.closest('[class*="card"], [class*="plan"], div');
+      if (card && !card.querySelector('.tc-badge-popular')) {
+        card.style.position = 'relative';
+        card.classList.add('tc-plan-featured');
+        
+        var badge = document.createElement('div');
+        badge.className = 'tc-badge-popular';
+        badge.textContent = '🔥 MAIS ESCOLHIDO';
+        card.insertBefore(badge, card.firstChild);
+      }
+    });
   }
   
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
-  else init();
+  // Executa imediatamente e depois em intervalos para pegar elementos renderizados pelo React
+  function init() {
+    configureAllButtons();
+    
+    // Re-executa para pegar elementos que React renderiza depois
+    setTimeout(configureAllButtons, 100);
+    setTimeout(configureAllButtons, 300);
+    setTimeout(configureAllButtons, 600);
+    setTimeout(configureAllButtons, 1000);
+    setTimeout(configureAllButtons, 2000);
+    setTimeout(configureAllButtons, 4000);
+    
+    // Observer para mudanças no DOM (React dinâmico)
+    if (typeof MutationObserver !== 'undefined') {
+      var observer = new MutationObserver(function(mutations) {
+        var shouldUpdate = mutations.some(function(m) {
+          return m.addedNodes.length > 0;
+        });
+        if (shouldUpdate) {
+          setTimeout(configureAllButtons, 50);
+        }
+      });
+      
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    }
+  }
+  
+  // Inicia assim que possível
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+  
+  // Backup: também executa no load completo
+  window.addEventListener('load', function() {
+    setTimeout(configureAllButtons, 100);
+    setTimeout(configureAllButtons, 500);
+  });
 })();
 </script>
 
