@@ -867,6 +867,60 @@ LANDING_DIR = ROOT_DIR / "landing"
 if LANDING_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(LANDING_DIR / "static")), name="static")
 
+# ─── Logos otimizadas da landing page ─────────────────────────────────────
+@app.get("/tom-certo-logo-128.png")
+async def logo_128():
+    """Logo otimizada 128px."""
+    logo_path = LANDING_DIR / "tom-certo-logo-128.png"
+    if logo_path.exists():
+        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
+    raise HTTPException(status_code=404, detail="Logo não encontrada")
+
+@app.get("/tom-certo-logo-256.png")
+async def logo_256():
+    """Logo otimizada 256px."""
+    logo_path = LANDING_DIR / "tom-certo-logo-256.png"
+    if logo_path.exists():
+        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
+    raise HTTPException(status_code=404, detail="Logo não encontrada")
+
+@app.get("/tom-certo-logo-512.png")
+async def logo_512():
+    """Logo otimizada 512px."""
+    logo_path = LANDING_DIR / "tom-certo-logo-512.png"
+    if logo_path.exists():
+        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
+    raise HTTPException(status_code=404, detail="Logo não encontrada")
+
+@app.get("/tom-certo-logo-512.webp")
+async def logo_512_webp():
+    """Logo otimizada 512px WebP."""
+    logo_path = LANDING_DIR / "tom-certo-logo-512.webp"
+    if logo_path.exists():
+        return FileResponse(str(logo_path), media_type="image/webp", headers={"Cache-Control": "public, max-age=31536000"})
+    raise HTTPException(status_code=404, detail="Logo não encontrada")
+
+@app.get("/tom-certo-logo.png")
+async def logo_full():
+    """Logo completa."""
+    logo_path = LANDING_DIR / "tom-certo-logo.png"
+    if logo_path.exists():
+        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
+    raise HTTPException(status_code=404, detail="Logo não encontrada")
+
+@app.get("/tom-certo-logo-clean.png")
+async def logo_clean():
+    """Logo clean para o bundle React."""
+    # Usa a logo otimizada 512px em vez da original
+    logo_path = LANDING_DIR / "tom-certo-logo-512.png"
+    if logo_path.exists():
+        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
+    # Fallback para a original se existir
+    logo_path_orig = LANDING_DIR / "tom-certo-logo-clean.png"
+    if logo_path_orig.exists():
+        return FileResponse(str(logo_path_orig), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
+    raise HTTPException(status_code=404, detail="Logo não encontrada")
+
 # ─── Favicon ─────────────────────────────────────────────────────────────
 FAVICON_PATH = LANDING_DIR / "favicon.ico"
 

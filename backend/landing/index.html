@@ -2,103 +2,222 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
 <meta name="theme-color" content="#000000"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
+
+<!-- Preload crítico para primeira dobra -->
+<link rel="preload" href="/tom-certo-logo-256.png" as="image" type="image/png"/>
+<link rel="preload" href="/static/css/main.46588e3b.css" as="style"/>
+
+<!-- Preconnect para fontes (reduzido para só o essencial) -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+<!-- CSS crítico inline para primeira dobra instantânea -->
+<style>
+/* Critical CSS - Primeira dobra sem flash branco */
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#root{width:100%;min-height:100vh;background:#000}
+body{font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;color:#fff;overflow-x:hidden}
+
+/* Loading state premium */
+.initial-loader{position:fixed;inset:0;z-index:9999;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;opacity:1;transition:opacity .3s ease}
+.initial-loader.hidden{opacity:0;pointer-events:none}
+.initial-loader img{width:120px;height:120px;object-fit:contain;animation:pulse 2s ease-in-out infinite}
+.initial-loader p{color:#FFB020;font-size:14px;font-weight:500;letter-spacing:1px}
+@keyframes pulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.02)}}
+
+/* Skeleton para conteúdo abaixo da dobra */
+.skeleton{background:linear-gradient(90deg,#111 25%,#1a1a1a 50%,#111 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+</style>
+
+<!-- Fonte carregada de forma otimizada -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
+<noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/></noscript>
+
 <title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
 
-<!-- Meta Pixel Code -->
+<!-- Meta Pixel Code - carregado após conteúdo principal -->
 <script>
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '1038468498015498');
-fbq('track', 'PageView');
+// Defer Meta Pixel para não bloquear renderização
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '1038468498015498');
+    fbq('track', 'PageView');
+  }, 1500);
+});
 </script>
-<noscript><img height="1" width="1" style="display:none"
-src="https://www.facebook.com/tr?id=1038468498015498&ev=PageView&noscript=1"
-/></noscript>
-<!-- End Meta Pixel Code -->
 
-<!-- Cakto Payment Links Script -->
+<!-- Cakto Payment Links Script - Otimizado -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const paymentLinks = {
+  var paymentLinks = {
     mensal: 'https://pay.cakto.com.br/x6hmjp3_864389',
     trimestral: 'https://pay.cakto.com.br/3mp6tpt',
     semestral: 'https://pay.cakto.com.br/9gcmz9j'
   };
   
   function setPaymentLinks() {
-    const allElements = document.querySelectorAll('a, button');
-    
-    allElements.forEach(el => {
-      const text = el.textContent.toLowerCase().trim();
+    document.querySelectorAll('a, button').forEach(function(el) {
+      var text = (el.textContent || '').toLowerCase().trim();
+      var link = null;
       
-      if (text.includes('quero o mensal') || text.includes('assinar mensal') || (text.includes('mensal') && !text.includes('trimestral') && !text.includes('semestral'))) {
-        if (el.tagName === 'A') {
-          el.href = paymentLinks.mensal;
-          el.target = '_blank';
-        } else {
-          el.onclick = () => window.open(paymentLinks.mensal, '_blank');
-        }
+      if (text.indexOf('mensal') > -1 && text.indexOf('trimestral') === -1 && text.indexOf('semestral') === -1) {
+        link = paymentLinks.mensal;
+      } else if (text.indexOf('trimestral') > -1) {
+        link = paymentLinks.trimestral;
+      } else if (text.indexOf('semestral') > -1 || text.indexOf('economizar') > -1) {
+        link = paymentLinks.semestral;
       }
       
-      if (text.includes('quero o trimestral') || text.includes('assinar trimestral') || text.includes('trimestral')) {
+      if (link) {
         if (el.tagName === 'A') {
-          el.href = paymentLinks.trimestral;
+          el.href = link;
           el.target = '_blank';
+          el.rel = 'noopener';
         } else {
-          el.onclick = () => window.open(paymentLinks.trimestral, '_blank');
-        }
-      }
-      
-      if (text.includes('economizar agora') || text.includes('quero o semestral') || text.includes('assinar semestral') || text.includes('semestral')) {
-        if (el.tagName === 'A') {
-          el.href = paymentLinks.semestral;
-          el.target = '_blank';
-        } else {
-          el.onclick = () => window.open(paymentLinks.semestral, '_blank');
+          el.onclick = function() { window.open(link, '_blank', 'noopener'); };
         }
       }
     });
     
     // Remove Emergent badge
-    const badge = document.getElementById('emergent-badge');
+    var badge = document.getElementById('emergent-badge');
     if (badge) badge.remove();
-    
-    // Remove any element with "Made with Emergent"
-    document.querySelectorAll('a[href*="emergent"]').forEach(el => el.remove());
+    document.querySelectorAll('a[href*="emergent"]').forEach(function(el) { el.remove(); });
   }
   
-  setTimeout(setPaymentLinks, 500);
-  setTimeout(setPaymentLinks, 1500);
-  setTimeout(setPaymentLinks, 3000);
+  // Executar após renderização
+  requestAnimationFrame(function() {
+    setTimeout(setPaymentLinks, 300);
+    setTimeout(setPaymentLinks, 1000);
+  });
 });
 </script>
 
-<!-- Hide Emergent Badge -->
+<!-- Hide Emergent Badge + Performance CSS -->
 <style>
 #emergent-badge, [id*="emergent"], a[href*="emergent.sh"] {
   display: none !important;
   visibility: hidden !important;
-  opacity: 0 !important;
+}
+
+/* Performance: usar GPU para animações */
+.animate-gpu {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* Lazy load images abaixo da dobra */
+img[loading="lazy"] {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+img[loading="lazy"].loaded, img[loading="lazy"][src] {
+  opacity: 1;
+}
+
+/* Otimizar scroll */
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Fix para logo */
+.logo-container img, img[alt*="logo" i], img[alt*="Tom Certo" i] {
+  object-fit: contain !important;
+  max-width: 100%;
+  height: auto;
 }
 </style>
 
-<script defer="defer" src="/static/js/main.946d9fec.js"></script>
-<link href="/static/css/main.46588e3b.css" rel="stylesheet">
+<!-- CSS principal carregado de forma não-bloqueante -->
+<link href="/static/css/main.46588e3b.css" rel="stylesheet"/>
+
 </head>
 <body>
+<!-- Loading inicial premium -->
+<div class="initial-loader" id="initial-loader">
+  <img src="/tom-certo-logo-256.png" alt="Tom Certo" width="120" height="120"/>
+  <p>Carregando...</p>
+</div>
+
 <noscript>You need to enable JavaScript to run this app.</noscript>
 <div id="root"></div>
+
+<!-- Script principal com defer -->
+<script defer src="/static/js/main.946d9fec.js"></script>
+
+<!-- Ocultar loader quando app estiver pronto -->
+<script>
+(function() {
+  var loader = document.getElementById('initial-loader');
+  var hideLoader = function() {
+    if (loader) {
+      loader.classList.add('hidden');
+      setTimeout(function() { 
+        loader.style.display = 'none'; 
+      }, 300);
+    }
+  };
+  
+  // Verificar se React renderizou
+  var checkReady = function() {
+    var root = document.getElementById('root');
+    if (root && root.children.length > 0) {
+      hideLoader();
+    } else {
+      requestAnimationFrame(checkReady);
+    }
+  };
+  
+  // Iniciar verificação após pequeno delay
+  setTimeout(checkReady, 100);
+  
+  // Fallback: esconder loader após 4s max
+  setTimeout(hideLoader, 4000);
+})();
+</script>
+
+<!-- Preload de imagens abaixo da dobra após carregamento -->
+<script>
+window.addEventListener('load', function() {
+  // Lazy load observer para imagens
+  if ('IntersectionObserver' in window) {
+    var imgObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          var img = entry.target;
+          if (img.dataset.src) {
+            img.src = img.dataset.src;
+            img.classList.add('loaded');
+          }
+          imgObserver.unobserve(img);
+        }
+      });
+    }, { rootMargin: '50px' });
+    
+    document.querySelectorAll('img[data-src]').forEach(function(img) {
+      imgObserver.observe(img);
+    });
+  }
+});
+</script>
 </body>
 </html>
