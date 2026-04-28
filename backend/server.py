@@ -823,6 +823,21 @@ async def serve_static(path: str):
 # ─── Include router ─────────────────────────────────────────────────────
 app.include_router(api_router)
 
+# ─── Download do APK ─────────────────────────────────────────────────────
+DOWNLOADS_DIR = ROOT_DIR / "downloads"
+
+@app.get("/download/apk")
+async def download_apk():
+    """Rota para download direto do APK do Tom Certo."""
+    apk_path = DOWNLOADS_DIR / "AppTomCerto.apk"
+    if apk_path.exists():
+        return FileResponse(
+            path=str(apk_path),
+            filename="AppTomCerto.apk",
+            media_type="application/vnd.android.package-archive"
+        )
+    raise HTTPException(status_code=404, detail="APK não encontrado")
+
 # ─── Arquivos estáticos da landing page (CSS, JS) ────────────────────────
 LANDING_DIR = ROOT_DIR / "landing"
 if LANDING_DIR.exists():

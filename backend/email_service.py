@@ -17,7 +17,7 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 DOMAIN = os.environ.get('DOMAIN', 'tomcerto.online')
 
 # URL base para download do APK
-APK_DOWNLOAD_URL = os.environ.get('APK_DOWNLOAD_URL', f'https://{DOMAIN}/download/AppTomCerto.apk')
+APK_DOWNLOAD_URL = os.environ.get('APK_DOWNLOAD_URL', 'https://tomcerto.online/download/apk')
 
 # Email remetente
 FROM_EMAIL = os.environ.get('FROM_EMAIL', f'Tom Certo <contato@{DOMAIN}>')
