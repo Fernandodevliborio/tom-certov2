@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0a0a0a"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
 
-<!-- CRITICAL: Fundo escuro imediato - SEM animações no carregamento -->
+<!-- CRITICAL: Fundo + previne layout shift -->
 <style id="critical-prerender">
 html,body,#root,#prerender{
   background:#0a0a0a!important;
@@ -17,6 +17,46 @@ html,body,#root,#prerender{
 #prerender{
   opacity:1!important;
   visibility:visible!important;
+}
+
+/* PREVINE LAYOUT SHIFT - tamanhos fixos */
+html,body{
+  overflow-x:hidden;
+  width:100%;
+}
+
+/* Animações do mockup MAIS LENTAS */
+.tc-hero-phone,
+.tc-ai-ring,
+.tc-ai-scan-line,
+.tc-ai-mic-core,
+.tc-hero-radial-glow,
+[class*="ring"],
+[class*="Ring"],
+[class*="scan"],
+[class*="Scan"],
+[class*="glow"],
+[class*="Glow"],
+[class*="pulse"],
+[class*="Pulse"],
+[class*="wave"],
+[class*="Wave"] {
+  animation-duration: 6s !important;
+  animation-timing-function: ease-in-out !important;
+}
+
+/* Float do phone - bem lento */
+.tc-hero-phone,
+[class*="phone"],
+[class*="Phone"],
+[class*="float"],
+[class*="Float"] {
+  animation-duration: 10s !important;
+}
+
+/* Scan line específico - lento */
+.tc-ai-scan-line {
+  animation-duration: 5s !important;
 }
 </style>
 
