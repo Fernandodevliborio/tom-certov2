@@ -9,22 +9,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from './AuthContext';
 
-const { height: SH } = Dimensions.get('window');
+const { width: SW, height: SH } = Dimensions.get('window');
 
+// Premium Color Palette - Apple/Tesla inspired
 const C = {
   bg: '#000000',
-  amber: '#FFB020',
-  amberLight: '#FFC543',
-  amberDeep: '#E69A0F',
-  amberSoft: '#CFA14A',
-  amberSoftDim: 'rgba(207,161,74,0.5)',
-  amberDim: 'rgba(255,176,32,0.35)',
-  amberGlow: 'rgba(255,176,32,0.55)',
+  bgAlt: '#0A0A0A',
+  gold: '#FFB020',
+  goldLight: '#FFCA5C',
+  goldDeep: '#D4920F',
+  goldGlow: 'rgba(255,176,32,0.08)',
+  goldGlowMedium: 'rgba(255,176,32,0.15)',
+  goldGlowStrong: 'rgba(255,176,32,0.25)',
   white: '#FFFFFF',
-  text2: '#A0A0A0',
-  text3: '#555555',
-  text4: '#3A3A3A',
-  red: '#EF4444',
+  whiteOff: '#FAFAFA',
+  gray200: '#D4D4D4',
+  gray400: '#9CA3AF',
+  gray500: '#777777',
+  gray600: '#525252',
+  gray700: '#333333',
+  gray800: '#1A1A1A',
+  gray900: '#0D0D0D',
+  red: '#F87171',
 };
 
 const WHATSAPP_URL =
@@ -42,47 +48,79 @@ export default function ActivationScreen() {
 
   const showInput = !hasSavedToken || forceShowInput;
 
-  const fade = useRef(new Animated.Value(0)).current;
-  const slide = useRef(new Animated.Value(24)).current;
-  const logoScale = useRef(new Animated.Value(0.92)).current;
-  const logoGlow = useRef(new Animated.Value(0.78)).current;
+  // Animations
+  const fadeIn = useRef(new Animated.Value(0)).current;
+  const slideUp = useRef(new Animated.Value(40)).current;
+  const logoScale = useRef(new Animated.Value(0.9)).current;
+  const logoGlow = useRef(new Animated.Value(0.6)).current;
   const errorShake = useRef(new Animated.Value(0)).current;
-  const underlineScale = useRef(new Animated.Value(0.6)).current;
-  const ctaScale = useRef(new Animated.Value(1)).current;
-  const waLinkScale = useRef(new Animated.Value(1)).current;
+  const inputLineWidth = useRef(new Animated.Value(0)).current;
+  const btnScale = useRef(new Animated.Value(1)).current;
+  const linkScale = useRef(new Animated.Value(1)).current;
 
+  // Entry animation
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fade, { toValue: 1, duration: 650, useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 650, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.spring(logoScale, { toValue: 1, tension: 40, friction: 8, useNativeDriver: true }),
+      Animated.timing(fadeIn, { 
+        toValue: 1, 
+        duration: 800, 
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true 
+      }),
+      Animated.timing(slideUp, { 
+        toValue: 0, 
+        duration: 800, 
+        easing: Easing.out(Easing.cubic), 
+        useNativeDriver: true 
+      }),
+      Animated.spring(logoScale, { 
+        toValue: 1, 
+        tension: 50, 
+        friction: 10, 
+        useNativeDriver: true 
+      }),
     ]).start();
 
-    const loop = Animated.loop(
+    // Subtle breathing glow on logo
+    const breathe = Animated.loop(
       Animated.sequence([
-        Animated.timing(logoGlow, { toValue: 1, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(logoGlow, { toValue: 0.78, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(logoGlow, { 
+          toValue: 1, 
+          duration: 2500, 
+          easing: Easing.inOut(Easing.ease), 
+          useNativeDriver: true 
+        }),
+        Animated.timing(logoGlow, { 
+          toValue: 0.6, 
+          duration: 2500, 
+          easing: Easing.inOut(Easing.ease), 
+          useNativeDriver: true 
+        }),
       ])
     );
-    loop.start();
-    return () => loop.stop();
+    breathe.start();
+    return () => breathe.stop();
   }, []);
 
+  // Input line animation
   useEffect(() => {
-    Animated.timing(underlineScale, {
-      toValue: focused || code.length > 0 ? 1 : 0.6,
-      duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+    Animated.timing(inputLineWidth, {
+      toValue: focused || code.length > 0 ? 1 : 0,
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
     }).start();
   }, [focused, code]);
 
+  // Error shake
   useEffect(() => {
     if (errorMessage) {
       Animated.sequence([
-        Animated.timing(errorShake, { toValue: 10, duration: 50, useNativeDriver: true }),
-        Animated.timing(errorShake, { toValue: -10, duration: 50, useNativeDriver: true }),
-        Animated.timing(errorShake, { toValue: 6, duration: 50, useNativeDriver: true }),
-        Animated.timing(errorShake, { toValue: -6, duration: 50, useNativeDriver: true }),
-        Animated.timing(errorShake, { toValue: 0, duration: 50, useNativeDriver: true }),
+        Animated.timing(errorShake, { toValue: 8, duration: 40, useNativeDriver: true }),
+        Animated.timing(errorShake, { toValue: -8, duration: 40, useNativeDriver: true }),
+        Animated.timing(errorShake, { toValue: 5, duration: 40, useNativeDriver: true }),
+        Animated.timing(errorShake, { toValue: -5, duration: 40, useNativeDriver: true }),
+        Animated.timing(errorShake, { toValue: 0, duration: 40, useNativeDriver: true }),
       ]).start();
     }
   }, [errorMessage]);
@@ -116,17 +154,42 @@ export default function ActivationScreen() {
     setForceShowInput(true);
   };
 
-  const ctaPressIn = () => Animated.spring(ctaScale, { toValue: 0.96, useNativeDriver: true }).start();
-  const ctaPressOut = () => Animated.spring(ctaScale, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }).start();
+  // Button micro-interactions
+  const onBtnPressIn = () => {
+    Animated.spring(btnScale, { 
+      toValue: 0.97, 
+      useNativeDriver: true,
+      tension: 300,
+      friction: 10
+    }).start();
+  };
+  const onBtnPressOut = () => {
+    Animated.spring(btnScale, { 
+      toValue: 1, 
+      useNativeDriver: true,
+      tension: 200,
+      friction: 8
+    }).start();
+  };
 
-  const waPressIn = () => Animated.spring(waLinkScale, { toValue: 0.97, useNativeDriver: true }).start();
-  const waPressOut = () => Animated.spring(waLinkScale, { toValue: 1, friction: 4, useNativeDriver: true }).start();
+  const onLinkPressIn = () => {
+    Animated.spring(linkScale, { toValue: 0.97, useNativeDriver: true }).start();
+  };
+  const onLinkPressOut = () => {
+    Animated.spring(linkScale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
+  };
 
   const openWhatsApp = async () => {
     try { await Linking.openURL(WHATSAPP_URL); } catch { /* */ }
   };
 
   const canSubmit = showInput ? (!busy && code.trim().length > 0) : !busy;
+
+  // Interpolate input line color
+  const inputLineColor = inputLineWidth.interpolate({
+    inputRange: [0, 1],
+    outputRange: [C.gray700, C.gold],
+  });
 
   return (
     <SafeAreaView style={ss.safe}>
@@ -139,70 +202,91 @@ export default function ActivationScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View style={[ss.container, { opacity: fade, transform: [{ translateY: slide }] }]}>
+          <Animated.View style={[
+            ss.container, 
+            { 
+              opacity: fadeIn, 
+              transform: [{ translateY: slideUp }] 
+            }
+          ]}>
 
-            {/* Brand block */}
-            <Animated.View style={[ss.brandBlock, { transform: [{ scale: logoScale }] }]}>
-              <Animated.View style={[ss.logoWrap, { opacity: logoGlow }]}>
+            {/* Premium Logo Block */}
+            <Animated.View style={[ss.logoBlock, { transform: [{ scale: logoScale }] }]}>
+              <Animated.View style={[ss.logoContainer, { opacity: logoGlow }]}>
+                <View style={ss.logoGlowOuter} />
                 <Image
                   source={require('../../assets/images/logo.png')}
-                  style={ss.logoImg}
+                  style={ss.logo}
                   resizeMode="contain"
                 />
               </Animated.View>
-              <Text style={ss.appName}>Tom Certo</Text>
-              <Text style={ss.tagline}>DETECTOR DE TONALIDADE</Text>
+              <Text style={ss.tagline}>Precisão de tom com IA</Text>
             </Animated.View>
 
-            {/* Input block */}
+            {/* Token Input Block */}
             {showInput && (
               <Animated.View style={[ss.inputBlock, { transform: [{ translateX: errorShake }] }]}>
-                <Text style={ss.inputLabel}>TOKEN DE ACESSO</Text>
-                <TextInput
-                  testID="token-input"
-                  style={ss.input}
-                  value={code}
-                  onChangeText={onChangeCode}
-                  onFocus={() => setFocused(true)}
-                  onBlur={() => setFocused(false)}
-                  onSubmitEditing={onSubmit}
-                  placeholder="Digite seu token de acesso"
-                  placeholderTextColor={C.text3}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  maxLength={24}
-                  returnKeyType="done"
-                  selectionColor={C.amber}
-                  underlineColorAndroid="transparent"
-                />
-                <View style={ss.underlineBase} />
-                <Animated.View style={[ss.underlineActive, { transform: [{ scaleX: underlineScale }], opacity: focused || code.length > 0 ? 1 : 0.45 }]} />
-                {errorMessage ? (
+                <View style={ss.inputWrapper}>
+                  <TextInput
+                    testID="token-input"
+                    style={ss.input}
+                    value={code}
+                    onChangeText={onChangeCode}
+                    onFocus={() => setFocused(true)}
+                    onBlur={() => setFocused(false)}
+                    onSubmitEditing={onSubmit}
+                    placeholder="Digite seu código de acesso"
+                    placeholderTextColor={C.gray600}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={24}
+                    returnKeyType="done"
+                    selectionColor={C.gold}
+                    underlineColorAndroid="transparent"
+                  />
+                  {/* Animated underline */}
+                  <View style={ss.inputLineBase} />
+                  <Animated.View 
+                    style={[
+                      ss.inputLineActive,
+                      { 
+                        backgroundColor: inputLineColor,
+                        transform: [{ 
+                          scaleX: inputLineWidth.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.3, 1],
+                          })
+                        }]
+                      }
+                    ]} 
+                  />
+                </View>
+                {errorMessage && (
                   <View style={ss.errorRow}>
                     <Ionicons name="alert-circle" size={14} color={C.red} />
-                    <Text style={ss.errorTxt}>{errorMessage}</Text>
+                    <Text style={ss.errorText}>{errorMessage}</Text>
                   </View>
-                ) : null}
+                )}
               </Animated.View>
             )}
 
-            {/* Error standalone (when no input visible) */}
-            {!showInput && errorMessage ? (
-              <Animated.View style={[ss.errorRowStandalone, { transform: [{ translateX: errorShake }] }]}>
+            {/* Standalone Error (when input hidden) */}
+            {!showInput && errorMessage && (
+              <Animated.View style={[ss.errorStandalone, { transform: [{ translateX: errorShake }] }]}>
                 <Ionicons name="alert-circle" size={14} color={C.red} />
-                <Text style={ss.errorTxt}>{errorMessage}</Text>
+                <Text style={ss.errorText}>{errorMessage}</Text>
               </Animated.View>
-            ) : null}
+            )}
 
-            {/* Context action buttons */}
-            {(lastReason === 'device_limit' || lastReason === 'device_mismatch') && !showInput ? (
-              <TouchableOpacity onPress={onUseAnotherToken} activeOpacity={0.7} style={ss.contextActionBtn}>
-                <Ionicons name="refresh-outline" size={14} color={C.amber} />
-                <Text style={ss.contextActionTxt}>Limpar e usar outro token</Text>
+            {/* Context Actions */}
+            {(lastReason === 'device_limit' || lastReason === 'device_mismatch') && !showInput && (
+              <TouchableOpacity onPress={onUseAnotherToken} activeOpacity={0.7} style={ss.contextBtn}>
+                <Ionicons name="refresh-outline" size={14} color={C.gold} />
+                <Text style={ss.contextBtnText}>Limpar e usar outro token</Text>
               </TouchableOpacity>
-            ) : null}
+            )}
 
-            {(lastReason === 'timeout' || lastReason === 'network') ? (
+            {(lastReason === 'timeout' || lastReason === 'network') && (
               <TouchableOpacity
                 onPress={async () => {
                   clearError();
@@ -213,65 +297,83 @@ export default function ActivationScreen() {
                   }
                 }}
                 activeOpacity={0.7}
-                style={ss.contextActionBtn}
+                style={ss.contextBtn}
               >
-                <Ionicons name="wifi-outline" size={14} color={C.amber} />
-                <Text style={ss.contextActionTxt}>Tentar conectar novamente</Text>
+                <Ionicons name="wifi-outline" size={14} color={C.gold} />
+                <Text style={ss.contextBtnText}>Tentar conectar novamente</Text>
               </TouchableOpacity>
-            ) : null}
+            )}
 
-            {/* Primary button */}
-            <Animated.View style={[ss.primaryBtnWrap, !canSubmit && ss.primaryBtnDisabled, { transform: [{ scale: ctaScale }] }]}>
+            {/* Premium Activate Button */}
+            <Animated.View style={[
+              ss.btnOuter,
+              { transform: [{ scale: btnScale }] }
+            ]}>
               <TouchableOpacity
                 testID="activate-btn"
                 onPress={onSubmit}
-                onPressIn={ctaPressIn}
-                onPressOut={ctaPressOut}
+                onPressIn={onBtnPressIn}
+                onPressOut={onBtnPressOut}
                 disabled={!canSubmit}
                 activeOpacity={1}
+                style={ss.btnTouch}
               >
-                <LinearGradient
-                  colors={canSubmit ? [C.amberLight, C.amber, C.amberDeep] : ['#3A3A3A', '#2A2A2A', '#1A1A1A']}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={ss.primaryBtn}
-                >
-                  {busy ? (
-                    <ActivityIndicator size="small" color={canSubmit ? C.bg : C.text3} />
-                  ) : (
-                    <Text style={[ss.primaryBtnTxt, !canSubmit && { color: C.text3 }]}>
-                      Ativar acesso
-                    </Text>
-                  )}
-                </LinearGradient>
+                {canSubmit ? (
+                  <LinearGradient
+                    colors={[C.goldLight, C.gold, C.goldDeep]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={ss.btn}
+                  >
+                    <View style={ss.btnGlow} />
+                    {busy ? (
+                      <ActivityIndicator size="small" color={C.bg} />
+                    ) : (
+                      <Text style={ss.btnText}>Ativar acesso</Text>
+                    )}
+                  </LinearGradient>
+                ) : (
+                  <View style={ss.btnDisabled}>
+                    {busy ? (
+                      <ActivityIndicator size="small" color={C.gray500} />
+                    ) : (
+                      <Text style={ss.btnTextDisabled}>Ativar acesso</Text>
+                    )}
+                  </View>
+                )}
               </TouchableOpacity>
             </Animated.View>
 
-            {/* Secondary link */}
+            {/* Request Access Link */}
             {!showInput ? (
-              <TouchableOpacity onPress={onUseAnotherToken} activeOpacity={0.7} style={ss.subtleLink}>
-                <Text style={ss.subtleLinkTxt}>Usar outro token</Text>
+              <TouchableOpacity 
+                onPress={onUseAnotherToken} 
+                activeOpacity={0.7} 
+                style={ss.secondaryLink}
+              >
+                <Text style={ss.secondaryLinkText}>Usar outro token</Text>
               </TouchableOpacity>
             ) : (
-              <Animated.View style={{ transform: [{ scale: waLinkScale }] }}>
+              <Animated.View style={[ss.requestBlock, { transform: [{ scale: linkScale }] }]}>
                 <TouchableOpacity
                   onPress={openWhatsApp}
-                  onPressIn={waPressIn}
-                  onPressOut={waPressOut}
-                  activeOpacity={0.7}
-                  style={ss.waLink}
+                  onPressIn={onLinkPressIn}
+                  onPressOut={onLinkPressOut}
+                  activeOpacity={0.8}
+                  style={ss.requestTouch}
                 >
-                  <Text style={ss.waLinkTxt}>
-                    {'Não tem token de acesso?\n'}
-                    <Text style={ss.waLinkTxtStrong}>Solicitar token de acesso</Text>
-                  </Text>
+                  <Text style={ss.requestLabel}>Ainda não tem acesso?</Text>
+                  <Text style={ss.requestAction}>Solicitar código</Text>
                 </TouchableOpacity>
               </Animated.View>
             )}
 
-            {/* Trust message */}
-            <View style={ss.trust}>
-              <Ionicons name="shield-checkmark-outline" size={12} color={C.text3} />
-              <Text style={ss.trustTxt}>Seu acesso é seguro e validado instantaneamente</Text>
+            {/* Premium Footer */}
+            <View style={ss.footer}>
+              <View style={ss.footerIconWrap}>
+                <Ionicons name="shield-checkmark-outline" size={13} color={C.gray500} />
+              </View>
+              <Text style={ss.footerText}>Acesso seguro e verificado instantaneamente</Text>
             </View>
 
           </Animated.View>
@@ -282,79 +384,268 @@ export default function ActivationScreen() {
 }
 
 const ss = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
-  scroll: { flexGrow: 1, justifyContent: 'center', paddingVertical: 40 },
-  container: { paddingHorizontal: 32, alignItems: 'center' },
+  safe: { 
+    flex: 1, 
+    backgroundColor: C.bg 
+  },
+  scroll: { 
+    flexGrow: 1, 
+    justifyContent: 'center', 
+    paddingVertical: 80,
+    paddingHorizontal: 44,
+  },
+  container: { 
+    alignItems: 'center',
+  },
 
-  brandBlock: { alignItems: 'center', marginBottom: SH * 0.06 },
-  logoWrap: {
-    width: 160, height: 160,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 14,
+  // Logo Block - Reduced & Premium
+  logoBlock: { 
+    alignItems: 'center', 
+    marginBottom: SH * 0.1,
+  },
+  logoContainer: {
+    width: 88,
+    height: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  logoGlowOuter: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: C.goldGlow,
     ...Platform.select({
-      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.55, shadowRadius: 32 },
-      android: { elevation: 12 },
+      ios: {
+        shadowColor: C.gold,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.2,
+        shadowRadius: 24,
+      },
+      android: {},
       default: {},
     }),
   },
-  logoImg: { width: 160, height: 160 },
-  appName: { fontFamily: 'Outfit_800ExtraBold', fontSize: 32, color: C.white, letterSpacing: -1, marginBottom: 4 },
-  tagline: { fontFamily: 'Manrope_500Medium', fontSize: 11, color: C.text3, letterSpacing: 3.2, textTransform: 'uppercase', marginTop: 2 },
+  logo: { 
+    width: 80, 
+    height: 80,
+  },
+  tagline: { 
+    fontFamily: 'Manrope_500Medium', 
+    fontSize: 16, 
+    color: C.white,
+    letterSpacing: 0.3,
+    opacity: 0.92,
+  },
 
-  inputBlock: { width: '100%', alignItems: 'center', marginBottom: 32 },
-  inputLabel: { fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: C.amber, letterSpacing: 3, marginBottom: 14 },
+  // Input Block - Slim & Elegant
+  inputBlock: { 
+    width: '100%', 
+    marginBottom: 40,
+  },
+  inputWrapper: {
+    width: '100%',
+    borderWidth: 0,
+    borderColor: 'transparent',
+  },
   input: {
-    width: '100%', fontFamily: 'Outfit_700Bold', fontSize: 20,
-    color: C.white, letterSpacing: 2.5, textAlign: 'center',
-    paddingVertical: 14, paddingHorizontal: 8,
-    ...Platform.select({ web: { outlineWidth: 0 } as any, default: {} }),
+    width: '100%',
+    fontFamily: 'Outfit_500Medium',
+    fontSize: 16,
+    color: C.white,
+    letterSpacing: 2,
+    textAlign: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: 8,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    ...Platform.select({ 
+      web: { 
+        outlineWidth: 0,
+        outlineStyle: 'none',
+        borderStyle: 'none',
+      } as any, 
+      default: {} 
+    }),
   },
-  underlineBase: { width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.10)' },
-  underlineActive: {
-    position: 'absolute', bottom: 0, left: 0, right: 0, height: 2,
-    backgroundColor: C.amber,
+  inputLineBase: {
+    width: '100%',
+    height: 1,
+    backgroundColor: C.gray700,
+  },
+  inputLineActive: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 1.5,
     ...Platform.select({
-      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.85, shadowRadius: 8 },
-      android: { elevation: 3 },
+      ios: {
+        shadowColor: C.gold,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 4,
+      },
+      android: { elevation: 1 },
       default: {},
     }),
   },
-  errorRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 14, paddingHorizontal: 4 },
-  errorRowStandalone: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
-    marginBottom: 24, paddingHorizontal: 4, maxWidth: '90%',
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 18,
+    paddingHorizontal: 4,
   },
-  errorTxt: { flex: 1, fontFamily: 'Manrope_500Medium', fontSize: 12, color: C.red, lineHeight: 16 },
+  errorStandalone: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 28,
+    paddingHorizontal: 4,
+    maxWidth: '100%',
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 13,
+    color: C.red,
+    lineHeight: 18,
+  },
 
-  primaryBtnWrap: {
-    width: '100%', borderRadius: 99, overflow: 'hidden',
+  // Context Actions
+  contextBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.goldGlowMedium,
+    backgroundColor: C.goldGlow,
+    marginBottom: 18,
+  },
+  contextBtnText: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 13,
+    color: C.gold,
+    letterSpacing: 0.2,
+  },
+
+  // Premium Button - Slimmer & Modern
+  btnOuter: {
+    width: '100%',
+    marginBottom: 28,
+  },
+  btnTouch: {
+    width: '100%',
+  },
+  btn: {
+    width: '100%',
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
     ...Platform.select({
-      ios: { shadowColor: C.amber, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.5, shadowRadius: 22 },
-      android: { elevation: 10 },
+      ios: {
+        shadowColor: C.gold,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 14,
+      },
+      android: { elevation: 6 },
       default: {},
     }),
   },
-  primaryBtn: { width: '100%', height: 58, borderRadius: 99, alignItems: 'center', justifyContent: 'center' },
-  primaryBtnDisabled: {
-    ...Platform.select({ ios: { shadowOpacity: 0 }, android: { elevation: 0 }, default: {} }),
+  btnGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '45%',
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  primaryBtnTxt: { fontFamily: 'Outfit_700Bold', fontSize: 16.5, color: C.bg, letterSpacing: 0.6 },
-
-  waLink: { paddingVertical: 8, paddingHorizontal: 14, alignItems: 'center' },
-  waLinkTxt: { fontFamily: 'Manrope_400Regular', fontSize: 13, color: C.text2, textAlign: 'center', letterSpacing: 0.2 },
-  waLinkTxtStrong: { fontFamily: 'Manrope_600SemiBold', color: C.amberSoft, textDecorationLine: 'underline', textDecorationColor: C.amberSoftDim },
-
-  subtleLink: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 18, alignItems: 'center' },
-  subtleLinkTxt: { fontFamily: 'Manrope_500Medium', fontSize: 12.5, color: C.text3, letterSpacing: 0.5, textDecorationLine: 'underline', textDecorationColor: 'rgba(85,85,85,0.4)' },
-
-  contextActionBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center',
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
-    borderWidth: 1, borderColor: 'rgba(255,176,32,0.35)',
-    backgroundColor: 'rgba(255,176,32,0.08)', marginBottom: 14,
+  btnText: {
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 15,
+    color: C.bg,
+    letterSpacing: 0.5,
   },
-  contextActionTxt: { fontFamily: 'Manrope_600SemiBold', fontSize: 12.5, color: C.amber, letterSpacing: 0.2 },
+  btnDisabled: {
+    width: '100%',
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.gray800,
+    borderWidth: 1,
+    borderColor: C.gray700,
+  },
+  btnTextDisabled: {
+    fontFamily: 'Outfit_600SemiBold',
+    fontSize: 15,
+    color: C.gray600,
+    letterSpacing: 0.5,
+  },
 
-  trust: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 28, paddingHorizontal: 8 },
-  trustTxt: { fontFamily: 'Manrope_500Medium', fontSize: 11.5, color: C.text3, letterSpacing: 0.3 },
+  // Request Access - Cleaner Spacing
+  requestBlock: {
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  requestTouch: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+  },
+  requestLabel: {
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 14,
+    color: C.gray400,
+    marginBottom: 6,
+  },
+  requestAction: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 14,
+    color: C.gold,
+    letterSpacing: 0.3,
+  },
+
+  // Secondary Link
+  secondaryLink: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    marginBottom: 12,
+  },
+  secondaryLinkText: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 14,
+    color: C.gray500,
+    letterSpacing: 0.3,
+  },
+
+  // Footer - Minimal & Refined
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 40,
+    paddingTop: 28,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    width: '100%',
+  },
+  footerIconWrap: {
+    opacity: 0.7,
+  },
+  footerText: {
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 12,
+    color: C.gray500,
+    letterSpacing: 0.2,
+  },
 });
