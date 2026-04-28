@@ -1,4 +1,15 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/><link rel="preconnect" href="https://api.fontshare.com" crossorigin/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/><link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800,900&display=swap" rel="stylesheet"/><title>Tom Certo — Achei o tom. A música ainda nem começou.</title><script>window.addEventListener("error",function(e){e.error instanceof DOMException&&"DataCloneError"===e.error.name&&e.message&&e.message.includes("PerformanceServerTiming")&&(e.stopImmediatePropagation(),e.preventDefault())},!0)</script><script defer="defer" src="/static/js/main.15939225.js"></script><link href="/static/css/main.117bac8c.css" rel="stylesheet">
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="theme-color" content="#000000"/>
+<meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
+
 <!-- Meta Pixel Code -->
 <script>
 !function(f,b,e,v,n,t,s)
@@ -16,444 +27,78 @@ fbq('track', 'PageView');
 src="https://www.facebook.com/tr?id=1038468498015498&ev=PageView&noscript=1"
 /></noscript>
 <!-- End Meta Pixel Code -->
+
 <!-- Cakto Payment Links Script -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Payment links from Cakto
   const paymentLinks = {
     mensal: 'https://pay.cakto.com.br/x6hmjp3_864389',
     trimestral: 'https://pay.cakto.com.br/3mp6tpt',
     semestral: 'https://pay.cakto.com.br/9gcmz9j'
   };
   
-  // Function to set payment links on buttons
   function setPaymentLinks() {
-    // Get all buttons/links in the page
     const allElements = document.querySelectorAll('a, button');
     
     allElements.forEach(el => {
       const text = el.textContent.toLowerCase().trim();
       
-      // Match buttons by their text content
-      if (text.includes('quero o mensal') || (text.includes('mensal') && !text.includes('trimestral'))) {
+      if (text.includes('quero o mensal') || text.includes('assinar mensal') || (text.includes('mensal') && !text.includes('trimestral') && !text.includes('semestral'))) {
         if (el.tagName === 'A') {
           el.href = paymentLinks.mensal;
           el.target = '_blank';
         } else {
-          el.addEventListener('click', () => window.open(paymentLinks.mensal, '_blank'));
+          el.onclick = () => window.open(paymentLinks.mensal, '_blank');
         }
       }
       
-      if (text.includes('quero o trimestral') || text.includes('trimestral')) {
+      if (text.includes('quero o trimestral') || text.includes('assinar trimestral') || text.includes('trimestral')) {
         if (el.tagName === 'A') {
           el.href = paymentLinks.trimestral;
           el.target = '_blank';
         } else {
-          el.addEventListener('click', () => window.open(paymentLinks.trimestral, '_blank'));
+          el.onclick = () => window.open(paymentLinks.trimestral, '_blank');
         }
       }
       
-      if (text.includes('economizar agora') || text.includes('semestral')) {
+      if (text.includes('economizar agora') || text.includes('quero o semestral') || text.includes('assinar semestral') || text.includes('semestral')) {
         if (el.tagName === 'A') {
           el.href = paymentLinks.semestral;
           el.target = '_blank';
         } else {
-          el.addEventListener('click', () => window.open(paymentLinks.semestral, '_blank'));
-        }
-      }
-      
-      // Hero CTA button
-      if (text.includes('quero o tom certo')) {
-        if (el.tagName === 'A') {
-          el.href = '#pricing';
+          el.onclick = () => window.open(paymentLinks.semestral, '_blank');
         }
       }
     });
+    
+    // Remove Emergent badge
+    const badge = document.getElementById('emergent-badge');
+    if (badge) badge.remove();
+    
+    // Remove any element with "Made with Emergent"
+    document.querySelectorAll('a[href*="emergent"]').forEach(el => el.remove());
   }
   
-  // Run after React renders (with slight delay)
   setTimeout(setPaymentLinks, 500);
   setTimeout(setPaymentLinks, 1500);
   setTimeout(setPaymentLinks, 3000);
-  
-  // Remove Emergent badge
-  setTimeout(() => {
-    const badge = document.getElementById('emergent-badge');
-    if (badge) badge.remove();
-  }, 100);
-  
-  // === AJUSTES DO HERO ===
-  function adjustHero() {
-    // 1. Trocar "louvor" por "ensaio" na subheadline
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-      null,
-      false
-    );
-    
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (node.nodeValue.includes('travar no louvor')) {
-        node.nodeValue = node.nodeValue.replace('travar no louvor', 'travar no ensaio');
-      }
-    }
-    
-    // 2. Remover botão "Quero o Tom Certo" do Hero (apenas o primeiro)
-    const allLinks = document.querySelectorAll('a, button');
-    let heroButtonRemoved = false;
-    
-    allLinks.forEach(el => {
-      if (heroButtonRemoved) return;
-      const text = el.textContent.toLowerCase().trim();
-      
-      // Encontrar o botão "Quero o Tom Certo" no hero (primeiro da página)
-      if (text.includes('quero o tom certo') && !text.includes('agora')) {
-        // Verificar se está na primeira seção (hero)
-        const section = el.closest('section');
-        if (section && section === document.querySelector('section:first-of-type')) {
-          el.style.display = 'none';
-          heroButtonRemoved = true;
-        }
-      }
-    });
-  }
-  
-  // Executar após React renderizar
-  setTimeout(adjustHero, 500);
-  setTimeout(adjustHero, 1500);
-  setTimeout(adjustHero, 3000);
 });
 </script>
-<!-- TOM CERTO - PÁGINA DE VENDAS PADRÃO BRASILEIRO -->
-<style>
-/* ========================================
-   RESET E BASE - PADRÃO BRASILEIRO
-   ======================================== */
 
-/* Hide Emergent badge */
+<!-- Hide Emergent Badge -->
+<style>
 #emergent-badge, [id*="emergent"], a[href*="emergent.sh"] {
   display: none !important;
-}
-
-/* Fonte padrão - Inter (muito usada no Brasil) */
-* {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-}
-
-body, html {
-  background-color: #0A0A0A !important;
-  -webkit-font-smoothing: antialiased !important;
-  -moz-osx-font-smoothing: grayscale !important;
-}
-
-/* ========================================
-   CENTRALIZAÇÃO GLOBAL
-   ======================================== */
-
-/* Todas as seções centralizadas */
-section {
-  text-align: center !important;
-}
-
-/* Containers centralizados */
-section > div {
-  max-width: 1200px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  padding-left: 24px !important;
-  padding-right: 24px !important;
-}
-
-/* ========================================
-   HERO - SEÇÃO PRINCIPAL
-   ======================================== */
-
-section:first-of-type {
-  background: linear-gradient(180deg, #0A0A0A 0%, #111111 100%) !important;
-  padding-top: 80px !important;
-  padding-bottom: 80px !important;
-}
-
-/* Hero container centralizado */
-section:first-of-type > div {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  text-align: center !important;
-}
-
-/* Headlines centralizadas */
-section:first-of-type h1,
-section:first-of-type h2,
-section:first-of-type [class*="text-5xl"],
-section:first-of-type [class*="text-6xl"],
-section:first-of-type [class*="text-4xl"] {
-  text-align: center !important;
-  width: 100% !important;
-  max-width: 800px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  font-weight: 800 !important;
-  line-height: 1.1 !important;
-  letter-spacing: -0.02em !important;
-}
-
-/* Subheadlines centralizadas */
-section:first-of-type p,
-section:first-of-type [class*="text-lg"],
-section:first-of-type [class*="text-xl"] {
-  text-align: center !important;
-  max-width: 600px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  color: rgba(255, 255, 255, 0.7) !important;
-  line-height: 1.6 !important;
-}
-
-/* Botões centralizados */
-section:first-of-type [class*="flex"][class*="gap"] {
-  justify-content: center !important;
-  flex-wrap: wrap !important;
-}
-
-/* Lista de benefícios centralizada */
-section:first-of-type ul,
-section:first-of-type [class*="grid"] {
-  justify-content: center !important;
-  justify-items: center !important;
-  text-align: center !important;
-  max-width: 600px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-}
-
-section:first-of-type li {
-  justify-content: center !important;
-  text-align: left !important;
-}
-
-/* Mockup do celular centralizado */
-section:first-of-type [class*="phone"],
-section:first-of-type [class*="mockup"],
-section:first-of-type img {
-  margin-left: auto !important;
-  margin-right: auto !important;
-  display: block !important;
-}
-
-/* ========================================
-   TODAS AS SEÇÕES - CENTRALIZAÇÃO
-   ======================================== */
-
-/* Headlines de todas as seções */
-h1, h2, h3 {
-  text-align: center !important;
-  font-weight: 700 !important;
-}
-
-/* Subtítulos/labels */
-[class*="text-\[\#FFB020\]"],
-[class*="uppercase"],
-[class*="tracking-wider"] {
-  text-align: center !important;
-  display: block !important;
-  width: 100% !important;
-}
-
-/* Parágrafos */
-section p {
-  text-align: center !important;
-  max-width: 700px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-}
-
-/* Grids centralizados */
-section [class*="grid"] {
-  justify-content: center !important;
-  justify-items: center !important;
-}
-
-/* ========================================
-   CARDS - ESTILO BRASILEIRO
-   ======================================== */
-
-/* Cards com fundo sutil */
-section [class*="rounded"][class*="border"],
-section [class*="tc-card"],
-section div[class*="p-"][class*="rounded"] {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 16px !important;
-  padding: 32px 24px !important;
-  text-align: center !important;
-}
-
-/* Títulos dos cards */
-section [class*="rounded"] h3,
-section [class*="rounded"] h4,
-section [class*="rounded"] [class*="font-bold"],
-section [class*="rounded"] [class*="font-semibold"] {
-  text-align: center !important;
-  font-weight: 700 !important;
-  margin-bottom: 12px !important;
-}
-
-/* Descrições dos cards */
-section [class*="rounded"] p {
-  text-align: center !important;
-  color: rgba(255, 255, 255, 0.6) !important;
-  font-size: 15px !important;
-  line-height: 1.6 !important;
-}
-
-/* Ícones centralizados */
-section [class*="rounded"] svg {
-  margin-left: auto !important;
-  margin-right: auto !important;
-  display: block !important;
-  margin-bottom: 16px !important;
-}
-
-/* ========================================
-   BOTÕES CTA - PADRÃO BRASILEIRO
-   ======================================== */
-
-/* Botão principal (amarelo) */
-a[class*="bg-\[\#FFB020\]"],
-button[class*="bg-\[\#FFB020\]"],
-[class*="bg-primary"] {
-  background: linear-gradient(180deg, #FFB020 0%, #E5A01D 100%) !important;
-  color: #000000 !important;
-  font-weight: 700 !important;
-  font-size: 16px !important;
-  padding: 16px 32px !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 20px rgba(255, 176, 32, 0.3) !important;
-  transition: all 0.2s ease !important;
-  text-transform: none !important;
-}
-
-a[class*="bg-\[\#FFB020\]"]:hover,
-button[class*="bg-\[\#FFB020\]"]:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 6px 25px rgba(255, 176, 32, 0.4) !important;
-}
-
-/* Botão secundário */
-a[class*="border"][class*="rounded"],
-button[class*="border"][class*="rounded"] {
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  color: #FFFFFF !important;
-  font-weight: 600 !important;
-  padding: 14px 28px !important;
-  border-radius: 8px !important;
-  transition: all 0.2s ease !important;
-}
-
-/* ========================================
-   SEÇÃO DE PREÇOS - DESTAQUE
-   ======================================== */
-
-section:nth-of-type(8) {
-  background: linear-gradient(180deg, #0F0F0F 0%, #0A0A0A 100%) !important;
-  padding-top: 80px !important;
-  padding-bottom: 80px !important;
-}
-
-/* Cards de preço */
-section:nth-of-type(8) [class*="rounded"][class*="border"] {
-  background: rgba(255, 255, 255, 0.02) !important;
-  padding: 40px 32px !important;
-}
-
-/* Card destaque (dourado) */
-section:nth-of-type(8) [class*="border-\[\#FFB020\]"],
-section [class*="tc-card-gold"] {
-  background: linear-gradient(145deg, rgba(255, 176, 32, 0.08) 0%, rgba(255, 176, 32, 0.02) 100%) !important;
-  border: 2px solid rgba(255, 176, 32, 0.4) !important;
-  box-shadow: 0 0 40px rgba(255, 176, 32, 0.1) !important;
-}
-
-/* Preços */
-section:nth-of-type(8) [class*="text-4xl"],
-section:nth-of-type(8) [class*="text-5xl"] {
-  font-weight: 800 !important;
-  color: #FFFFFF !important;
-}
-
-/* ========================================
-   FAQ - SIMPLES E LIMPO
-   ======================================== */
-
-section:nth-of-type(9) {
-  background: #0A0A0A !important;
-}
-
-section:nth-of-type(9) [class*="border"] {
-  background: transparent !important;
-  border: none !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 0 !important;
-  text-align: left !important;
-  padding: 24px 0 !important;
-}
-
-/* ========================================
-   FUNDOS ALTERNADOS
-   ======================================== */
-
-section:nth-of-type(1) { background: #0A0A0A !important; }
-section:nth-of-type(2) { background: #0F0F0F !important; }
-section:nth-of-type(3) { background: #0A0A0A !important; }
-section:nth-of-type(4) { background: #111111 !important; }
-section:nth-of-type(5) { background: #0A0A0A !important; }
-section:nth-of-type(6) { background: #0F0F0F !important; }
-section:nth-of-type(7) { background: #0A0A0A !important; }
-section:nth-of-type(8) { background: #0F0F0F !important; }
-section:nth-of-type(9) { background: #0A0A0A !important; }
-section:nth-of-type(10) { background: #0A0A0A !important; }
-
-/* ========================================
-   RESPONSIVO - MOBILE
-   ======================================== */
-
-@media (max-width: 768px) {
-  section:first-of-type {
-    padding-top: 60px !important;
-    padding-bottom: 60px !important;
-  }
-  
-  section:first-of-type h1,
-  section:first-of-type [class*="text-5xl"],
-  section:first-of-type [class*="text-4xl"] {
-    font-size: 32px !important;
-    line-height: 1.15 !important;
-  }
-  
-  section:first-of-type p {
-    font-size: 16px !important;
-    padding: 0 16px !important;
-  }
-  
-  h2, [class*="text-3xl"], [class*="text-4xl"] {
-    font-size: 28px !important;
-  }
-  
-  section [class*="rounded"][class*="border"],
-  section [class*="tc-card"] {
-    padding: 24px 20px !important;
-    margin: 0 8px !important;
-  }
-}
-
-/* ========================================
-   AMARELO VIBRANTE
-   ======================================== */
-
-[class*="text-\[\#FFB020\]"] {
-  color: #FFB020 !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
 }
 </style>
-</head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div><script>!function(e,t){var r,s,o,i;t.__SV||(window.posthog=t,t._i=[],t.init=function(n,a,p){function c(e,t){var r=t.split(".");2==r.length&&(e=e[r[0]],t=r[1]),e[t]=function(){e.push([t].concat(Array.prototype.slice.call(arguments,0)))}}(o=e.createElement("script")).type="text/javascript",o.crossOrigin="anonymous",o.async=!0,o.src=a.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(i=e.getElementsByTagName("script")[0]).parentNode.insertBefore(o,i);var g=t;for(void 0!==p?g=t[p]=[]:p="posthog",g.people=g.people||[],g.toString=function(e){var t="posthog";return"posthog"!==p&&(t+="."+p),e||(t+=" (stub)"),t},g.people.toString=function(){return g.toString(1)+".people (stub)"},r="init me ws ys ps bs capture je Di ks register register_once register_for_session unregister unregister_for_session Ps getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey canRenderSurveyAsync identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty Es $s createPersonProfile Is opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing Ss debug xs getPageViewId captureTraceFeedback captureTraceMetric".split(" "),s=0;s<r.length;s++)c(g,r[s]);t._i.push([n,a,p])},t.__SV=1)}(document,window.posthog||[]),posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs",{api_host:"https://us.i.posthog.com",person_profiles:"identified_only",session_recording:{recordCrossOriginIframes:!0,capturePerformance:!1}})</script></body></html>
+
+<script defer="defer" src="/static/js/main.946d9fec.js"></script>
+<link href="/static/css/main.46588e3b.css" rel="stylesheet">
+</head>
+<body>
+<noscript>You need to enable JavaScript to run this app.</noscript>
+<div id="root"></div>
+</body>
+</html>
