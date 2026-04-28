@@ -222,33 +222,33 @@ function TunerScreen() {
   
   const status = getTuningStatus();
   
-  // Animação de pulse contínuo
+  // Animação de pulse contínuo - MAIS LENTA E SUTIL
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.1, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.04, duration: 1800, useNativeDriver: true }), // Reduzido de 1.1, mais lento
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
       ])
     );
     pulse.start();
     return () => pulse.stop();
   }, []);
   
-  // Animação de ondas
+  // Animação de ondas - MAIS LENTAS
   useEffect(() => {
     const createWave = (anim: Animated.Value, delay: number) => {
       return Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(anim, { toValue: 1, duration: 2000, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 1, duration: 3500, useNativeDriver: true }), // Aumentado de 2000
           Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
         ])
       );
     };
     
     const wave1 = createWave(waveAnim1, 0);
-    const wave2 = createWave(waveAnim2, 600);
-    const wave3 = createWave(waveAnim3, 1200);
+    const wave2 = createWave(waveAnim2, 1000); // Delays maiores
+    const wave3 = createWave(waveAnim3, 2000);
     
     wave1.start();
     wave2.start();
@@ -272,13 +272,13 @@ function TunerScreen() {
     }).start();
   }, [cents]);
   
-  // Glow quando afinado
+  // Glow quando afinado - MAIS SUAVE E LENTO
   useEffect(() => {
     if (status.status === 'perfect') {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-          Animated.timing(glowAnim, { toValue: 0.5, duration: 500, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 0.8, duration: 800, useNativeDriver: true }), // Reduzido de 1
+          Animated.timing(glowAnim, { toValue: 0.5, duration: 800, useNativeDriver: true }), // Mais lento (800ms vs 500ms)
         ])
       ).start();
     } else {
@@ -431,7 +431,7 @@ function TunerScreen() {
             <>
               {/* Medidor Circular Premium */}
               <View style={ss.meterContainer}>
-                {/* Ondas de fundo */}
+                {/* Ondas de fundo - MAIS SUTIS */}
                 {[waveAnim1, waveAnim2, waveAnim3].map((anim, i) => (
                   <Animated.View
                     key={i}
@@ -440,12 +440,12 @@ function TunerScreen() {
                       {
                         opacity: anim.interpolate({
                           inputRange: [0, 1],
-                          outputRange: [0.3, 0],
+                          outputRange: [0.2, 0], // Reduzido de 0.3
                         }),
                         transform: [{
                           scale: anim.interpolate({
                             inputRange: [0, 1],
-                            outputRange: [1, 1.8],
+                            outputRange: [1, 1.5], // Reduzido de 1.8
                           }),
                         }],
                       },

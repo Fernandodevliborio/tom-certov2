@@ -123,34 +123,36 @@ function InitialScreen({
   }, [errorMessage]);
 
   // ═══════════════════════════════════════════════════════════════
-  // ANIMAÇÕES PREMIUM - SIMPLIFICADAS
+  // ANIMAÇÕES PREMIUM - OTIMIZADAS: MAIS LENTAS E SUTIS
   // ═══════════════════════════════════════════════════════════════
   const fadeIn = useRef(new Animated.Value(0)).current;
   const slideUp = useRef(new Animated.Value(20)).current;
   const breathe = useRef(new Animated.Value(0)).current;
   const ring1 = useRef(new Animated.Value(0)).current;
   const micScale = useRef(new Animated.Value(1)).current;
-  const logoGlow = useRef(new Animated.Value(0.7)).current;
+  const logoGlow = useRef(new Animated.Value(0.8)).current; // Mais estável
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeIn, { toValue: 1, duration: 320, useNativeDriver: true }),
-      Animated.timing(slideUp, { toValue: 0, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(fadeIn, { toValue: 1, duration: 450, useNativeDriver: true }), // Aumentado
+      Animated.timing(slideUp, { toValue: 0, duration: 500, easing: Easing.out(Easing.cubic), useNativeDriver: true }), // Aumentado
     ]).start();
 
+    // Logo glow - MUITO MAIS SUTIL E LENTO
     const logoLoop = Animated.loop(Animated.sequence([
-      Animated.timing(logoGlow, { toValue: 1, duration: 2400, useNativeDriver: true }),
-      Animated.timing(logoGlow, { toValue: 0.7, duration: 2400, useNativeDriver: true }),
+      Animated.timing(logoGlow, { toValue: 1, duration: 4000, useNativeDriver: true }), // 4s vs 2.4s
+      Animated.timing(logoGlow, { toValue: 0.8, duration: 4000, useNativeDriver: true }), // Range menor (0.8-1 vs 0.7-1)
     ]));
 
+    // Respiração - MAIS LENTA E SUTIL
     const breatheLoop = Animated.loop(Animated.sequence([
-      Animated.timing(breathe, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(breathe, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(breathe, { toValue: 1, duration: 3500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }), // 3.5s vs 2s
+      Animated.timing(breathe, { toValue: 0, duration: 3500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
     ]));
 
-    // Único anel pulsante
+    // Único anel pulsante - MAIS LENTO
     const ringLoop = Animated.loop(Animated.sequence([
-      Animated.timing(ring1, { toValue: 1, duration: 2500, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+      Animated.timing(ring1, { toValue: 1, duration: 4000, easing: Easing.out(Easing.ease), useNativeDriver: true }), // 4s vs 2.5s
       Animated.timing(ring1, { toValue: 0, duration: 0, useNativeDriver: true }),
     ]));
 
@@ -212,19 +214,19 @@ function InitialScreen({
         <Animated.View 
           style={[
             ss.micBackgroundGlow,
-            { opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.15, 0.35] }) }
+            { opacity: breathe.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.25] }) } // Reduzido de 0.15-0.35
           ]} 
           pointerEvents="none"
         />
         
-        {/* Anel pulsante único (sutil) */}
+        {/* Anel pulsante único (sutil) - MAIS SUTIL */}
         <Animated.View 
           pointerEvents="none" 
           style={[
             ss.micPulseRing,
             {
-              opacity: ring1.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.4, 0.15, 0] }),
-              transform: [{ scale: ring1.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] }) }],
+              opacity: ring1.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.25, 0.1, 0] }), // Reduzido de 0.4-0.15-0
+              transform: [{ scale: ring1.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] }) }], // Reduzido de 1.6
             },
           ]}
         />
@@ -241,7 +243,7 @@ function InitialScreen({
             ss.micButtonOuter,
             { 
               transform: [
-                { scale: Animated.multiply(micScale, breathe.interpolate({ inputRange: [0, 1], outputRange: [0.98, 1.02] })) }
+                { scale: Animated.multiply(micScale, breathe.interpolate({ inputRange: [0, 1], outputRange: [0.995, 1.005] })) } // Quase imperceptível (0.995-1.005 vs 0.98-1.02)
               ] 
             },
           ]}>

@@ -6,10 +6,30 @@
 <meta name="theme-color" content="#0a0a0a"/>
 <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio."/>
 
-<!-- CRITICAL: Previne tela preta - deve ser o PRIMEIRO style -->
+<!-- CRITICAL: Previne tela preta E prévia - carregamento invisível -->
 <style id="critical-prerender">
-html,body,#root,#prerender{background:#0a0a0a!important;min-height:100vh}
-#prerender{display:block!important;visibility:visible!important;opacity:1!important}
+/* Base: fundo escuro consistente */
+html,body,#root{background:#0a0a0a!important;min-height:100vh}
+
+/* Prerender: ESCONDIDO inicialmente, aparece suavemente */
+#prerender{
+  background:#0a0a0a!important;
+  opacity:0!important;
+  animation:fadeInPrerender 0.15s ease-out 0.05s forwards!important;
+}
+
+/* Quando React renderiza, prerender some instantaneamente */
+#root>[data-reactroot] ~ #prerender,
+#root>.app-container ~ #prerender,
+#root>div:not(#prerender) ~ #prerender{
+  display:none!important;
+  opacity:0!important;
+}
+
+@keyframes fadeInPrerender{
+  from{opacity:0}
+  to{opacity:1}
+}
 </style>
 
 <!-- Favicons -->
@@ -577,30 +597,36 @@ Ver como funciona
     lazyLoadImages();
   }
   
-  // 6. REMOVE CONTEÚDO PRÉ-RENDERIZADO APÓS REACT CARREGAR
+  // 6. REMOVE CONTEÚDO PRÉ-RENDERIZADO APÓS REACT CARREGAR - TRANSIÇÃO SUAVE
   function removePrerender() {
     var prerender = document.getElementById('prerender');
-    if (prerender && prerender.parentNode) {
-      // Verifica se React já renderizou algo
-      var root = document.getElementById('root');
-      if (root && root.children.length > 1) {
-        prerender.remove();
-      }
+    if (!prerender || !prerender.parentNode) return;
+    
+    var root = document.getElementById('root');
+    // Verifica se React já renderizou algo além do prerender
+    if (root && root.children.length > 1) {
+      // Fade out suave antes de remover
+      prerender.style.transition = 'opacity 0.15s ease-out';
+      prerender.style.opacity = '0';
+      setTimeout(function() {
+        if (prerender.parentNode) prerender.remove();
+      }, 150);
     }
   }
   
   // Monitora quando React renderiza
   var observer = new MutationObserver(function(mutations) {
-    removePrerender();
+    // Pequeno delay para garantir que React terminou de renderizar
+    setTimeout(removePrerender, 50);
   });
   
   var root = document.getElementById('root');
   if (root) {
-    observer.observe(root, { childList: true });
+    observer.observe(root, { childList: true, subtree: false });
   }
   
-  // Fallback
-  setTimeout(removePrerender, 3000);
+  // Fallback com mais tempo
+  setTimeout(removePrerender, 4000);
   
 })();
 </script>

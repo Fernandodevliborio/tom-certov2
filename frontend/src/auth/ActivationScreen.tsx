@@ -41,25 +41,25 @@ const C = {
 const WHATSAPP_URL =
   'https://wa.me/5563992029322?text=Ol%C3%A1.%20Quero%20Token%20de%20acesso%20do%20aplicativo';
 
-// Floating particles component
+// Floating particles component - OTIMIZADO: Menos partículas, movimento mais sutil
 function FloatingParticles() {
   const particles = useRef(
-    Array.from({ length: 6 }, () => ({
+    Array.from({ length: 3 }, () => ({ // Reduzido de 6 para 3
       x: new Animated.Value(Math.random() * SW),
       y: new Animated.Value(Math.random() * SH * 0.5),
       opacity: new Animated.Value(0),
-      scale: new Animated.Value(0.5 + Math.random() * 0.5),
+      scale: new Animated.Value(0.5 + Math.random() * 0.3), // Escala menor
     }))
   ).current;
 
   useEffect(() => {
     particles.forEach((p, i) => {
       const animate = () => {
-        const duration = 4000 + Math.random() * 3000;
+        const duration = 8000 + Math.random() * 4000; // Muito mais lento (8-12s vs 4-7s)
         Animated.parallel([
           Animated.sequence([
-            Animated.timing(p.opacity, { toValue: 0.4, duration: duration * 0.3, useNativeDriver: true }),
-            Animated.timing(p.opacity, { toValue: 0, duration: duration * 0.7, useNativeDriver: true }),
+            Animated.timing(p.opacity, { toValue: 0.2, duration: duration * 0.4, useNativeDriver: true }), // Opacidade reduzida
+            Animated.timing(p.opacity, { toValue: 0, duration: duration * 0.6, useNativeDriver: true }),
           ]),
           Animated.timing(p.y, {
             toValue: -50,
@@ -73,7 +73,7 @@ function FloatingParticles() {
           animate();
         });
       };
-      setTimeout(() => animate(), i * 800);
+      setTimeout(() => animate(), i * 2000); // Delay maior entre partículas
     });
   }, []);
 
@@ -99,25 +99,25 @@ function FloatingParticles() {
   );
 }
 
-// Animated ring component
+// Animated ring component - OTIMIZADO: Mais lento e sutil
 function PulseRing({ delay, size }: { delay: number; size: number }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(0.5)).current;
+  const opacity = useRef(new Animated.Value(0.3)).current; // Opacidade inicial reduzida
 
   useEffect(() => {
     const animate = () => {
       scale.setValue(1);
-      opacity.setValue(0.4);
+      opacity.setValue(0.25); // Reduzido de 0.4
       Animated.parallel([
         Animated.timing(scale, {
-          toValue: 1.8,
-          duration: 2500,
+          toValue: 1.5, // Reduzido de 1.8
+          duration: 4000, // Mais lento (4s vs 2.5s)
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 0,
-          duration: 2500,
+          duration: 4000,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -203,18 +203,18 @@ export default function ActivationScreen() {
       }),
     ]).start();
 
-    // Continuous glow pulse
+    // Continuous glow pulse - MAIS LENTO E SUTIL
     const glow = Animated.loop(
       Animated.sequence([
         Animated.timing(glowPulse, {
-          toValue: 1,
-          duration: 2000,
+          toValue: 0.85, // Reduzido de 1
+          duration: 3500, // Mais lento (3.5s vs 2s)
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(glowPulse, {
-          toValue: 0.5,
-          duration: 2000,
+          toValue: 0.6, // Aumentado de 0.5
+          duration: 3500,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -222,18 +222,18 @@ export default function ActivationScreen() {
     );
     glow.start();
 
-    // Subtle logo rotation
+    // Subtle logo rotation - MUITO MAIS SUTIL
     const rotate = Animated.loop(
       Animated.sequence([
         Animated.timing(logoRotate, {
           toValue: 1,
-          duration: 8000,
+          duration: 12000, // Mais lento (12s vs 8s)
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(logoRotate, {
           toValue: 0,
-          duration: 8000,
+          duration: 12000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -326,7 +326,7 @@ export default function ActivationScreen() {
 
   const logoRotation = logoRotate.interpolate({
     inputRange: [0, 1],
-    outputRange: ['-3deg', '3deg'],
+    outputRange: ['-1.5deg', '1.5deg'], // Reduzido de 3deg para 1.5deg - quase imperceptível
   });
 
   const inputBorderColor = inputGlow.interpolate({
