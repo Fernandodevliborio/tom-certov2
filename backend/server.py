@@ -991,6 +991,22 @@ async def apple_touch_icon():
 
 # ─── Landing page — serve no root "/" e em "/landing" ───────────────────
 LANDING_INDEX = LANDING_DIR / "index.html"
+LANDING_V2_DIR = ROOT_DIR / "landing_v2"
+LANDING_V2_INDEX = LANDING_V2_DIR / "index.html"
+
+@app.get("/app", response_class=HTMLResponse)
+async def landing_v2():
+    """Nova página de vendas V2 - otimizada e limpa."""
+    if LANDING_V2_INDEX.exists():
+        return HTMLResponse(
+            LANDING_V2_INDEX.read_text(encoding="utf-8"),
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
+    return HTMLResponse("<h1>Página não encontrada</h1>", status_code=404)
 
 @app.get("/", response_class=HTMLResponse)
 async def landing_root():
