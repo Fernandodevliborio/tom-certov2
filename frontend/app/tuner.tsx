@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated,
-  Dimensions, Platform,
+  Dimensions, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,6 +23,7 @@ const C = {
   red: '#EF4444',
   green: '#22C55E',
   blue: '#60A5FA',
+  orange: '#F97316',
 };
 
 // Instrumentos e suas afinações padrão
@@ -75,14 +76,93 @@ const INSTRUMENTS = {
 
 type InstrumentKey = 'violao' | 'guitarra' | 'baixo' | 'ukulele';
 
-export default function TunerScreen() {
+// Error Boundary Component
+class TunerErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; errorMsg: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMsg: '' };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMsg: error?.message || 'Erro desconhecido' };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[TunerErrorBoundary] Caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <SafeAreaView style={ss.safe}>
+          <View style={ss.errorContainer}>
+            <Ionicons name="warning" size={64} color={C.amber} />
+            <Text style={ss.errorTitle}>Algo deu errado</Text>
+            <Text style={ss.errorMessage}>
+              {this.state.errorMsg || 'O afinador encontrou um problema.'}
+            </Text>
+            <TouchableOpacity
+              style={ss.errorButton}
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+            >
+              <Text style={ss.errorButtonText}>Voltar</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Main Tuner Screen wrapped in Error Boundary
+export default function TunerScreenWrapper() {
+  return (
+    <TunerErrorBoundary>
+      <TunerScreen />
+    </TunerErrorBoundary>
+  );
+}
+
+function TunerScreen() {
   const [instrument, setInstrument] = useState<InstrumentKey>('violao');
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [initAttempts, setInitAttempts] = useState(0);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Safely call useTuner
   const tuner = useTuner();
+  
   const arcAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   
   const currentInstrument = INSTRUMENTS[instrument];
+  
+  // Pulse animation for the beta badge
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
   
   // Encontra a corda mais próxima da frequência detectada
   const getClosestString = useCallback(() => {
@@ -107,7 +187,9 @@ export default function TunerScreen() {
   // Calcula diferença em cents (1 semitom = 100 cents)
   const getCents = useCallback(() => {
     if (!closestString || !tuner.frequency) return 0;
-    const cents = 1200 * Math.log2(tuner.frequency / closestString.freq);
+    const ratio = tuner.frequency / closestString.freq;
+    if (ratio <= 0) return 0;
+    const cents = 1200 * Math.log2(ratio);
     return Math.round(cents);
   }, [tuner.frequency, closestString]);
   
@@ -115,10 +197,35 @@ export default function TunerScreen() {
   
   // Status da afinação
   const getTuningStatus = () => {
-    if (hasError) return { status: 'error', message: 'Erro ao iniciar. Tente novamente.', color: C.red };
-    if (!tuner.isActive) return { status: 'idle', message: 'Toque uma corda para começar', color: C.text2 };
-    if (!tuner.frequency || tuner.frequency < 30) return { status: 'waiting', message: 'Aproxime o instrumento do microfone', color: C.text2 };
-    if (tuner.noiseLevel > 0.7) return { status: 'noise', message: 'Ambiente com muito ruído. Tente novamente.', color: C.red };
+    if (hasError || tuner.error) {
+      return { 
+        status: 'error', 
+        message: tuner.error || 'Erro ao iniciar. Toque para tentar novamente.', 
+        color: C.red 
+      };
+    }
+    if (isLoading) {
+      return { status: 'loading', message: 'Iniciando microfone...', color: C.text2 };
+    }
+    if (!tuner.isActive) {
+      return { status: 'idle', message: 'Toque para iniciar', color: C.text2 };
+    }
+    
+    // Check if native pitch detection is not supported
+    if (Platform.OS !== 'web' && !tuner.isNativeSupported) {
+      return { 
+        status: 'native_limited', 
+        message: 'Modo de visualização de áudio ativo', 
+        color: C.amber 
+      };
+    }
+    
+    if (!tuner.frequency || tuner.frequency < 30) {
+      return { status: 'waiting', message: 'Aproxime o instrumento do microfone', color: C.text2 };
+    }
+    if (tuner.noiseLevel > 0.7) {
+      return { status: 'noise', message: 'Ambiente com muito ruído', color: C.orange };
+    }
     
     const absCents = Math.abs(cents);
     
@@ -146,64 +253,132 @@ export default function TunerScreen() {
     }).start();
   }, [cents]);
   
-  // Inicia o tuner ao montar COM TRATAMENTO DE ERROS
+  // Inicia o tuner ao montar COM TRATAMENTO DE ERROS ROBUSTO
   useEffect(() => {
     let mounted = true;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     
     const initTuner = async () => {
+      if (!mounted) return;
+      
       try {
+        console.log('[TunerScreen] Initializing tuner, attempt:', initAttempts + 1);
         setIsLoading(true);
         setHasError(false);
+        
+        // Small delay to ensure component is fully mounted
+        await new Promise(resolve => setTimeout(resolve, 150));
+        
+        if (!mounted) return;
+        
         await tuner.start();
-        if (mounted) setIsLoading(false);
-      } catch (err) {
-        console.error('[Tuner] Erro ao iniciar:', err);
+        
+        if (mounted) {
+          setIsLoading(false);
+          console.log('[TunerScreen] Tuner started successfully');
+        }
+      } catch (err: any) {
+        console.error('[TunerScreen] Error starting tuner:', err);
         if (mounted) {
           setHasError(true);
           setIsLoading(false);
+          
+          // Auto-retry once after 1 second if first attempt fails
+          if (initAttempts < 1) {
+            retryTimeout = setTimeout(() => {
+              if (mounted) {
+                setInitAttempts(a => a + 1);
+              }
+            }, 1000);
+          }
         }
       }
     };
     
-    // Pequeno delay para garantir que a tela montou
-    const timeout = setTimeout(initTuner, 100);
+    initTuner();
     
     return () => {
       mounted = false;
-      clearTimeout(timeout);
+      if (retryTimeout) clearTimeout(retryTimeout);
       tuner.stop().catch(() => {});
     };
-  }, []);
+  }, [initAttempts]);
   
   // Handler para tentar novamente
   const handleRetry = async () => {
     try {
+      console.log('[TunerScreen] Manual retry initiated');
       setIsLoading(true);
       setHasError(false);
+      await tuner.stop();
+      await new Promise(resolve => setTimeout(resolve, 200));
       await tuner.start();
       setIsLoading(false);
     } catch (err) {
-      console.error('[Tuner] Erro ao reiniciar:', err);
+      console.error('[TunerScreen] Retry error:', err);
       setHasError(true);
       setIsLoading(false);
     }
   };
+  
+  // Handle back navigation safely
+  const handleBack = useCallback(() => {
+    try {
+      tuner.stop().catch(() => {});
+      router.back();
+    } catch (err) {
+      console.error('[TunerScreen] Navigation error:', err);
+      // Fallback: try replace instead
+      try {
+        router.replace('/');
+      } catch {
+        // Last resort - do nothing, let user handle
+      }
+    }
+  }, [tuner]);
   
   const arcRotation = arcAnim.interpolate({
     inputRange: [-1, 1],
     outputRange: ['-45deg', '45deg'],
   });
   
+  // Determine if we should show the "limited mode" banner
+  const showLimitedBanner = Platform.OS !== 'web' && tuner.isActive && !tuner.isNativeSupported;
+  
   return (
     <SafeAreaView style={ss.safe}>
-      {/* Header */}
+      {/* Header with BETA Badge */}
       <View style={ss.header}>
-        <TouchableOpacity onPress={() => router.back()} style={ss.backBtn}>
+        <TouchableOpacity onPress={handleBack} style={ss.backBtn} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={22} color={C.white} />
         </TouchableOpacity>
-        <Text style={ss.headerTitle}>Afinador Inteligente</Text>
+        
+        <View style={ss.headerCenter}>
+          <Text style={ss.headerTitle}>Afinador</Text>
+          <Animated.View style={[ss.betaBadge, { transform: [{ scale: pulseAnim }] }]}>
+            <Text style={ss.betaText}>BETA</Text>
+          </Animated.View>
+        </View>
+        
         <View style={{ width: 44 }} />
       </View>
+      
+      {/* Beta Notice */}
+      <View style={ss.betaNotice}>
+        <Ionicons name="flask-outline" size={14} color={C.amber} />
+        <Text style={ss.betaNoticeText}>Em testes — melhorias em andamento</Text>
+      </View>
+      
+      {/* Limited Mode Banner for Native */}
+      {showLimitedBanner && (
+        <View style={ss.limitedBanner}>
+          <Ionicons name="information-circle" size={16} color={C.orange} />
+          <Text style={ss.limitedBannerText}>
+            Detecção de pitch completa disponível na versão web. 
+            No app, mostramos o nível de áudio.
+          </Text>
+        </View>
+      )}
       
       {/* Seletor de Instrumento */}
       <View style={ss.instrumentSelector}>
@@ -234,64 +409,114 @@ export default function TunerScreen() {
       
       {/* Área Principal do Afinador */}
       <View style={ss.tunerMain}>
-        {/* Arco/Medidor */}
-        <View style={ss.arcContainer}>
-          {/* Background do arco */}
-          <View style={ss.arcBg}>
-            <View style={[ss.arcSegment, ss.arcLeft]} />
-            <View style={[ss.arcSegment, ss.arcCenter]} />
-            <View style={[ss.arcSegment, ss.arcRight]} />
+        {/* Loading State */}
+        {isLoading && (
+          <View style={ss.loadingOverlay}>
+            <ActivityIndicator size="large" color={C.amber} />
+            <Text style={ss.loadingText}>Iniciando microfone...</Text>
           </View>
-          
-          {/* Ponteiro */}
-          <Animated.View style={[ss.needle, { transform: [{ rotate: arcRotation }] }]}>
-            <View style={[ss.needleInner, { backgroundColor: tuningStatus.color }]} />
-          </Animated.View>
-          
-          {/* Centro */}
-          <View style={ss.arcCenter}>
-            <View style={[ss.centerDot, { backgroundColor: tuningStatus.color }]} />
-          </View>
-        </View>
-        
-        {/* Nota Grande Central */}
-        <View style={ss.noteDisplay}>
-          <Text style={[ss.noteText, { color: closestString ? C.white : C.text3 }]}>
-            {closestString?.note.slice(0, -1) || '—'}
-          </Text>
-          {closestString && (
-            <Text style={ss.noteOctave}>{closestString.note.slice(-1)}</Text>
-          )}
-        </View>
-        
-        {/* Frequência (discreta) */}
-        {tuner.frequency && tuner.frequency > 30 && (
-          <Text style={ss.freqText}>{tuner.frequency.toFixed(1)} Hz</Text>
         )}
         
-        {/* Mensagem Inteligente */}
-        <View style={[ss.messageBox, { borderColor: tuningStatus.color }]}>
-          <Ionicons
-            name={
-              tuningStatus.status === 'perfect' ? 'checkmark-circle' :
-              tuningStatus.status === 'almost' ? 'ellipse' :
-              tuningStatus.status === 'low' ? 'arrow-up' :
-              tuningStatus.status === 'high' ? 'arrow-down' :
-              'mic'
-            }
-            size={24}
-            color={tuningStatus.color}
-          />
-          <Text style={[ss.messageText, { color: tuningStatus.color }]}>
-            {tuningStatus.message}
-          </Text>
-        </View>
+        {/* Error State with Retry */}
+        {!isLoading && (hasError || tuner.error) && (
+          <View style={ss.errorOverlay}>
+            <Ionicons name="mic-off" size={48} color={C.red} />
+            <Text style={ss.errorText}>{tuner.error || 'Erro ao iniciar afinador'}</Text>
+            <TouchableOpacity style={ss.retryButton} onPress={handleRetry} activeOpacity={0.8}>
+              <Ionicons name="refresh" size={18} color={C.bg} />
+              <Text style={ss.retryButtonText}>Tentar novamente</Text>
+            </TouchableOpacity>
+            {tuner.permissionStatus === 'blocked' && (
+              <Text style={ss.permissionHint}>
+                Vá em Configurações {'>'} Tom Certo {'>'} Permissões {'>'} Microfone
+              </Text>
+            )}
+          </View>
+        )}
         
-        {/* Corda detectada */}
-        {closestString && tuner.frequency && tuner.frequency > 30 && (
-          <Text style={ss.stringName}>
-            Corda {closestString.name} ({closestString.note})
-          </Text>
+        {/* Active Tuner UI */}
+        {!isLoading && !hasError && !tuner.error && (
+          <>
+            {/* Arco/Medidor */}
+            <View style={ss.arcContainer}>
+              {/* Background do arco */}
+              <View style={ss.arcBg}>
+                <View style={[ss.arcSegment, ss.arcLeft]} />
+                <View style={[ss.arcSegment, ss.arcCenterSeg]} />
+                <View style={[ss.arcSegment, ss.arcRight]} />
+              </View>
+              
+              {/* Ponteiro */}
+              <Animated.View style={[ss.needle, { transform: [{ rotate: arcRotation }] }]}>
+                <View style={[ss.needleInner, { backgroundColor: tuningStatus.color }]} />
+              </Animated.View>
+              
+              {/* Centro */}
+              <View style={ss.arcCenterDot}>
+                <View style={[ss.centerDot, { backgroundColor: tuningStatus.color }]} />
+              </View>
+            </View>
+            
+            {/* Nota Grande Central */}
+            <View style={ss.noteDisplay}>
+              <Text style={[ss.noteText, { color: closestString ? C.white : C.text3 }]}>
+                {closestString?.note.slice(0, -1) || '—'}
+              </Text>
+              {closestString && (
+                <Text style={ss.noteOctave}>{closestString.note.slice(-1)}</Text>
+              )}
+            </View>
+            
+            {/* Frequência (discreta) */}
+            {tuner.frequency && tuner.frequency > 30 && (
+              <Text style={ss.freqText}>{tuner.frequency.toFixed(1)} Hz</Text>
+            )}
+            
+            {/* Audio Level Indicator (for native) */}
+            {Platform.OS !== 'web' && tuner.isActive && (
+              <View style={ss.audioLevelContainer}>
+                <Text style={ss.audioLevelLabel}>NÍVEL DE ÁUDIO</Text>
+                <View style={ss.audioLevelBar}>
+                  <View 
+                    style={[
+                      ss.audioLevelFill, 
+                      { 
+                        width: `${Math.min(100, tuner.noiseLevel * 100)}%`,
+                        backgroundColor: tuner.noiseLevel > 0.7 ? C.red : tuner.noiseLevel > 0.3 ? C.amber : C.green,
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
+            )}
+            
+            {/* Mensagem Inteligente */}
+            <View style={[ss.messageBox, { borderColor: tuningStatus.color }]}>
+              <Ionicons
+                name={
+                  tuningStatus.status === 'perfect' ? 'checkmark-circle' :
+                  tuningStatus.status === 'almost' ? 'ellipse' :
+                  tuningStatus.status === 'low' ? 'arrow-up' :
+                  tuningStatus.status === 'high' ? 'arrow-down' :
+                  tuningStatus.status === 'loading' ? 'hourglass' :
+                  tuningStatus.status === 'native_limited' ? 'pulse' :
+                  'mic'
+                }
+                size={24}
+                color={tuningStatus.color}
+              />
+              <Text style={[ss.messageText, { color: tuningStatus.color }]}>
+                {tuningStatus.message}
+              </Text>
+            </View>
+            
+            {/* Corda detectada */}
+            {closestString && tuner.frequency && tuner.frequency > 30 && (
+              <Text style={ss.stringName}>
+                Corda {closestString.name} ({closestString.note})
+              </Text>
+            )}
+          </>
         )}
       </View>
       
@@ -300,7 +525,7 @@ export default function TunerScreen() {
         <Text style={ss.stringsLabel}>CORDAS DO {currentInstrument.name.toUpperCase()}</Text>
         <View style={ss.stringsRow}>
           {currentInstrument.strings.map((str, idx) => {
-            const isActive = closestString?.note === str.note && tuner.frequency && tuner.frequency > 30;
+            const isActive = closestString?.note === str.note && !!tuner.frequency && tuner.frequency > 30;
             const isPerfect = isActive && Math.abs(cents) <= 5;
             
             return (
@@ -308,14 +533,14 @@ export default function TunerScreen() {
                 key={idx}
                 style={[
                   ss.stringChip,
-                  isActive && ss.stringChipActive,
-                  isPerfect && ss.stringChipPerfect,
+                  isActive ? ss.stringChipActive : null,
+                  isPerfect ? ss.stringChipPerfect : null,
                 ]}
               >
                 <Text style={[
                   ss.stringChipNote,
-                  isActive && ss.stringChipNoteActive,
-                  isPerfect && ss.stringChipNotePerfect,
+                  isActive ? ss.stringChipNoteActive : null,
+                  isPerfect ? ss.stringChipNotePerfect : null,
                 ]}>
                   {str.note.slice(0, -1)}
                 </Text>
@@ -341,6 +566,11 @@ const ss = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   backBtn: {
     width: 44, height: 44, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center',
@@ -351,6 +581,62 @@ const ss = StyleSheet.create({
     fontSize: 18,
     color: C.white,
     letterSpacing: -0.3,
+  },
+  
+  // Beta Badge Styles
+  betaBadge: {
+    backgroundColor: 'rgba(255, 176, 32, 0.15)',
+    borderWidth: 1,
+    borderColor: C.amber,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  betaText: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 10,
+    color: C.amber,
+    letterSpacing: 1.5,
+  },
+  
+  // Beta Notice
+  betaNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255, 176, 32, 0.06)',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255, 176, 32, 0.15)',
+  },
+  betaNoticeText: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 11,
+    color: C.text2,
+    letterSpacing: 0.3,
+  },
+  
+  // Limited Mode Banner
+  limitedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(249, 115, 22, 0.3)',
+  },
+  limitedBannerText: {
+    flex: 1,
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 11,
+    color: C.text2,
+    lineHeight: 16,
   },
   
   instrumentSelector: {
@@ -391,6 +677,84 @@ const ss = StyleSheet.create({
     paddingHorizontal: 24,
   },
   
+  // Loading & Error States
+  loadingOverlay: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  loadingText: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 14,
+    color: C.text2,
+  },
+  errorOverlay: {
+    alignItems: 'center',
+    gap: 12,
+    padding: 24,
+  },
+  errorText: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 14,
+    color: C.text2,
+    textAlign: 'center',
+    maxWidth: 280,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: C.amber,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 14,
+    color: C.bg,
+  },
+  permissionHint: {
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 11,
+    color: C.text3,
+    textAlign: 'center',
+    marginTop: 8,
+    maxWidth: 260,
+  },
+  
+  // Error Container (for ErrorBoundary)
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    gap: 16,
+  },
+  errorTitle: {
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 24,
+    color: C.white,
+  },
+  errorMessage: {
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 14,
+    color: C.text2,
+    textAlign: 'center',
+  },
+  errorButton: {
+    backgroundColor: C.amber,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 25,
+    marginTop: 16,
+  },
+  errorButtonText: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 15,
+    color: C.bg,
+  },
+  
   arcContainer: {
     width: 240,
     height: 140,
@@ -417,7 +781,7 @@ const ss = StyleSheet.create({
     width: 60,
     backgroundColor: C.blue,
   },
-  arcCenter: {
+  arcCenterSeg: {
     width: 30,
     backgroundColor: C.green,
   },
@@ -437,12 +801,15 @@ const ss = StyleSheet.create({
     height: 80,
     borderRadius: 2,
   },
+  arcCenterDot: {
+    position: 'absolute',
+    bottom: 0,
+    alignItems: 'center',
+  },
   centerDot: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    position: 'absolute',
-    bottom: -10,
   },
   
   noteDisplay: {
@@ -471,7 +838,32 @@ const ss = StyleSheet.create({
     fontFamily: 'Manrope_400Regular',
     fontSize: 14,
     color: C.text3,
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  
+  // Audio Level Indicator
+  audioLevelContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+    width: '80%',
+  },
+  audioLevelLabel: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 9,
+    color: C.text3,
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  audioLevelBar: {
+    width: '100%',
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  audioLevelFill: {
+    height: '100%',
+    borderRadius: 3,
   },
   
   messageBox: {
