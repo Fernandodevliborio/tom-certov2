@@ -144,37 +144,64 @@
       box-shadow: 0 0 0 6px rgba(255,176,32,0.16);
     }
     
-    /* ═══ HEADLINE ═══ */
+    /* ═══ HEADLINE PREMIUM ═══ */
     .tc-hero-headline-premium {
       font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-      font-weight: 800;
+      font-weight: 900;
       color: #FFFFFF;
       text-align: center;
-      text-shadow: 0 18px 58px rgba(0,0,0,0.72);
+      letter-spacing: -0.035em;
+      text-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 24px 64px rgba(0,0,0,0.4);
     }
     
-    .tc-hero-headline-premium span {
+    .tc-hero-headline-premium .tc-line {
       display: block;
+      line-height: 1.02;
     }
     
-    /* Mobile first - tamanhos base */
-    .tc-hero-headline-premium span:nth-child(1) { font-size: 1.75rem; line-height: 1.15; opacity: 0.95; }
-    .tc-hero-headline-premium span:nth-child(2) { font-size: 1.85rem; line-height: 1.12; opacity: 0.97; margin-top: 0.1em; }
-    .tc-hero-headline-premium span:nth-child(3) { font-size: 2rem; line-height: 1.08; margin-top: 0.15em; color: #FFB020; }
-    .tc-hero-headline-premium span:nth-child(4) { font-size: 2.1rem; line-height: 1.05; margin-top: 0.1em; color: #FFB020; }
+    /* Linhas brancas - estilo neutro mas forte */
+    .tc-hero-headline-premium .tc-line-white {
+      color: rgba(255,255,255,0.88);
+    }
     
+    /* Linhas douradas - destaque máximo com glow */
+    .tc-hero-headline-premium .tc-line-gold {
+      color: #FFB020;
+      text-shadow: 0 0 80px rgba(255,176,32,0.4), 0 4px 20px rgba(0,0,0,0.5);
+    }
+    
+    /* Mobile - tamanhos impactantes premium */
+    .tc-hero-headline-premium .tc-line:nth-child(1) { 
+      font-size: 2.25rem; 
+      margin-bottom: 0.05em;
+    }
+    .tc-hero-headline-premium .tc-line:nth-child(2) { 
+      font-size: 2.35rem; 
+      margin-bottom: 0.1em;
+    }
+    .tc-hero-headline-premium .tc-line:nth-child(3) { 
+      font-size: 2.65rem; 
+      margin-bottom: 0.05em;
+    }
+    .tc-hero-headline-premium .tc-line:nth-child(4) { 
+      font-size: 2.85rem;
+    }
+    
+    /* Tablet */
     @media (min-width: 640px) {
-      .tc-hero-headline-premium span:nth-child(1) { font-size: 2.5rem; }
-      .tc-hero-headline-premium span:nth-child(2) { font-size: 2.7rem; }
-      .tc-hero-headline-premium span:nth-child(3) { font-size: 3rem; }
-      .tc-hero-headline-premium span:nth-child(4) { font-size: 3.2rem; }
+      .tc-hero-headline-premium { letter-spacing: -0.04em; }
+      .tc-hero-headline-premium .tc-line:nth-child(1) { font-size: 3rem; }
+      .tc-hero-headline-premium .tc-line:nth-child(2) { font-size: 3.2rem; }
+      .tc-hero-headline-premium .tc-line:nth-child(3) { font-size: 3.6rem; }
+      .tc-hero-headline-premium .tc-line:nth-child(4) { font-size: 4rem; }
     }
     
+    /* Desktop */
     @media (min-width: 1024px) {
-      .tc-hero-headline-premium span:nth-child(1) { font-size: 3.5rem; }
-      .tc-hero-headline-premium span:nth-child(2) { font-size: 3.8rem; }
-      .tc-hero-headline-premium span:nth-child(3) { font-size: 4.2rem; }
-      .tc-hero-headline-premium span:nth-child(4) { font-size: 4.5rem; }
+      .tc-hero-headline-premium .tc-line:nth-child(1) { font-size: 3.8rem; }
+      .tc-hero-headline-premium .tc-line:nth-child(2) { font-size: 4.1rem; }
+      .tc-hero-headline-premium .tc-line:nth-child(3) { font-size: 4.6rem; }
+      .tc-hero-headline-premium .tc-line:nth-child(4) { font-size: 5rem; }
     }
     
     /* ═══ SUBHEADLINE ═══ */
@@ -831,12 +858,12 @@
       <div class="mx-auto max-w-4xl text-center">
         <span class="eyebrow justify-center" data-testid="hero-eyebrow">Feito para músico de igreja</span>
         
-        <!-- Headline Premium com Space Grotesk - Ritmo Visual -->
-        <h1 class="tc-hero-headline-premium mt-6" data-testid="hero-headline" style="text-align:center;">
-          <span style="display:block;font-size:clamp(1.75rem,5vw,3.5rem);line-height:1.15;opacity:0.95;">Nunca mais fique</span>
-          <span style="display:block;font-size:clamp(1.85rem,5.5vw,3.8rem);line-height:1.12;opacity:0.97;margin-top:0.1em;">tentando achar o</span>
-          <span style="display:block;font-size:clamp(2rem,6vw,4.2rem);line-height:1.08;margin-top:0.15em;color:#FFB020;">tom enquanto</span>
-          <span style="display:block;font-size:clamp(2.1rem,6.5vw,4.5rem);line-height:1.05;margin-top:0.1em;color:#FFB020;">a igreja canta.</span>
+        <!-- Headline Premium - Impacto Visual Máximo -->
+        <h1 class="tc-hero-headline-premium mt-6" data-testid="hero-headline">
+          <span class="tc-line tc-line-white">Nunca mais fique</span>
+          <span class="tc-line tc-line-white">tentando achar o</span>
+          <span class="tc-line tc-line-gold">tom enquanto</span>
+          <span class="tc-line tc-line-gold">a igreja canta.</span>
         </h1>
         
         <p class="mx-auto mt-6 max-w-2xl text-base font-medium leading-relaxed text-zinc-400 sm:text-lg md:text-xl" data-testid="hero-subheadline">Descubra o tom em segundos, acompanhe qualquer voz e toque com segurança no culto — sem depender de ninguém.</p>
