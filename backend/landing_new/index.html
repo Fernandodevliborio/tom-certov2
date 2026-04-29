@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio.">
+  <title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
+  
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    
+    :root{
+      --bg:#0a0a0a;
+      --bg-card:#111;
+      --gold:#FFB020;
+      --gold-light:#FFCA5C;
+      --gold-dark:#D4920F;
+      --text:#fff;
+      --text-muted:#9CA3AF;
+      --green:#10B981;
+      --cream:#FFF8E7;
+    }
+    
+    html{scroll-behavior:smooth}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+    img{max-width:100%;display:block}
+    a{text-decoration:none;color:inherit}
+    
+    .container{max-width:1200px;margin:0 auto;padding:0 20px}
+    .section{padding:80px 0}
+    .text-center{text-align:center}
+    
+    /* Typography */
+    h1,h2,h3{font-family:'Outfit',sans-serif;font-weight:800;line-height:1.1}
+    .title-xl{font-size:clamp(32px,8vw,56px);margin-bottom:20px}
+    .title-lg{font-size:clamp(28px,6vw,44px);margin-bottom:16px}
+    .title-md{font-size:clamp(20px,4vw,28px)}
+    .text-gold{color:var(--gold)}
+    .subtitle{font-size:clamp(16px,4vw,20px);color:var(--text-muted);max-width:560px;margin:0 auto 32px}
+    
+    /* Badge */
+    .badge{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:rgba(255,176,32,0.1);border:1px solid rgba(255,176,32,0.3);border-radius:24px;font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:24px}
+    .badge::before{content:'';width:8px;height:8px;background:var(--gold);border-radius:50%;animation:pulse 2s infinite}
+    .badge-cream{background:rgba(255,176,32,0.15);border-color:var(--gold-dark);color:var(--gold-dark)}
+    
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+    
+    /* Buttons */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:16px 32px;border-radius:14px;font-size:16px;font-weight:700;transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;border:none}
+    .btn-gold{background:linear-gradient(180deg,var(--gold-light),var(--gold),var(--gold-dark));color:#000;box-shadow:0 8px 24px rgba(255,176,32,0.4)}
+    .btn-gold:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(255,176,32,0.5)}
+    .btn-outline{background:transparent;border:1px solid #333;color:var(--text-muted)}
+    .btn-outline:hover{border-color:#555;color:var(--text)}
+    .btn-full{width:100%}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       HERO
+       ═══════════════════════════════════════════════════════════════ */
+    .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 20px;position:relative}
+    .hero-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:500px;height:500px;background:radial-gradient(circle,rgba(255,176,32,0.08) 0%,transparent 70%);animation:breathe 6s ease-in-out infinite;pointer-events:none}
+    .hero-content{position:relative;z-index:2;max-width:640px}
+    .hero-buttons{display:flex;flex-direction:column;gap:12px;margin-bottom:40px}
+    
+    @keyframes breathe{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6}50%{transform:translate(-50%,-50%) scale(1.1);opacity:1}}
+    
+    @media(min-width:480px){.hero-buttons{flex-direction:row;justify-content:center}}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       PHONE MOCKUP - ANIMADO
+       ═══════════════════════════════════════════════════════════════ */
+    .phone-section{padding:40px 20px 80px;position:relative}
+    .phone-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:400px;height:400px;background:radial-gradient(circle,rgba(255,176,32,0.08) 0%,transparent 60%);pointer-events:none}
+    
+    .phone-wrapper{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center}
+    
+    .phone-frame{width:280px;max-width:85%;background:linear-gradient(145deg,#1a1a1a,#0d0d0d);border-radius:44px;padding:12px;box-shadow:0 40px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.05);animation:float 8s ease-in-out infinite;position:relative}
+    .phone-frame::before{content:'';position:absolute;inset:-2px;border-radius:46px;background:conic-gradient(from 0deg,transparent,var(--gold),transparent,transparent,var(--gold),transparent);animation:rotate 12s linear infinite;opacity:0.2;z-index:-1}
+    
+    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+    @keyframes rotate{to{transform:rotate(360deg)}}
+    
+    .phone-screen{background:var(--bg);border-radius:36px;padding:24px 16px;min-height:440px;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
+    .phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:80px;height:24px;background:#000;border-radius:16px}
+    
+    .phone-badge{margin-top:32px;padding:6px 12px;background:rgba(255,176,32,0.15);border:1px solid rgba(255,176,32,0.3);border-radius:8px;font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
+    .phone-desc{font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:20px;padding:0 10px;line-height:1.5}
+    
+    /* Detector animado */
+    .detector{position:relative;width:140px;height:140px;margin-bottom:16px}
+    .detector-ring{position:absolute;inset:0;border:2px solid var(--gold);border-radius:50%;opacity:0;animation:ripple 4s ease-out infinite}
+    .detector-ring:nth-child(2){animation-delay:1.3s}
+    .detector-ring:nth-child(3){animation-delay:2.6s}
+    @keyframes ripple{0%{transform:scale(1);opacity:0.3}100%{transform:scale(1.8);opacity:0}}
+    
+    .detector-circle{position:absolute;inset:20px;background:radial-gradient(circle,rgba(255,176,32,0.15) 0%,transparent 70%);border:2px solid rgba(255,176,32,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:glow 4s ease-in-out infinite}
+    @keyframes glow{0%,100%{box-shadow:0 0 20px rgba(255,176,32,0.2)}50%{box-shadow:0 0 40px rgba(255,176,32,0.4)}}
+    
+    .detector-icon{width:48px;height:48px;background:linear-gradient(135deg,var(--gold-light),var(--gold-dark));border-radius:50%;display:flex;align-items:center;justify-content:center;animation:iconPulse 3s ease-in-out infinite}
+    .detector-icon svg{width:24px;height:24px;fill:#000}
+    @keyframes iconPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+    
+    /* Waveform */
+    .waveform{display:flex;align-items:center;justify-content:center;gap:3px;height:32px;margin-bottom:12px}
+    .waveform span{width:3px;background:linear-gradient(180deg,var(--gold),var(--gold-dark));border-radius:3px;animation:wave 1.5s ease-in-out infinite}
+    .waveform span:nth-child(1){height:20%;animation-delay:0s}
+    .waveform span:nth-child(2){height:40%;animation-delay:0.1s}
+    .waveform span:nth-child(3){height:60%;animation-delay:0.2s}
+    .waveform span:nth-child(4){height:80%;animation-delay:0.3s}
+    .waveform span:nth-child(5){height:60%;animation-delay:0.4s}
+    .waveform span:nth-child(6){height:40%;animation-delay:0.5s}
+    .waveform span:nth-child(7){height:20%;animation-delay:0.6s}
+    @keyframes wave{0%,100%{height:20%}50%{height:80%}}
+    
+    .phone-status{font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:2px;animation:pulse 2s infinite}
+    .phone-tagline{margin-top:16px;font-size:12px;color:var(--text-muted);text-align:center}
+    .phone-tagline strong{color:var(--gold)}
+    
+    /* Feature pills */
+    .feature-pills{display:grid;gap:12px;margin-top:40px;max-width:380px;width:100%}
+    .feature-pill{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--bg-card);border-radius:12px;border:1px solid #222;transition:transform 0.2s,border-color 0.2s}
+    .feature-pill:hover{transform:translateX(4px);border-color:rgba(255,176,32,0.3)}
+    .feature-pill svg{width:20px;height:20px;color:var(--gold);flex-shrink:0}
+    .feature-pill span{font-size:14px;font-weight:500}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       PAIN POINTS
+       ═══════════════════════════════════════════════════════════════ */
+    .section-cream{background:var(--cream);color:#1a1a1a}
+    .pain-grid{display:grid;gap:16px;margin-top:40px}
+    @media(min-width:640px){.pain-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(min-width:1024px){.pain-grid{grid-template-columns:repeat(3,1fr)}}
+    
+    .pain-card{background:#fff;border-radius:16px;padding:24px;border:1px solid #E5E7EB;transition:transform 0.3s,box-shadow 0.3s}
+    .pain-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,0.1)}
+    .pain-card h3{font-size:18px;margin-bottom:8px;color:#1a1a1a}
+    .pain-card p{font-size:14px;color:#6B7280;line-height:1.6}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       COMPARISON
+       ═══════════════════════════════════════════════════════════════ */
+    .comparison{display:grid;gap:20px;margin-top:50px}
+    @media(min-width:768px){.comparison{grid-template-columns:1fr 1fr}}
+    
+    .comparison-box{border-radius:16px;padding:28px 24px}
+    .comparison-before{background:#fff;border:1px solid #E5E7EB}
+    .comparison-after{background:linear-gradient(135deg,rgba(255,176,32,0.12),rgba(255,202,92,0.05));border:2px solid var(--gold)}
+    
+    .comparison-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .comparison-label-before{color:#6B7280}
+    .comparison-label-after{color:var(--green)}
+    
+    .comparison-list{list-style:none}
+    .comparison-list li{display:flex;align-items:flex-start;gap:10px;padding:10px 0;font-size:14px;color:#374151;border-bottom:1px solid rgba(0,0,0,0.05)}
+    .comparison-list li:last-child{border:none}
+    .comparison-list svg{width:18px;height:18px;flex-shrink:0;margin-top:2px}
+    .icon-x{color:#EF4444}
+    .icon-check{color:var(--green)}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       STEPS
+       ═══════════════════════════════════════════════════════════════ */
+    .steps{display:grid;gap:32px;margin-top:48px}
+    @media(min-width:768px){.steps{grid-template-columns:repeat(3,1fr)}}
+    
+    .step{text-align:center}
+    .step-num{width:56px;height:56px;margin:0 auto 20px;background:linear-gradient(135deg,var(--gold-light),var(--gold-dark));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-size:24px;font-weight:800;color:#000;box-shadow:0 8px 24px rgba(255,176,32,0.3)}
+    .step h3{font-size:20px;margin-bottom:8px}
+    .step p{font-size:14px;color:var(--text-muted);max-width:280px;margin:0 auto}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       BENEFITS
+       ═══════════════════════════════════════════════════════════════ */
+    .benefits-grid{display:grid;gap:20px;margin-top:48px}
+    @media(min-width:640px){.benefits-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(min-width:1024px){.benefits-grid{grid-template-columns:repeat(3,1fr)}}
+    
+    .benefit-card{background:var(--bg-card);border-radius:16px;padding:28px 24px;border:1px solid #1a1a1a;transition:transform 0.3s,border-color 0.3s}
+    .benefit-card:hover{transform:translateY(-4px);border-color:rgba(255,176,32,0.3)}
+    .benefit-card svg{width:36px;height:36px;color:var(--gold);margin-bottom:16px}
+    .benefit-card h3{font-size:18px;margin-bottom:8px}
+    .benefit-card p{font-size:14px;color:var(--text-muted)}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       TUNER
+       ═══════════════════════════════════════════════════════════════ */
+    .tuner-box{margin-top:48px;background:var(--bg-card);border-radius:20px;padding:40px 24px;border:1px solid #1a1a1a;text-align:center;position:relative;overflow:hidden}
+    .tuner-box::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;background:radial-gradient(circle,rgba(16,185,129,0.1) 0%,transparent 70%);pointer-events:none}
+    
+    .tuner-visual{position:relative;z-index:2;width:100px;height:100px;margin:0 auto 20px;background:radial-gradient(circle,rgba(16,185,129,0.15) 0%,transparent 70%);border:2px solid rgba(16,185,129,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:glowGreen 3s ease-in-out infinite}
+    @keyframes glowGreen{0%,100%{box-shadow:0 0 15px rgba(16,185,129,0.2)}50%{box-shadow:0 0 30px rgba(16,185,129,0.4)}}
+    
+    .tuner-note{font-family:'Outfit',sans-serif;font-size:40px;font-weight:800;color:var(--green)}
+    .tuner-status{font-size:14px;color:var(--green);font-weight:600;margin-bottom:20px;position:relative;z-index:2}
+    .tuner-features{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;position:relative;z-index:2}
+    .tuner-feature{padding:8px 14px;background:rgba(255,255,255,0.05);border-radius:20px;font-size:12px;color:var(--text-muted)}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       PRICING
+       ═══════════════════════════════════════════════════════════════ */
+    .pricing-grid{display:grid;gap:20px;margin-top:48px}
+    @media(min-width:768px){.pricing-grid{grid-template-columns:repeat(3,1fr);align-items:start}}
+    
+    .plan-card{background:var(--bg-card);border-radius:20px;padding:32px 24px;border:1px solid #1a1a1a;position:relative;transition:transform 0.3s}
+    .plan-card:hover{transform:translateY(-4px)}
+    .plan-featured{border:2px solid var(--gold);background:linear-gradient(180deg,rgba(255,176,32,0.08),var(--bg-card))}
+    @media(min-width:768px){.plan-featured{transform:scale(1.03)}.plan-featured:hover{transform:scale(1.03) translateY(-4px)}}
+    
+    .plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#FF6B35,#F7931A);color:#fff;font-size:11px;font-weight:700;padding:6px 14px;border-radius:20px;white-space:nowrap}
+    .plan-name{font-family:'Outfit',sans-serif;font-size:22px;font-weight:700;margin-bottom:6px}
+    .plan-desc{font-size:13px;color:var(--text-muted);margin-bottom:20px}
+    .plan-price{margin-bottom:24px}
+    .plan-price-value{font-family:'Outfit',sans-serif;font-size:36px;font-weight:800;color:var(--gold)}
+    .plan-price-period{font-size:14px;color:var(--text-muted)}
+    
+    .plan-features{list-style:none;margin-bottom:24px}
+    .plan-features li{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:14px;color:var(--text-muted);border-bottom:1px solid #1a1a1a}
+    .plan-features li:last-child{border:none}
+    .plan-features svg{width:18px;height:18px;color:var(--green);flex-shrink:0}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       FAQ
+       ═══════════════════════════════════════════════════════════════ */
+    .faq-list{margin-top:48px;max-width:800px;margin-left:auto;margin-right:auto}
+    .faq-item{border-bottom:1px solid #1a1a1a}
+    .faq-question{width:100%;display:flex;align-items:center;justify-content:space-between;padding:20px 0;font-size:16px;font-weight:600;text-align:left;background:none;border:none;color:var(--text);cursor:pointer;transition:color 0.2s}
+    .faq-question:hover{color:var(--gold)}
+    .faq-question svg{width:20px;height:20px;color:var(--gold);transition:transform 0.3s;flex-shrink:0;margin-left:16px}
+    .faq-item.open .faq-question svg{transform:rotate(180deg)}
+    .faq-answer{max-height:0;overflow:hidden;transition:max-height 0.3s}
+    .faq-item.open .faq-answer{max-height:300px}
+    .faq-answer-inner{padding-bottom:20px;font-size:15px;color:var(--text-muted);line-height:1.7}
+    
+    /* ═══════════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════════ */
+    .footer{padding:40px 20px;text-align:center;border-top:1px solid #1a1a1a}
+    .footer-logo{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;color:var(--gold);margin-bottom:8px}
+    .footer-text{font-size:13px;color:var(--text-muted)}
+    
+    /* WhatsApp */
+    .whatsapp{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(37,211,102,0.4);z-index:1000;transition:transform 0.2s}
+    .whatsapp:hover{transform:scale(1.1)}
+    .whatsapp svg{width:28px;height:28px;fill:#fff}
+    
+    /* Hide Emergent */
+    #emergent-badge,[id*="emergent"],a[href*="emergent"]{display:none!important}
+  </style>
+</head>
+<body>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-content">
+      <div class="badge">Feito para músico de igreja</div>
+      <h1 class="title-xl">Enquanto outros procuram o tom…<br><span class="text-gold">você já está tocando.</span></h1>
+      <p class="subtitle">Descubra o tom e o campo harmônico em segundos — sem travar no culto, sem depender de ninguém.</p>
+      <div class="hero-buttons">
+        <a href="#planos" class="btn btn-gold">Quero o Tom Certo <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+        <a href="#como-funciona" class="btn btn-outline">Ver como funciona</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHONE MOCKUP -->
+  <section class="phone-section">
+    <div class="phone-glow"></div>
+    <div class="container">
+      <div class="phone-wrapper">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            <div class="phone-notch"></div>
+            <div class="phone-badge">Sem enrolação</div>
+            <p class="phone-desc">IA que detecta o tom e o campo harmônico em segundos com precisão real, no meio do culto.</p>
+            
+            <div class="detector">
+              <div class="detector-ring"></div>
+              <div class="detector-ring"></div>
+              <div class="detector-ring"></div>
+              <div class="detector-circle">
+                <div class="detector-icon">
+                  <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
+                </div>
+              </div>
+            </div>
+            
+            <div class="waveform">
+              <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            
+            <div class="phone-status">Analisando…</div>
+            <p class="phone-tagline">Detecção inteligente. <strong>Resultado preciso.</strong></p>
+          </div>
+        </div>
+        
+        <div class="feature-pills">
+          <div class="feature-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>Tom da música em segundos</span>
+          </div>
+          <div class="feature-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>Campo harmônico completo</span>
+          </div>
+          <div class="feature-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>Funciona com voz ou instrumento</span>
+          </div>
+          <div class="feature-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>Afinador profissional incluso</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAIN POINTS -->
+  <section class="section section-cream">
+    <div class="container">
+      <div class="text-center">
+        <div class="badge badge-cream">A dor é real</div>
+        <h2 class="title-lg" style="color:#1a1a1a">Você se <span class="text-gold">reconhece aqui?</span></h2>
+        <p class="subtitle" style="color:#6B7280">Se uma dessas frases passou pela sua cabeça em algum ensaio ou culto, esta página é pra você.</p>
+      </div>
+      
+      <div class="pain-grid">
+        <div class="pain-card">
+          <h3>"Quando consigo achar o tom, a música já acabou."</h3>
+          <p>Você fica tentando, testando, e o louvor passa por você sem você tocar uma nota certa.</p>
+        </div>
+        <div class="pain-card">
+          <h3>"Travei de novo no ensaio."</h3>
+          <p>O resto da banda começa a tocar e você ainda está procurando o tom da música.</p>
+        </div>
+        <div class="pain-card">
+          <h3>"Tive que pedir o tom pra alguém."</h3>
+          <p>Sempre dependendo do tecladista ou de outro músico pra te dizer onde começar.</p>
+        </div>
+        <div class="pain-card">
+          <h3>"O cantor mudou o tom… e agora?"</h3>
+          <p>Quando muda no meio da música, você fica perdido e o louvor desafina.</p>
+        </div>
+        <div class="pain-card">
+          <h3>"Toquei acordes errados na frente de todo mundo."</h3>
+          <p>A insegurança bate, o suor desce, e o domingo vira pesadelo.</p>
+        </div>
+        <div class="pain-card">
+          <h3>"Eu queria conseguir tocar de ouvido."</h3>
+          <p>Mas sem saber o tom, é impossível acompanhar uma música nova rapidamente.</p>
+        </div>
+      </div>
+      
+      <!-- COMPARISON -->
+      <div class="comparison">
+        <div class="comparison-box comparison-before">
+          <div class="comparison-label comparison-label-before">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+            Antes
+          </div>
+          <ul class="comparison-list">
+            <li><svg class="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Toca acordes errados no culto</li>
+            <li><svg class="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Sente vergonha de tentar tocar de ouvido</li>
+            <li><svg class="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Estuda teoria por meses sem conseguir aplicar</li>
+          </ul>
+        </div>
+        <div class="comparison-box comparison-after">
+          <div class="comparison-label comparison-label-after">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            Com Tom Certo
+          </div>
+          <ul class="comparison-list">
+            <li><svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Descobre o tom em segundos</li>
+            <li><svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Toca sozinho, sem precisar perguntar</li>
+            <li><svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Acompanha qualquer mudança de tom na hora</li>
+            <li><svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Vê o campo harmônico pronto, sem teoria</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="como-funciona" class="section">
+    <div class="container">
+      <div class="text-center">
+        <div class="badge">Como funciona</div>
+        <h2 class="title-lg">Três passos. <span class="text-gold">Zero teoria.</span></h2>
+        <p class="subtitle">Você não precisa saber escala, intervalo ou nada complicado. O app faz o trabalho pesado.</p>
+      </div>
+      
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Aproxime do som</h3>
+          <p>Pode ser a voz do cantor, o seu instrumento ou o som ambiente do ensaio. O app escuta.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>O tom aparece</h3>
+          <p>Em poucos segundos o Tom Certo te mostra exatamente em que tom a música está.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Toque de cara</h3>
+          <p>Veja o campo harmônico completo na tela. Sem chute, sem testar acorde por acorde.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENEFITS -->
+  <section class="section">
+    <div class="container">
+      <div class="text-center">
+        <div class="badge">O que você ganha</div>
+        <h2 class="title-lg">Resultado. <span class="text-gold">Não promessa.</span></h2>
+      </div>
+      
+      <div class="benefits-grid">
+        <div class="benefit-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <h3>Tom em segundos</h3>
+          <p>Nada de testar acorde por acorde. O app entrega o tom antes da música começar.</p>
+        </div>
+        <div class="benefit-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <h3>Confiança no culto</h3>
+          <p>Suba pra tocar sabendo que vai começar certo, do primeiro acorde ao último.</p>
+        </div>
+        <div class="benefit-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <h3>Sem depender de ninguém</h3>
+          <p>Pare de perguntar o tom pro tecladista. Você descobre sozinho, na hora.</p>
+        </div>
+        <div class="benefit-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          <h3>Cabe no seu bolso</h3>
+          <p>Funciona direto no celular. Sem cabo, sem computador, sem complicação.</p>
+        </div>
+        <div class="benefit-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+          <h3>Voz, instrumento ou ambiente</h3>
+          <p>Capta o som do cantor, do violão, do teclado ou da música tocando perto.</p>
+        </div>
+        <div class="benefit-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          <h3>Evolui sem estudar teoria</h3>
+          <p>Você toca de ouvido enquanto aprende — o app vira seu professor de tonalidade.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TUNER -->
+  <section class="section">
+    <div class="container">
+      <div class="text-center">
+        <div class="badge">Afinador profissional incluso</div>
+        <h2 class="title-lg">Seu instrumento <span class="text-gold">afinado em 5 segundos.</span></h2>
+        <p class="subtitle">Violão, guitarra ou baixo. Precisão de centavos de Hertz, mesmo na bagunça do ensaio.</p>
+      </div>
+      
+      <div class="tuner-box">
+        <div class="tuner-visual">
+          <span class="tuner-note">E</span>
+        </div>
+        <div class="tuner-status">✓ Afinado</div>
+        <div class="tuner-features">
+          <span class="tuner-feature">Precisão profissional</span>
+          <span class="tuner-feature">Violão · Guitarra · Baixo</span>
+          <span class="tuner-feature">Ouve mesmo no barulho</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section id="planos" class="section">
+    <div class="container">
+      <div class="text-center">
+        <div class="badge">Escolha seu plano</div>
+        <h2 class="title-lg">Comece hoje. Toque <span class="text-gold">no tom certo amanhã.</span></h2>
+        <p class="subtitle">Três opções claras. Sem pegadinha. Sem letra miúda.</p>
+      </div>
+      
+      <div class="pricing-grid">
+        <div class="plan-card">
+          <h3 class="plan-name">Mensal</h3>
+          <p class="plan-desc">Pague pouco e use sem compromisso de longo prazo.</p>
+          <div class="plan-price">
+            <span class="plan-price-value">R$ 9,90</span>
+            <span class="plan-price-period">por mês</span>
+          </div>
+          <ul class="plan-features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Detector de tom</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Campo harmônico</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Afinador profissional</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Suporte incluído</li>
+          </ul>
+          <a href="https://pay.cakto.com.br/x6hmjp3_864389" class="btn btn-gold btn-full">Começar agora</a>
+        </div>
+        
+        <div class="plan-card plan-featured">
+          <div class="plan-badge">🔥 Mais escolhido</div>
+          <h3 class="plan-name">Trimestral</h3>
+          <p class="plan-desc">O equilíbrio perfeito entre preço e tranquilidade.</p>
+          <div class="plan-price">
+            <span class="plan-price-value">R$ 19,90</span>
+            <span class="plan-price-period">a cada 3 meses</span>
+          </div>
+          <ul class="plan-features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Detector de tom</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Campo harmônico</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Afinador profissional</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Suporte incluído</li>
+          </ul>
+          <a href="https://pay.cakto.com.br/3mp6tpt" class="btn btn-gold btn-full">Acesso imediato</a>
+        </div>
+        
+        <div class="plan-card">
+          <h3 class="plan-name">Semestral</h3>
+          <p class="plan-desc">Menos de R$ 7 por mês. A escolha de quem quer evoluir.</p>
+          <div class="plan-price">
+            <span class="plan-price-value">R$ 39,90</span>
+            <span class="plan-price-period">a cada 6 meses</span>
+          </div>
+          <ul class="plan-features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Detector de tom</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Campo harmônico</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Afinador profissional</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Suporte incluído</li>
+          </ul>
+          <a href="https://pay.cakto.com.br/9gcmz9j" class="btn btn-gold btn-full">Garantir acesso</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section">
+    <div class="container">
+      <div class="text-center">
+        <div class="badge">Dúvidas frequentes</div>
+        <h2 class="title-lg">Tudo que você precisa saber.</h2>
+      </div>
+      
+      <div class="faq-list">
+        <div class="faq-item">
+          <button class="faq-question">Eu sou iniciante. Vou conseguir usar?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-answer"><div class="faq-answer-inner">Sim! O Tom Certo foi feito justamente para quem não tem formação musical. É só abrir o app, aproximar do som e ele te mostra o tom. Sem teoria, sem complicação.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Preciso ter conhecimento de teoria musical?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-answer"><div class="faq-answer-inner">Não. O app faz todo o trabalho de análise. Você só precisa saber tocar os acordes que ele mostra na tela.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Funciona com qualquer instrumento?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-answer"><div class="faq-answer-inner">Funciona com violão, guitarra, teclado, voz e qualquer som que tenha notas definidas. Quanto mais claro o som, mais preciso o resultado.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Funciona durante o ensaio com barulho?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-answer"><div class="faq-answer-inner">Sim. O algoritmo de IA foi treinado para filtrar ruídos e captar a frequência principal. Funciona mesmo com conversa e outros instrumentos tocando.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Funciona offline?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-answer"><div class="faq-answer-inner">O afinador funciona offline. A detecção de tom precisa de conexão com a internet para processar o áudio com mais precisão.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Qual a diferença entre os planos?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-answer"><div class="faq-answer-inner">Todos os planos dão acesso completo ao app. A diferença é só no período de assinatura e no preço por mês. Quanto maior o período, maior a economia.</div></div>
+        </div>
+        <div class="faq-item">
+          <button class="faq-question">Posso cancelar quando quiser?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
+          <div class="faq-answer"><div class="faq-answer-inner">Sim. Você pode cancelar a qualquer momento pelo próprio app ou entrando em contato com nosso suporte. Sem burocracia.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-logo">Tom Certo</div>
+      <p class="footer-text">© 2025 Tom Certo. Todos os direitos reservados.</p>
+    </div>
+  </footer>
+
+  <!-- WhatsApp -->
+  <a href="https://wa.me/5511999999999" class="whatsapp" target="_blank" aria-label="WhatsApp">
+    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  </a>
+
+  <script>
+    // FAQ Accordion
+    document.querySelectorAll('.faq-question').forEach(btn=>{
+      btn.onclick=()=>{
+        const item=btn.parentElement;
+        const open=item.classList.contains('open');
+        document.querySelectorAll('.faq-item').forEach(i=>i.classList.remove('open'));
+        if(!open)item.classList.add('open');
+      };
+    });
+    
+    // Smooth scroll
+    document.querySelectorAll('a[href^="#"]').forEach(a=>{
+      a.onclick=e=>{
+        const t=document.querySelector(a.getAttribute('href'));
+        if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth'});}
+      };
+    });
+  </script>
+</body>
+</html>
