@@ -945,33 +945,41 @@ def detect_key_theory_first(
     pcp_override: Optional[np.ndarray] = None,
 ) -> Dict[str, Any]:
     """
-    Detecção de tom — Krumhansl-Schmuckler com Aarden-Essen profiles + bônus
-    de teoria musical (eixo Tônica-5ª, desempate de terça, resolução final).
-
-    Algoritmo determinístico v6 (validado em 168/168 cenários sintéticos +
-    áudios reais):
-      1. PCP = histograma de pitch classes ponderado por duração × rms_conf
-         (ou pcp_override se fornecido — útil pra acumulador de sessão)
-      2. Para cada 1 dos 24 candidatos (12 tônicas × 2 modos):
-            corr        = Pearson(PCP, perfil_Aarden_rotacionado)
-            third_diff  = peso_3ª_do_modo − peso_3ª_oposta
-            axis        = min(peso_tônica, peso_5ª)
-            final_match = bônus por última nota sustentada ser 1/3/5 da raiz
-            score       = (corr + 0.3 × third_diff) × axis^1.2 + 0.3 × final_match
-      3. Maior score = tom detectado
-
-    Por que funciona em 100% dos casos:
-      • `corr` captura o "encaixe" do PCP no perfil tonal
-      • `third_diff` desempata maior vs menor (3ª maior vs 3ª menor)
-      • `axis^1.2` impede que relativa menor (sem 5ª justa forte) ganhe de tom maior
-      • `final_match` captura a resolução final típica em hino/canto coral
-
-    Confidence = produto entre absolute_score e margin (precisa AMBOS bons).
+    Detecção de tom v7 — ANTI-DOMINANTE Edition
+    ═══════════════════════════════════════════════════════════════════════
+    
+    PROBLEMA CRÍTICO RESOLVIDO:
+    O algoritmo v6 confundia a DOMINANTE (5ª) com a TÔNICA.
+    Exemplo: usuário canta em Dó# maior, app detectava Sol# maior (a dominante).
+    
+    CORREÇÕES v7:
+    1. GUARD ANTI-DOMINANTE: Se o tom detectado é a 5ª de outro candidato forte,
+       e esse outro candidato tem a tônica como nota mais cantada, INVERTER.
+    2. PESO MAIOR para nota de REPOUSO: notas longas sustentadas no meio da música
+       (não só no final) indicam centro tonal.
+    3. PENALIDADE para candidatos cuja "tônica" é na verdade a 5ª do PCP dominante.
+    4. ANÁLISE DE CADÊNCIA: padrões V→I detectados = boost na tônica real.
+    5. CENTRO GRAVITACIONAL: a nota mais cantada geralmente É a tônica ou está
+       muito próxima dela (±1 semitom por desafinação).
+    
+    Algoritmo:
+      1. PCP = histograma de pitch classes (duração × rms_conf)
+      2. Identificar "centro gravitacional" = pitch class dominante
+      3. Para cada candidato:
+         - Krumhansl-Aarden correlation
+         - Terça clarity (maj vs min)
+         - Eixo tônica-5ª
+         - PENALIDADE se candidato é dominante do centro gravitacional
+         - BÔNUS se tônica = centro gravitacional
+      4. GUARD: Se top é 5ª do runner E runner tem melhor alinhamento com centro, swap
+      5. Confidence honesta
     """
     if not notes and pcp_override is None:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'no_notes'}
 
-    # ── 1. Pitch Class Profile ──────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════
+    # 1. PITCH CLASS PROFILE (PCP)
+    # ══════════════════════════════════════════════════════════════════
     if pcp_override is not None:
         pcp = np.asarray(pcp_override, dtype=np.float64)
     else:
@@ -987,7 +995,58 @@ def detect_key_theory_first(
     if pcp.sum() < 200:
         return {'tonic': None, 'quality': None, 'confidence': 0.0, 'reason': 'too_little_audio'}
 
-    # ── 2. Última nota sustentada (sinal de resolução) ──────────────
+    pcp_max = float(pcp.max() or 1.0)
+    pcp_total = float(pcp.sum())
+    
+    # ══════════════════════════════════════════════════════════════════
+    # 2. CENTRO GRAVITACIONAL — A nota mais cantada
+    # ══════════════════════════════════════════════════════════════════
+    # Em música tonal, a TÔNICA é quase sempre a nota mais frequente/longa.
+    # Se não for, é porque o cantor está enfatizando a 5ª (erro comum).
+    gravity_center = int(np.argmax(pcp))
+    gravity_weight = float(pcp[gravity_center]) / pcp_total
+    
+    # Segunda nota mais forte (pode ser a 5ª ou 3ª)
+    pcp_sorted_idx = np.argsort(-pcp)
+    second_strongest = int(pcp_sorted_idx[1]) if len(pcp_sorted_idx) > 1 else gravity_center
+    second_weight = float(pcp[second_strongest]) / pcp_total
+    
+    # ══════════════════════════════════════════════════════════════════
+    # 3. NOTAS DE REPOUSO — Notas longas sustentadas (indicam centro tonal)
+    # ══════════════════════════════════════════════════════════════════
+    # Além da última nota, identificar notas "de repouso" no meio da música
+    rest_notes_weight = np.zeros(12, dtype=np.float64)
+    LONG_NOTE_THRESHOLD = 350  # ms
+    for n in notes:
+        if n['dur_ms'] >= LONG_NOTE_THRESHOLD:
+            # Notas longas indicam repouso/centro tonal
+            rest_notes_weight[n['pitch_class']] += n['dur_ms'] * n.get('rms_conf', 1.0)
+    
+    rest_center = int(np.argmax(rest_notes_weight)) if rest_notes_weight.max() > 0 else gravity_center
+    
+    # ══════════════════════════════════════════════════════════════════
+    # 4. ANÁLISE DE CADÊNCIA — Padrões V→I
+    # ══════════════════════════════════════════════════════════════════
+    # Detectar quando uma frase termina com movimento descendente de 5ª → 1ª
+    cadence_hints = np.zeros(12, dtype=np.float64)
+    for phrase in phrases:
+        if len(phrase) < 2:
+            continue
+        # Últimas 2 notas da frase
+        second_last = phrase[-2]['pitch_class']
+        last = phrase[-1]['pitch_class']
+        # Se second_last é 5ª justa acima de last (intervalo de 7 semitons)
+        # então last provavelmente é a tônica (movimento V→I)
+        if (second_last - last + 12) % 12 == 7:
+            cadence_hints[last] += 2.0  # Forte indicador de tônica
+        # Se second_last é 2ª maior acima de last (intervalo de 2 semitons)
+        # movimento melódico comum de resolução
+        if (second_last - last + 12) % 12 == 2:
+            cadence_hints[last] += 1.0
+
+    # ══════════════════════════════════════════════════════════════════
+    # 5. ÚLTIMA NOTA SUSTENTADA (sinal de resolução)
+    # ══════════════════════════════════════════════════════════════════
     last_pc = None
     last_dur = 0.0
     if notes:
@@ -996,8 +1055,9 @@ def detect_key_theory_first(
             last_pc = last_note['pitch_class']
             last_dur = float(last_note['dur_ms'])
 
-    # ── 3. Score por candidato ──────────────────────────────────────
-    pcp_max = float(pcp.max() or 1.0)
+    # ══════════════════════════════════════════════════════════════════
+    # 6. SCORE POR CANDIDATO (com correções anti-dominante)
+    # ══════════════════════════════════════════════════════════════════
     candidates = []
     for root in range(12):
         for quality, profile in (('major', AARDEN_MAJOR), ('minor', AARDEN_MINOR)):
@@ -1013,10 +1073,42 @@ def detect_key_theory_first(
             other_third_pc = (root + (3 if quality == 'major' else 4)) % 12
             mode_third_w = float(pcp[third_pc]) / pcp_max
             other_third_w = float(pcp[other_third_pc]) / pcp_max
-            third_diff = mode_third_w - other_third_w   # ∈ [-1, +1]
+            third_diff = mode_third_w - other_third_w
 
-            # Eixo Tônica-5ª: precisa AMBOS fortes
+            # Eixo Tônica-5ª
             axis_strength = min(tonic_w, fifth_w)
+
+            # ══════════════════════════════════════════════════════════
+            # NOVO: PENALIDADE ANTI-DOMINANTE
+            # Se a "tônica" deste candidato é na verdade a 5ª do centro
+            # gravitacional, isso é um forte sinal de que estamos confundindo
+            # a dominante com a tônica.
+            # ══════════════════════════════════════════════════════════
+            dominant_penalty = 0.0
+            is_dominant_of_gravity = (root == (gravity_center + 7) % 12)
+            if is_dominant_of_gravity and gravity_weight > 0.20:
+                # Este candidato é a 5ª do centro gravitacional
+                # Penalizar fortemente
+                dominant_penalty = 0.35 * gravity_weight
+            
+            # Se a tônica deste candidato não é o centro gravitacional,
+            # penalidade proporcional
+            gravity_alignment = 1.0 if root == gravity_center else (
+                0.85 if (root - gravity_center + 12) % 12 in [1, 11] else 0.70  # vizinho cromático = desafinação
+            )
+            
+            # ══════════════════════════════════════════════════════════
+            # NOVO: BÔNUS por alinhamento com REPOUSO e CADÊNCIA
+            # ══════════════════════════════════════════════════════════
+            rest_bonus = 0.0
+            if rest_notes_weight.max() > 0:
+                rest_norm = rest_notes_weight[root] / rest_notes_weight.max()
+                rest_bonus = 0.15 * rest_norm
+            
+            cadence_bonus = 0.0
+            if cadence_hints.max() > 0:
+                cadence_norm = cadence_hints[root] / cadence_hints.max()
+                cadence_bonus = 0.20 * cadence_norm
 
             # Bônus de resolução final
             if last_pc is None:
@@ -1026,15 +1118,19 @@ def detect_key_theory_first(
             elif last_pc == third_pc:
                 final_match = 0.6       # 3ª do modo
             elif last_pc == (root + 7) % 12:
-                final_match = 0.5       # 5ª
+                final_match = 0.4       # 5ª (reduzido de 0.5 - não queremos favorecer 5ª demais)
             else:
                 final_match = 0.0
-            # Escalonado pela duração sustentada (max em 600ms)
             dur_factor = min(1.0, last_dur / 600.0) if last_pc is not None else 0.0
             final_match *= dur_factor
 
-            # ── FÓRMULA DEFINITIVA (validada 168/168 = 100%) ──
-            score = (corr + 0.3 * third_diff) * (axis_strength ** 1.2) + 0.3 * final_match
+            # ══════════════════════════════════════════════════════════
+            # FÓRMULA v7 — Anti-Dominante
+            # ══════════════════════════════════════════════════════════
+            base_score = (corr + 0.3 * third_diff) * (axis_strength ** 1.2) + 0.3 * final_match
+            
+            # Aplicar bônus e penalidades
+            score = base_score * gravity_alignment + rest_bonus + cadence_bonus - dominant_penalty
 
             candidates.append({
                 'root': root,
@@ -1043,15 +1139,50 @@ def detect_key_theory_first(
                 'third_diff': third_diff,
                 'axis_strength': axis_strength,
                 'final_match': final_match,
+                'gravity_alignment': gravity_alignment,
+                'dominant_penalty': dominant_penalty,
+                'rest_bonus': rest_bonus,
+                'cadence_bonus': cadence_bonus,
+                'base_score': base_score,
                 'score': score,
             })
 
     candidates.sort(key=lambda c: c['score'], reverse=True)
+    
+    # ══════════════════════════════════════════════════════════════════
+    # 7. GUARD ANTI-DOMINANTE — Verificação final
+    # ══════════════════════════════════════════════════════════════════
+    # Se o top é a 5ª do runner, E o runner tem a tônica = centro gravitacional,
+    # então provavelmente estamos confundindo dominante com tônica. SWAP!
     top = candidates[0]
     runner = candidates[1] if len(candidates) > 1 else None
-
-    # ── 4. Confidence honesta ───────────────────────────────────────
-    # Multiplicativa: precisa correlação alta E margem clara
+    
+    swapped = False
+    if runner:
+        top_is_fifth_of_runner = (top['root'] == (runner['root'] + 7) % 12)
+        runner_is_gravity_center = (runner['root'] == gravity_center)
+        # Condições para swap:
+        # 1. Top é a 5ª do runner
+        # 2. Runner tem a tônica no centro gravitacional
+        # 3. A diferença de score não é muito grande (< 0.08)
+        # 4. O centro gravitacional tem peso significativo (> 18%)
+        score_diff = abs(top['score'] - runner['score'])
+        if (top_is_fifth_of_runner and 
+            runner_is_gravity_center and 
+            score_diff < 0.08 and 
+            gravity_weight > 0.18):
+            # SWAP! O runner é provavelmente o tom correto
+            candidates[0], candidates[1] = candidates[1], candidates[0]
+            top = candidates[0]
+            runner = candidates[1]
+            swapped = True
+    
+    # Verificar também se devemos considerar o mesmo root mas modo diferente
+    # (evitar confundir maior com relativa menor)
+    
+    # ══════════════════════════════════════════════════════════════════
+    # 8. CONFIDENCE HONESTA
+    # ══════════════════════════════════════════════════════════════════
     top_corr = float(top['correlation'])
     if runner:
         score_margin = float(top['score']) - float(runner['score'])
@@ -1060,11 +1191,13 @@ def detect_key_theory_first(
         score_margin = float(top['score'])
         corr_margin = top_corr
 
-    # abs_score: 0 quando corr<0.30, 1 quando corr>=0.70
     abs_score = max(0.0, min(1.0, (top_corr - 0.30) / 0.40))
-    # margin_score baseado no score combinado (não só correlação)
     margin_score = max(0.0, min(1.0, score_margin / 0.05))
-    confidence = float(abs_score * margin_score)
+    
+    # NOVO: Bônus de confiança se tônica = centro gravitacional
+    gravity_bonus = 0.15 if top['root'] == gravity_center else 0.0
+    
+    confidence = float(min(1.0, abs_score * margin_score + gravity_bonus))
 
     flags = []
     if len(notes) < 5:
@@ -1075,6 +1208,10 @@ def detect_key_theory_first(
         flags.append('low_correlation')
     if top['axis_strength'] < 0.15:
         flags.append('weak_tonic_fifth_axis')
+    if top['root'] != gravity_center:
+        flags.append('tonic_not_gravity_center')
+    if swapped:
+        flags.append('dominant_swap_applied')
 
     return {
         'tonic': top['root'],
@@ -1091,10 +1228,17 @@ def detect_key_theory_first(
                 'third_diff': round(c['third_diff'], 3),
                 'axis': round(c['axis_strength'], 3),
                 'final_match': round(c['final_match'], 3),
+                'gravity_align': round(c['gravity_alignment'], 3),
+                'dom_penalty': round(c['dominant_penalty'], 3),
             }
             for c in candidates[:5]
         ],
         'diag': {
+            'gravity_center_pc': gravity_center,
+            'gravity_center_name': NOTE_NAMES_BR[gravity_center],
+            'gravity_weight': round(gravity_weight, 3),
+            'rest_center_pc': rest_center,
+            'rest_center_name': NOTE_NAMES_BR[rest_center],
             'pcp_top5_pcs': [int(i) for i in np.argsort(-pcp)[:5]],
             'pcp_top5_weights': [round(float(pcp[i]), 1) for i in np.argsort(-pcp)[:5]],
             'top_correlation': round(top_corr, 4),
@@ -1104,7 +1248,8 @@ def detect_key_theory_first(
             'last_note_pc': last_pc,
             'last_note_name': NOTE_NAMES_BR[last_pc] if last_pc is not None else None,
             'last_note_dur_ms': round(last_dur, 1),
+            'swapped': swapped,
         },
         'histogram': pcp.tolist(),
-        'method_version': 'krumhansl-aarden-axis-third-final-v6',
+        'method_version': 'krumhansl-aarden-antidominant-v7',
     }

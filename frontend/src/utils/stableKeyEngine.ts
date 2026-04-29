@@ -111,28 +111,28 @@ const CONFIG = {
   MIN_HITS_FOR_CANDIDATE: 2,
   
   // Mínimo de análises consecutivas para candidato estável
-  MIN_HITS_FOR_STABLE: 3,
+  MIN_HITS_FOR_STABLE: 2,  // Reduzido de 3 para detectar mais rápido
   
   // Mínimo de análises consecutivas para travar tom
-  MIN_HITS_FOR_LOCK: 4,
+  MIN_HITS_FOR_LOCK: 3,    // Reduzido de 4 para detectar mais rápido
   
   // Confiança mínima para considerar análise válida
-  MIN_CONFIDENCE_THRESHOLD: 0.25,
+  MIN_CONFIDENCE_THRESHOLD: 0.20,  // Reduzido de 0.25
   
   // Confiança mínima para lock rápido (alta confiança)
-  FAST_LOCK_CONFIDENCE: 0.55,
+  FAST_LOCK_CONFIDENCE: 0.45,  // Reduzido de 0.55
   
   // Tempo mínimo (ms) que candidato deve existir antes de travar
-  MIN_CANDIDATE_DURATION_MS: 2500,
+  MIN_CANDIDATE_DURATION_MS: 1800,  // Reduzido de 2500 para detectar mais rápido
   
   // Tempo mínimo (ms) antes de permitir mudança de tom travado
-  MIN_LOCK_DURATION_MS: 5000,
+  MIN_LOCK_DURATION_MS: 4000,  // Reduzido de 5000
   
   // Margem de confiança para trocar tom travado
-  CHANGE_CONFIDENCE_MARGIN: 0.15,
+  CHANGE_CONFIDENCE_MARGIN: 0.12,  // Reduzido de 0.15 para detectar correções mais rápido
   
   // Mínimo de hits consecutivos do novo tom para considerar mudança
-  MIN_HITS_FOR_CHANGE: 5,
+  MIN_HITS_FOR_CHANGE: 4,  // Reduzido de 5
   
   // Tempo máximo (ms) entre análises para manter candidato
   MAX_GAP_BETWEEN_ANALYSES_MS: 3000,
@@ -140,16 +140,16 @@ const CONFIG = {
   // Multiplicadores de estabilidade por tempo de lock
   STABILITY_MULTIPLIERS: {
     UNDER_30S: 1.0,
-    UNDER_60S: 1.5,
-    UNDER_90S: 2.0,
-    OVER_90S: 2.5,
+    UNDER_60S: 1.3,  // Reduzido de 1.5
+    UNDER_90S: 1.6,  // Reduzido de 2.0
+    OVER_90S: 2.0,   // Reduzido de 2.5
   },
   
   // Confiança visual inicial após lock
-  INITIAL_VISUAL_CONFIDENCE: 60,
+  INITIAL_VISUAL_CONFIDENCE: 62,  // Aumentado de 60
   
   // Incremento de confiança visual por análise confirmada
-  VISUAL_CONFIDENCE_INCREMENT: 5,
+  VISUAL_CONFIDENCE_INCREMENT: 6,  // Aumentado de 5
   
   // Confiança visual máxima
   MAX_VISUAL_CONFIDENCE: 98,
