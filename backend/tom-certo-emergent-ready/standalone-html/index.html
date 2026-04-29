@@ -6,15 +6,36 @@
   <meta name="theme-color" content="#0A0A0A" />
   <meta name="description" content="Tom Certo — descubra o tom e o campo harmônico em segundos." />
   <title>Tom Certo — Detector de tonalidade</title>
+  
+  <!-- CRÍTICO: Background preto IMEDIATO para evitar flash branco -->
+  <style>
+    html, body, .App { background: #0A0A0A !important; }
+    body { margin: 0; color: #fff; }
+  </style>
+  
+  <!-- Fontes com font-display: swap para não bloquear renderização -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Fonte Premium: Space Grotesk para headline + Manrope para corpo -->
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700;800&family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="preload" as="image" href="/tom-certo-logo-clean.png" />
-  <link rel="stylesheet" href="/tom-certo.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </noscript>
   
-  <!-- CSS Inline para Hero Otimizado -->
+  <!-- CSS principal carregado de forma não-bloqueante -->
+  <link rel="preload" href="/tom-certo.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript><link rel="stylesheet" href="/tom-certo.css" /></noscript>
+  
+  <!-- Preload da imagem crítica -->
+  <link rel="preload" as="image" href="/tom-certo-logo-clean.png" />
+  
+  <!-- CSS Inline Crítico para Hero (carrega instantaneamente) -->
   <style>
+    /* Override de variáveis CSS que causam flash branco */
+    :root {
+      --background: 0 0% 4% !important;
+      --foreground: 0 0% 98% !important;
+    }
+    
     /* Fonte Premium para Headline */
     .tc-hero-headline-premium {
       font-family: 'Space Grotesk', system-ui, sans-serif;
@@ -333,9 +354,9 @@
   });
   </script>
 </head>
-<body>
-  <div class="App tc-grain">
-    <main class="relative z-0 overflow-x-hidden bg-[#0A0A0A] text-zinc-950" data-testid="landing-page"><section class="tc-hero-premium tc-section-dark relative overflow-hidden pt-20 pb-20 md:pt-28 md:pb-28" data-testid="hero-section">
+<body style="background:#0A0A0A;margin:0;">
+  <div class="App tc-grain" style="background:#0A0A0A !important;min-height:100vh;">
+    <main class="relative z-0 overflow-x-hidden bg-[#0A0A0A] text-zinc-950" data-testid="landing-page" style="background:#0A0A0A;"><section class="tc-hero-premium tc-section-dark relative overflow-hidden pt-20 pb-20 md:pt-28 md:pb-28" data-testid="hero-section">
     
     <!-- Glow otimizado (menos blur) -->
     <div class="tc-hero-radial-glow-optimized" aria-hidden="true"></div>
