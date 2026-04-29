@@ -1,18 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Platform, PermissionsAndroid, Alert } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
 import { Audio } from 'expo-av';
 
-// Import native pitch detection for Android/iOS
-let Pitchy: any = null;
-if (Platform.OS !== 'web') {
-  try {
-    Pitchy = require('react-native-pitchy').default;
-  } catch (e) {
-    console.warn('[useTuner] react-native-pitchy not available:', e);
-  }
-}
-
-// YIN algorithm constants for web
+// YIN algorithm constants for web fallback
 const BUFFER_SIZE = 2048;
 const SAMPLE_RATE = 44100;
 const YIN_THRESHOLD = 0.15;
@@ -35,7 +25,7 @@ export function useTuner() {
     noiseLevel: 0,
     error: null,
     permissionStatus: 'unknown',
-    isNativeSupported: Platform.OS !== 'web' && Pitchy !== null,
+    isNativeSupported: Platform.OS !== 'web',
   });
   
   const isRunningRef = useRef(false);
@@ -48,6 +38,9 @@ export function useTuner() {
   const streamRef = useRef<MediaStream | null>(null);
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  
+  // Native recording ref
+  const audioRecorderRef = useRef<any>(null);
   
   // Cleanup ref on unmount
   useEffect(() => {
@@ -81,7 +74,7 @@ export function useTuner() {
     return filtered.reduce((a, b) => a + b, 0) / filtered.length;
   }, []);
   
-  // YIN pitch detection algorithm (for web)
+  // YIN pitch detection algorithm (for web and native fallback)
   const detectPitchYIN = useCallback((buffer: Float32Array): number | null => {
     try {
       const bufferSize = buffer.length;
@@ -179,7 +172,7 @@ export function useTuner() {
     }
   }, []);
   
-  // Start tuner for web platform (Web Audio API)
+  // Start tuner for web platform (Web Audio API with YIN algorithm)
   const startWeb = useCallback(async () => {
     try {
       console.log('[useTuner] Starting Web Audio API...');
@@ -257,10 +250,10 @@ export function useTuner() {
     }
   }, [detectPitchYIN, smoothFrequency, calculateNoiseLevel, safeSetState]);
   
-  // Start tuner for native platform (Android/iOS) using react-native-pitchy
+  // Start tuner for native platform using @siteed/audio-studio
   const startNative = useCallback(async () => {
     try {
-      console.log('[useTuner] Starting Native Pitch Detection...');
+      console.log('[useTuner] Starting Native Audio Recording...');
       
       // First request permission explicitly
       const permStatus = await requestMicPermission();
@@ -276,46 +269,106 @@ export function useTuner() {
         throw new Error(errMsg);
       }
       
-      if (!Pitchy) {
-        throw new Error('Biblioteca de detecção de pitch não disponível');
+      // Import audio-studio dynamically
+      let AudioStudioModule: any;
+      try {
+        const audioStudio = require('@siteed/audio-studio');
+        AudioStudioModule = audioStudio.AudioStudioModule;
+        console.log('[useTuner] @siteed/audio-studio loaded');
+      } catch (e) {
+        console.warn('[useTuner] @siteed/audio-studio not available:', e);
+        throw new Error('Biblioteca de áudio não disponível');
       }
       
-      // Initialize Pitchy with configuration
-      await Pitchy.init({
-        minVolume: 15, // Minimum volume threshold (0-100)
-        bufferSize: 2048, // Buffer size for analysis
-      });
+      if (!AudioStudioModule) {
+        throw new Error('Módulo de áudio não encontrado');
+      }
       
-      // Set up pitch detection callback
-      Pitchy.addListener((data: { pitch: number; volume: number }) => {
-        if (!mountedRef.current || !isRunningRef.current) return;
-        
-        try {
-          const { pitch, volume } = data;
-          const noiseLevel = Math.min(1, volume / 100);
+      // Store reference for cleanup
+      audioRecorderRef.current = AudioStudioModule;
+      
+      // Recording config with pitch detection enabled
+      const recordingConfig = {
+        sampleRate: 44100,
+        channels: 1,
+        encoding: 'pcm_16bit',
+        interval: 100,            // Emit audio data every 100ms
+        intervalAnalysis: 80,     // Analyze every 80ms for responsive tuner
+        enableProcessing: true,   // Enable audio processing/analysis
+        segmentDurationMs: 80,    // Segment size for analysis
+        features: {
+          pitch: true,            // Enable pitch detection!
+          rms: true,              // For volume/noise level
+          energy: true,           // For detecting sound presence
+        },
+        // Stream format for processing
+        streamFormat: 'float32',
+        // Callback for real-time audio stream with pitch analysis
+        onAudioStream: async (event: any) => {
+          if (!mountedRef.current || !isRunningRef.current) return;
           
-          // Only process if volume is above threshold and pitch is valid
-          if (volume > 15 && pitch > 30 && pitch < 1000) {
-            const smoothed = smoothFrequency(pitch);
-            safeSetState({
-              frequency: smoothed,
-              smoothedFrequency: smoothed,
-              noiseLevel,
-            });
-          } else if (volume > 5) {
-            // Has some audio but no clear pitch
-            safeSetState({ noiseLevel, frequency: null });
-          } else {
-            // Very quiet
-            safeSetState({ noiseLevel: 0, frequency: null });
+          try {
+            // Get Float32Array from stream for YIN fallback
+            const samples = event.data as Float32Array;
+            if (samples && samples.length > 0) {
+              const noiseLevel = calculateNoiseLevel(samples);
+              
+              // Use YIN algorithm on the float32 samples
+              if (noiseLevel > 0.01) {
+                const pitch = detectPitchYIN(samples);
+                if (pitch && pitch > 30 && pitch < 1000) {
+                  const smoothed = smoothFrequency(pitch);
+                  safeSetState({
+                    frequency: smoothed,
+                    smoothedFrequency: smoothed,
+                    noiseLevel,
+                  });
+                } else {
+                  safeSetState({ noiseLevel });
+                }
+              } else {
+                safeSetState({ frequency: null, noiseLevel });
+              }
+            }
+          } catch (err) {
+            console.warn('[useTuner] Stream callback error:', err);
           }
-        } catch (err) {
-          console.warn('[useTuner] Pitch callback error:', err);
-        }
-      });
+        },
+        // Callback for audio analysis (may include native pitch)
+        onAudioAnalysis: async (analysis: any) => {
+          if (!mountedRef.current || !isRunningRef.current) return;
+          
+          try {
+            const dataPoints = analysis?.dataPoints || [];
+            if (dataPoints.length > 0) {
+              const lastPoint = dataPoints[dataPoints.length - 1];
+              const nativePitch = lastPoint?.features?.pitch;
+              const rms = lastPoint?.rms || lastPoint?.features?.rms || 0;
+              
+              console.log('[useTuner] Native analysis:', { nativePitch, rms });
+              
+              // Use native pitch if available and valid
+              if (nativePitch && nativePitch > 30 && nativePitch < 1000) {
+                const smoothed = smoothFrequency(nativePitch);
+                const noiseLevel = Math.min(1, Math.abs(rms) * 10);
+                safeSetState({
+                  frequency: smoothed,
+                  smoothedFrequency: smoothed,
+                  noiseLevel,
+                });
+              }
+            }
+          } catch (err) {
+            console.warn('[useTuner] Analysis callback error:', err);
+          }
+        },
+      };
       
-      // Start pitch detection
-      await Pitchy.start();
+      console.log('[useTuner] Starting recording with config:', recordingConfig);
+      
+      // Start the recording
+      const result = await AudioStudioModule.startRecording(recordingConfig);
+      console.log('[useTuner] Recording started:', result);
       
       isRunningRef.current = true;
       safeSetState({ 
@@ -324,7 +377,7 @@ export function useTuner() {
         isNativeSupported: true,
       });
       
-      console.log('[useTuner] Native Pitch Detection started successfully');
+      console.log('[useTuner] Native Audio Recording started successfully');
       
     } catch (err: any) {
       console.error('[useTuner] startNative error:', err);
@@ -333,7 +386,7 @@ export function useTuner() {
       safeSetState({ error: errMsg });
       throw err;
     }
-  }, [requestMicPermission, smoothFrequency, safeSetState]);
+  }, [requestMicPermission, smoothFrequency, calculateNoiseLevel, detectPitchYIN, safeSetState]);
   
   // Main start function
   const start = useCallback(async () => {
@@ -390,12 +443,14 @@ export function useTuner() {
       sourceRef.current = null;
       analyzerRef.current = null;
     } else {
-      // Native cleanup
-      if (Pitchy) {
+      // Native cleanup using AudioStudioModule
+      if (audioRecorderRef.current) {
         try {
-          await Pitchy.stop();
+          console.log('[useTuner] Stopping AudioStudioModule...');
+          await audioRecorderRef.current.stopRecording();
+          audioRecorderRef.current = null;
         } catch (err) {
-          console.warn('[useTuner] Error stopping Pitchy:', err);
+          console.warn('[useTuner] Error stopping AudioStudioModule:', err);
         }
       }
     }
@@ -430,8 +485,9 @@ export function useTuner() {
           try { streamRef.current.getTracks().forEach(t => t.stop()); } catch {}
         }
         
-        if (Pitchy && Platform.OS !== 'web') {
-          try { await Pitchy.stop(); } catch {}
+        // Native cleanup
+        if (audioRecorderRef.current && Platform.OS !== 'web') {
+          try { await audioRecorderRef.current.stopRecording(); } catch {}
         }
       })();
     };
