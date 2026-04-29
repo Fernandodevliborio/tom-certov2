@@ -144,64 +144,67 @@
       box-shadow: 0 0 0 6px rgba(255,176,32,0.16);
     }
     
-    /* ═══ HEADLINE PREMIUM ═══ */
+    /* ═══ HEADLINE PREMIUM - HIERARQUIA CLARA ═══ */
     .tc-hero-headline-premium {
       font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-      font-weight: 900;
-      color: #FFFFFF;
       text-align: center;
-      letter-spacing: -0.035em;
-      text-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 24px 64px rgba(0,0,0,0.4);
+      text-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      max-width: 100%;
+      padding: 0 0.5rem;
     }
     
     .tc-hero-headline-premium .tc-line {
       display: block;
-      line-height: 1.02;
     }
     
-    /* Linhas brancas - estilo neutro mas forte */
-    .tc-hero-headline-premium .tc-line-white {
-      color: rgba(255,255,255,0.88);
+    /* Linha 1 - Apoio (mais leve, menor presença) */
+    .tc-hero-headline-premium .tc-line-support {
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+      margin-bottom: 0.25em;
     }
     
-    /* Linhas douradas - destaque máximo com glow */
-    .tc-hero-headline-premium .tc-line-gold {
+    /* Linha 2 - Protagonista (destaque máximo, domina) */
+    .tc-hero-headline-premium .tc-line-hero {
+      font-weight: 900;
       color: #FFB020;
-      text-shadow: 0 0 80px rgba(255,176,32,0.4), 0 4px 20px rgba(0,0,0,0.5);
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      text-shadow: 0 0 50px rgba(255,176,32,0.2), 0 4px 20px rgba(0,0,0,0.4);
     }
     
-    /* Mobile - tamanhos impactantes premium */
-    .tc-hero-headline-premium .tc-line:nth-child(1) { 
-      font-size: 2.25rem; 
-      margin-bottom: 0.05em;
+    /* Mobile - hierarquia muito clara */
+    .tc-hero-headline-premium .tc-line-support { 
+      font-size: 1.4rem;
     }
-    .tc-hero-headline-premium .tc-line:nth-child(2) { 
-      font-size: 2.35rem; 
-      margin-bottom: 0.1em;
+    .tc-hero-headline-premium .tc-line-hero { 
+      font-size: 1.75rem;
     }
-    .tc-hero-headline-premium .tc-line:nth-child(3) { 
-      font-size: 2.65rem; 
-      margin-bottom: 0.05em;
+    
+    /* Mobile médio (375px+) */
+    @media (min-width: 375px) {
+      .tc-hero-headline-premium .tc-line-support { font-size: 1.55rem; }
+      .tc-hero-headline-premium .tc-line-hero { font-size: 1.95rem; }
     }
-    .tc-hero-headline-premium .tc-line:nth-child(4) { 
-      font-size: 2.85rem;
+    
+    /* Mobile grande (414px+) */
+    @media (min-width: 414px) {
+      .tc-hero-headline-premium .tc-line-support { font-size: 1.7rem; }
+      .tc-hero-headline-premium .tc-line-hero { font-size: 2.15rem; }
     }
     
     /* Tablet */
     @media (min-width: 640px) {
-      .tc-hero-headline-premium { letter-spacing: -0.04em; }
-      .tc-hero-headline-premium .tc-line:nth-child(1) { font-size: 3rem; }
-      .tc-hero-headline-premium .tc-line:nth-child(2) { font-size: 3.2rem; }
-      .tc-hero-headline-premium .tc-line:nth-child(3) { font-size: 3.6rem; }
-      .tc-hero-headline-premium .tc-line:nth-child(4) { font-size: 4rem; }
+      .tc-hero-headline-premium .tc-line-support { font-size: 2.2rem; }
+      .tc-hero-headline-premium .tc-line-hero { font-size: 2.8rem; }
     }
     
     /* Desktop */
     @media (min-width: 1024px) {
-      .tc-hero-headline-premium .tc-line:nth-child(1) { font-size: 3.8rem; }
-      .tc-hero-headline-premium .tc-line:nth-child(2) { font-size: 4.1rem; }
-      .tc-hero-headline-premium .tc-line:nth-child(3) { font-size: 4.6rem; }
-      .tc-hero-headline-premium .tc-line:nth-child(4) { font-size: 5rem; }
+      .tc-hero-headline-premium .tc-line-support { font-size: 2.8rem; }
+      .tc-hero-headline-premium .tc-line-hero { font-size: 3.6rem; }
     }
     
     /* ═══ SUBHEADLINE ═══ */
@@ -858,12 +861,10 @@
       <div class="mx-auto max-w-4xl text-center">
         <span class="eyebrow justify-center" data-testid="hero-eyebrow">Feito para músico de igreja</span>
         
-        <!-- Headline Premium - Impacto Visual Máximo -->
+        <!-- Headline Premium - 2 Linhas com Hierarquia -->
         <h1 class="tc-hero-headline-premium mt-6" data-testid="hero-headline">
-          <span class="tc-line tc-line-white">Nunca mais fique</span>
-          <span class="tc-line tc-line-white">tentando achar o</span>
-          <span class="tc-line tc-line-gold">tom enquanto</span>
-          <span class="tc-line tc-line-gold">a igreja canta.</span>
+          <span class="tc-line tc-line-support">Nunca mais fique tentando achar o</span>
+          <span class="tc-line tc-line-hero">tom enquanto a igreja canta.</span>
         </h1>
         
         <p class="mx-auto mt-6 max-w-2xl text-base font-medium leading-relaxed text-zinc-400 sm:text-lg md:text-xl" data-testid="hero-subheadline">Descubra o tom em segundos, acompanhe qualquer voz e toque com segurança no culto — sem depender de ninguém.</p>
