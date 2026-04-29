@@ -144,67 +144,20 @@
       box-shadow: 0 0 0 6px rgba(255,176,32,0.16);
     }
     
-    /* ═══ HEADLINE PREMIUM - HIERARQUIA CLARA ═══ */
-    .tc-hero-headline-premium {
-      font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
-      text-align: center;
-      text-shadow: 0 8px 32px rgba(0,0,0,0.5);
-      max-width: 100%;
-      padding: 0 0.5rem;
-    }
-    
-    .tc-hero-headline-premium .tc-line {
-      display: block;
-    }
-    
-    /* Linha 1 - Apoio (mais leve, menor presença) */
-    .tc-hero-headline-premium .tc-line-support {
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.85);
-      letter-spacing: -0.01em;
-      line-height: 1.2;
-      margin-bottom: 0.25em;
-    }
-    
-    /* Linha 2 - Protagonista (destaque máximo, domina) */
-    .tc-hero-headline-premium .tc-line-hero {
+    /* ═══ HEADLINE ═══ */
+    .tc-hero-headline {
+      font-family: 'Outfit', 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
       font-weight: 900;
+      font-size: clamp(2rem, 6vw, 4.5rem);
+      line-height: 0.94;
+      letter-spacing: -0.06em;
+      color: #FFFAF0;
+      text-align: center;
+      text-shadow: 0 18px 58px rgba(0,0,0,0.72);
+    }
+    
+    .tc-hero-headline .tc-gold-word {
       color: #FFB020;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
-      text-shadow: 0 0 50px rgba(255,176,32,0.2), 0 4px 20px rgba(0,0,0,0.4);
-    }
-    
-    /* Mobile - hierarquia muito clara */
-    .tc-hero-headline-premium .tc-line-support { 
-      font-size: 1.4rem;
-    }
-    .tc-hero-headline-premium .tc-line-hero { 
-      font-size: 1.75rem;
-    }
-    
-    /* Mobile médio (375px+) */
-    @media (min-width: 375px) {
-      .tc-hero-headline-premium .tc-line-support { font-size: 1.55rem; }
-      .tc-hero-headline-premium .tc-line-hero { font-size: 1.95rem; }
-    }
-    
-    /* Mobile grande (414px+) */
-    @media (min-width: 414px) {
-      .tc-hero-headline-premium .tc-line-support { font-size: 1.7rem; }
-      .tc-hero-headline-premium .tc-line-hero { font-size: 2.15rem; }
-    }
-    
-    /* Tablet */
-    @media (min-width: 640px) {
-      .tc-hero-headline-premium .tc-line-support { font-size: 2.2rem; }
-      .tc-hero-headline-premium .tc-line-hero { font-size: 2.8rem; }
-    }
-    
-    /* Desktop */
-    @media (min-width: 1024px) {
-      .tc-hero-headline-premium .tc-line-support { font-size: 2.8rem; }
-      .tc-hero-headline-premium .tc-line-hero { font-size: 3.6rem; }
     }
     
     /* ═══ SUBHEADLINE ═══ */
@@ -861,11 +814,8 @@
       <div class="mx-auto max-w-4xl text-center">
         <span class="eyebrow justify-center" data-testid="hero-eyebrow">Feito para músico de igreja</span>
         
-        <!-- Headline Premium - 2 Linhas com Hierarquia -->
-        <h1 class="tc-hero-headline-premium mt-6" data-testid="hero-headline">
-          <span class="tc-line tc-line-support">Nunca mais fique tentando achar o</span>
-          <span class="tc-line tc-line-hero">tom enquanto a igreja canta.</span>
-        </h1>
+        <!-- Headline Original -->
+        <h1 class="tc-hero-headline font-display mt-6" data-testid="hero-headline"><span class="tc-gold-word">Nunca mais fique tentando</span><br class="hidden sm:block"/> achar o <span class="tc-gold-word">tom</span> enquanto a<br class="hidden sm:block"/> igreja canta.</h1>
         
         <p class="mx-auto mt-6 max-w-2xl text-base font-medium leading-relaxed text-zinc-400 sm:text-lg md:text-xl" data-testid="hero-subheadline">Descubra o tom em segundos, acompanhe qualquer voz e toque com segurança no culto — sem depender de ninguém.</p>
         
