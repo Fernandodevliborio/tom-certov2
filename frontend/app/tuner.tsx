@@ -178,70 +178,151 @@ function TunerScreen() {
   
   const tuner = useTuner();
   
-  // ═══════════════════════════════════════════════════════════════════════
-  // NOVO: Estado de detecção de som real
-  // ═══════════════════════════════════════════════════════════════════════
-  const MIN_NOISE_LEVEL = 0.08;  // Limite mínimo de volume para considerar som
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CORREÇÃO CRÍTICA: Sistema de detecção estável com debounce e hysteresis
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  // Limites de detecção - MUITO mais rigorosos
+  const MIN_NOISE_LEVEL = 0.20;           // Volume mínimo para considerar som (aumentado de 0.08)
+  const MIN_FREQ_STABILITY_MS = 150;       // Tempo mínimo para confirmar nota (ms)
+  const SILENCE_COOLDOWN_MS = 600;         // Tempo para voltar ao estado neutro após silêncio
+  const FREQ_TOLERANCE_HZ = 8;             // Tolerância para considerar mesma nota (Hz)
+  
+  // Estados de detecção
+  const [confirmedFrequency, setConfirmedFrequency] = useState<number | null>(null);
   const [isDetectingSound, setIsDetectingSound] = useState(false);
+  const [detectionPhase, setDetectionPhase] = useState<'idle' | 'detecting' | 'confirmed'>('idle');
+  
+  // Refs para tracking temporal
+  const lastFrequencyRef = useRef<number | null>(null);
+  const frequencyStableStartRef = useRef<number | null>(null);
+  const silenceStartRef = useRef<number | null>(null);
+  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Feedback sonoro refs
   const [lastTunedString, setLastTunedString] = useState<string | null>(null);
   const tunedSoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  // Verificar se há som real sendo detectado
+  // ═══════════════════════════════════════════════════════════════════════════
+  // LÓGICA DE DETECÇÃO ESTÁVEL COM DEBOUNCE
+  // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    const hasRealSound = tuner.noiseLevel >= MIN_NOISE_LEVEL && tuner.frequency !== null;
-    setIsDetectingSound(hasRealSound);
-    
-    // Reset quando silêncio
-    if (!hasRealSound) {
-      // Delay antes de resetar o estado para evitar flickering
-      const timeout = setTimeout(() => {
-        if (tuner.noiseLevel < MIN_NOISE_LEVEL) {
-          setIsDetectingSound(false);
-        }
-      }, 300);
-      return () => clearTimeout(timeout);
+    // Limpar interval anterior
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
     }
-  }, [tuner.noiseLevel, tuner.frequency]);
-  
-  // ═══════════════════════════════════════════════════════════════════════
-  // NOVO: Feedback sonoro quando afinado
-  // ═══════════════════════════════════════════════════════════════════════
-  const playTunedSound = useCallback(async (stringName: string) => {
-    // Evitar tocar som repetidamente para a mesma corda
-    if (lastTunedString === stringName) return;
     
-    // Evitar som muito frequente
+    // Processar a cada 50ms para suavidade
+    detectionIntervalRef.current = setInterval(() => {
+      const now = Date.now();
+      const hasSound = tuner.noiseLevel >= MIN_NOISE_LEVEL;
+      const currentFreq = tuner.frequency;
+      
+      // ════════════════════════════════════════════════════════════════════
+      // CASO 1: Sem som suficiente → Transição para silêncio
+      // ════════════════════════════════════════════════════════════════════
+      if (!hasSound || currentFreq === null || currentFreq < 50 || currentFreq > 1000) {
+        // Marcar início do silêncio se ainda não marcou
+        if (silenceStartRef.current === null) {
+          silenceStartRef.current = now;
+        }
+        
+        // Se silêncio persiste por SILENCE_COOLDOWN_MS, resetar tudo
+        const silenceDuration = now - silenceStartRef.current;
+        if (silenceDuration >= SILENCE_COOLDOWN_MS) {
+          setIsDetectingSound(false);
+          setConfirmedFrequency(null);
+          setDetectionPhase('idle');
+          lastFrequencyRef.current = null;
+          frequencyStableStartRef.current = null;
+        }
+        return;
+      }
+      
+      // ════════════════════════════════════════════════════════════════════
+      // CASO 2: Som detectado → Validar estabilidade antes de confirmar
+      // ════════════════════════════════════════════════════════════════════
+      silenceStartRef.current = null; // Reset do contador de silêncio
+      
+      const lastFreq = lastFrequencyRef.current;
+      
+      // Verificar se a frequência é estável (dentro da tolerância)
+      const isStable = lastFreq !== null && 
+        Math.abs(currentFreq - lastFreq) <= FREQ_TOLERANCE_HZ;
+      
+      if (isStable) {
+        // Frequência estável - contar tempo
+        if (frequencyStableStartRef.current === null) {
+          frequencyStableStartRef.current = now;
+        }
+        
+        const stableDuration = now - frequencyStableStartRef.current;
+        
+        // Se estável por tempo suficiente, CONFIRMAR a nota
+        if (stableDuration >= MIN_FREQ_STABILITY_MS) {
+          setIsDetectingSound(true);
+          setConfirmedFrequency(currentFreq);
+          setDetectionPhase('confirmed');
+        } else {
+          // Ainda detectando, não confirmado
+          setDetectionPhase('detecting');
+        }
+      } else {
+        // Frequência mudou - resetar contador de estabilidade
+        frequencyStableStartRef.current = now;
+        lastFrequencyRef.current = currentFreq;
+        
+        // Se já estava confirmado, manter por um momento (hysteresis)
+        if (detectionPhase !== 'confirmed') {
+          setDetectionPhase('detecting');
+        }
+      }
+      
+      lastFrequencyRef.current = currentFreq;
+      
+    }, 50);
+    
+    return () => {
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+      }
+    };
+  }, [tuner.noiseLevel, tuner.frequency, detectionPhase]);
+  
+  // Reset completo ao desativar o tuner
+  useEffect(() => {
+    if (!tuner.isActive) {
+      setIsDetectingSound(false);
+      setConfirmedFrequency(null);
+      setDetectionPhase('idle');
+      lastFrequencyRef.current = null;
+      frequencyStableStartRef.current = null;
+      silenceStartRef.current = null;
+    }
+  }, [tuner.isActive]);
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FEEDBACK HÁPTICO QUANDO AFINADO
+  // ═══════════════════════════════════════════════════════════════════════════
+  const playTunedSound = useCallback(async (stringName: string) => {
+    if (lastTunedString === stringName) return;
     if (tunedSoundTimeoutRef.current) return;
     
     try {
-      // Usar expo-av para tocar som de confirmação
-      const { Audio } = require('expo-av');
-      
-      // Som de confirmação suave (beep curto)
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-      });
-      
-      // Criar um som sintético simples usando oscillator concept
-      // Como não temos arquivo de áudio, vamos usar vibração como alternativa
       const Haptics = require('expo-haptics');
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       
       setLastTunedString(stringName);
       
-      // Cooldown de 2 segundos antes de permitir outro som
       tunedSoundTimeoutRef.current = setTimeout(() => {
         tunedSoundTimeoutRef.current = null;
         setLastTunedString(null);
       }, 2000);
-      
     } catch (err) {
       console.log('[Tuner] Haptics not available:', err);
     }
   }, [lastTunedString]);
   
-  // Limpar timeout no unmount
   useEffect(() => {
     return () => {
       if (tunedSoundTimeoutRef.current) {
@@ -260,14 +341,17 @@ function TunerScreen() {
   
   const currentInstrument = INSTRUMENTS[instrument];
   
-  // Nota detectada - APENAS se há som real
-  const detectedNote = (isDetectingSound && tuner.frequency) ? getClosestNote(tuner.frequency) : null;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NOTA DETECTADA — APENAS quando há som CONFIRMADO (não ruído)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const detectedNote = (detectionPhase === 'confirmed' && confirmedFrequency) 
+    ? getClosestNote(confirmedFrequency) 
+    : null;
   const cents = detectedNote?.cents || 0;
   
-  // ═══════════════════════════════════════════════════════════════════════
-  // NOVO: Status da afinação MELHORADO
-  // Não mostra instruções em silêncio
-  // ═══════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STATUS DA AFINAÇÃO — Baseado no detectionPhase (não ruído direto)
+  // ═══════════════════════════════════════════════════════════════════════════
   const getTuningStatus = () => {
     if (tuner.error) {
       return { 
@@ -297,10 +381,10 @@ function TunerScreen() {
       };
     }
     
-    // ════════════════════════════════════════════════════════════════
-    // SILÊNCIO ou ruído baixo: Mensagem neutra e didática
-    // ════════════════════════════════════════════════════════════════
-    if (!isDetectingSound || !detectedNote) {
+    // ════════════════════════════════════════════════════════════════════════
+    // ESTADO NEUTRO: Aguardando som ou detectando (não confirmado)
+    // ════════════════════════════════════════════════════════════════════════
+    if (detectionPhase === 'idle' || detectionPhase === 'detecting' || !detectedNote) {
       return { 
         status: 'waiting', 
         message: 'Toque uma corda para começar', 
@@ -310,9 +394,9 @@ function TunerScreen() {
       };
     }
     
-    // ════════════════════════════════════════════════════════════════
-    // SOM DETECTADO: Mostrar instruções de afinação
-    // ════════════════════════════════════════════════════════════════
+    // ════════════════════════════════════════════════════════════════════════
+    // SOM CONFIRMADO: Mostrar instruções de afinação
+    // ════════════════════════════════════════════════════════════════════════
     const absCents = Math.abs(cents);
     
     if (absCents <= 3) {
@@ -364,9 +448,9 @@ function TunerScreen() {
     return () => pulse.stop();
   }, []);
   
-  // Animação de ondas - APENAS quando detectando som
+  // Animação de ondas - APENAS quando CONFIRMADO (não ruído)
   useEffect(() => {
-    if (!isDetectingSound) {
+    if (detectionPhase !== 'confirmed') {
       waveAnim1.setValue(0);
       waveAnim2.setValue(0);
       waveAnim3.setValue(0);
@@ -396,12 +480,12 @@ function TunerScreen() {
       wave2.stop();
       wave3.stop();
     };
-  }, [isDetectingSound]);
+  }, [detectionPhase]);
   
-  // Animação do ponteiro baseado nos cents - APENAS quando detectando som
+  // Animação do ponteiro baseado nos cents - APENAS quando CONFIRMADO
   useEffect(() => {
-    if (!isDetectingSound) {
-      // Centralizar ponteiro no silêncio
+    if (detectionPhase !== 'confirmed') {
+      // Centralizar ponteiro no silêncio/idle
       Animated.spring(needleAnim, {
         toValue: 0,
         friction: 10,
@@ -418,7 +502,7 @@ function TunerScreen() {
       tension: 50,
       useNativeDriver: true,
     }).start();
-  }, [cents, isDetectingSound]);
+  }, [cents, detectionPhase]);
   
   // Glow quando afinado
   useEffect(() => {
@@ -477,14 +561,18 @@ function TunerScreen() {
     outputRange: ['-45deg', '45deg'],
   });
   
-  // Encontra a corda mais próxima - APENAS quando detectando som
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CORDA MAIS PRÓXIMA — APENAS quando detecção CONFIRMADA
+  // ═══════════════════════════════════════════════════════════════════════════
   const getClosestString = () => {
-    if (!isDetectingSound || !tuner.frequency) return null;
+    // Só retorna corda se detecção está confirmada
+    if (detectionPhase !== 'confirmed' || !confirmedFrequency) return null;
+    
     let closest = currentInstrument.strings[0];
-    let minDiff = Math.abs(tuner.frequency - closest.freq);
+    let minDiff = Math.abs(confirmedFrequency - closest.freq);
     
     for (const str of currentInstrument.strings) {
-      const diff = Math.abs(tuner.frequency - str.freq);
+      const diff = Math.abs(confirmedFrequency - str.freq);
       if (diff < minDiff) {
         minDiff = diff;
         closest = str;
@@ -668,17 +756,19 @@ function TunerScreen() {
                 </View>
               </View>
               
-              {/* Frequência */}
+              {/* Frequência - só mostra valor real quando confirmado */}
               <View style={ss.freqContainer}>
                 <Text style={ss.freqLabel}>FREQUÊNCIA</Text>
                 <Text style={ss.freqValue}>
-                  {tuner.frequency ? `${tuner.frequency.toFixed(1)} Hz` : '— Hz'}
+                  {detectionPhase === 'confirmed' && confirmedFrequency 
+                    ? `${confirmedFrequency.toFixed(1)} Hz` 
+                    : '— Hz'}
                 </Text>
               </View>
               
-              {/* Status Card MELHORADO */}
-              <View style={[ss.statusCard, { borderColor: isDetectingSound ? status.color : C.border }]}>
-                <View style={[ss.statusGlow, { backgroundColor: isDetectingSound ? status.glow : 'transparent' }]} />
+              {/* Status Card — baseado em detectionPhase */}
+              <View style={[ss.statusCard, { borderColor: detectionPhase === 'confirmed' ? status.color : C.border }]}>
+                <View style={[ss.statusGlow, { backgroundColor: detectionPhase === 'confirmed' ? status.glow : 'transparent' }]} />
                 <Ionicons
                   name={status.icon}
                   size={28}
@@ -687,16 +777,16 @@ function TunerScreen() {
                 <Text style={[ss.statusText, { color: status.color }]}>
                   {status.message}
                 </Text>
-                {/* Mostrar cents apenas quando detectando som e não afinado */}
-                {isDetectingSound && detectedNote && Math.abs(cents) > 3 && (
+                {/* Mostrar cents apenas quando confirmado e não afinado */}
+                {detectionPhase === 'confirmed' && detectedNote && Math.abs(cents) > 3 && (
                   <Text style={ss.centsText}>
                     {cents > 0 ? '+' : ''}{cents} cents
                   </Text>
                 )}
               </View>
               
-              {/* Corda detectada - Só mostra quando detectando som */}
-              {isDetectingSound && closestString && tuner.frequency && (
+              {/* Corda detectada - Só mostra quando CONFIRMADO */}
+              {detectionPhase === 'confirmed' && closestString && confirmedFrequency && (
                 <View style={ss.stringInfo}>
                   <Ionicons name="musical-note" size={16} color={C.amber} />
                   <Text style={ss.stringInfoText}>{closestString.name}</Text>
@@ -711,7 +801,7 @@ function TunerScreen() {
           <Text style={ss.stringsTitle}>CORDAS • {currentInstrument.name.toUpperCase()}</Text>
           <View style={ss.stringsGrid}>
             {currentInstrument.strings.map((str, idx) => {
-              const isActive = isDetectingSound && closestString?.freq === str.freq && tuner.frequency;
+              const isActive = detectionPhase === 'confirmed' && closestString?.freq === str.freq && confirmedFrequency;
               const isPerfect = isActive && Math.abs(cents) <= 3;
               
               return (
