@@ -989,60 +989,51 @@ async def apple_touch_icon():
     raise HTTPException(status_code=404)
 
 # ─── Landing page — serve no root "/" e em "/landing" ───────────────────
+# NOVA landing page em HTML puro (sem React) para performance máxima
+LANDING_NEW_DIR = ROOT_DIR / "landing_new"
+LANDING_NEW_INDEX = LANDING_NEW_DIR / "index.html"
+
+# Legado - mantido para fallback
 LANDING_INDEX = LANDING_DIR / "index.html"
 LANDING_V2_DIR = ROOT_DIR / "landing_v2"
 LANDING_V2_INDEX = LANDING_V2_DIR / "index.html"
 
 @app.get("/app", response_class=HTMLResponse)
 async def landing_v2():
-    """Nova página de vendas V2 - idêntica à raiz mas sem bugs.
-    Usa o mesmo HTML da landing principal mas força a rota para '/'
-    para que o React Router funcione corretamente.
-    """
-    if LANDING_V2_INDEX.exists():
-        html_content = LANDING_V2_INDEX.read_text(encoding="utf-8")
-        
-        # Adiciona script para forçar a história do browser para '/'
-        # Isso faz o React Router pensar que está na raiz
-        route_fix_script = '''<script>
-// Força React Router a ver a rota como '/'
-if (window.location.pathname === '/app') {
-    window.history.replaceState({}, '', '/');
-}
-</script>
-</head>'''
-        
-        # Insere o script antes do </head>
-        html_content = html_content.replace('</head>', route_fix_script)
-        
-        return HTMLResponse(
-            html_content,
-            headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Pragma": "no-cache",
-                "Expires": "0"
-            }
-        )
-    return HTMLResponse("<h1>Página não encontrada</h1>", status_code=404)
+    """Alias para a landing principal."""
+    return await landing_root()
 
 @app.get("/", response_class=HTMLResponse)
 async def landing_root():
-    """Página de vendas do Tom Certo (root)."""
+    """Página de vendas do Tom Certo (root) — HTML PURO, carregamento instantâneo."""
+    # Prioridade: nova landing HTML puro
+    if LANDING_NEW_INDEX.exists():
+        return HTMLResponse(
+            LANDING_NEW_INDEX.read_text(encoding="utf-8"),
+            headers={
+                "Cache-Control": "public, max-age=3600",
+                "Content-Type": "text/html; charset=utf-8"
+            }
+        )
+    # Fallback: React build
     if LANDING_INDEX.exists():
         return HTMLResponse(LANDING_INDEX.read_text(encoding="utf-8"))
-    # Fallback para landing.html antigo
+    # Fallback: landing.html antigo
     if LANDING_HTML_PATH.exists():
         return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>Landing page não encontrada</h1>", status_code=500)
 
 @app.get("/landing", response_class=HTMLResponse)
 async def landing_page():
-    """Página de vendas do Tom Certo."""
+    """Página de vendas do Tom Certo (alias)."""
+    return await landing_root()
+
+@app.get("/landing-react", response_class=HTMLResponse)
+async def landing_react():
+    """Acesso à versão React antiga (para comparação/debug)."""
     if LANDING_INDEX.exists():
         return HTMLResponse(LANDING_INDEX.read_text(encoding="utf-8"))
-    if LANDING_HTML_PATH.exists():
-        return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>Landing page não encontrada</h1>", status_code=500)
+    return HTMLResponse("<h1>Landing React não encontrada</h1>", status_code=404)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
