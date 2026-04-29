@@ -61,6 +61,62 @@
     window.addEventListener('scroll', checkScroll);
   })();
   </script>
+  
+  <!-- AddToCart Event - dispara ao clicar nos botões de compra -->
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Mapeia os planos com seus valores
+    var planos = {
+      'mensal': { name: 'Plano Mensal', value: 9.90, currency: 'BRL' },
+      'trimestral': { name: 'Plano Trimestral', value: 19.90, currency: 'BRL' },
+      'semestral': { name: 'Plano Semestral', value: 39.90, currency: 'BRL' }
+    };
+    
+    // Seleciona todos os links de checkout (Cakto)
+    var checkoutLinks = document.querySelectorAll('a[href*="pay.cakto.com.br"]');
+    
+    checkoutLinks.forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        // Identifica qual plano foi clicado
+        var planoId = null;
+        if (link.getAttribute('data-testid')) {
+          var testId = link.getAttribute('data-testid');
+          if (testId.includes('mensal')) planoId = 'mensal';
+          else if (testId.includes('trimestral')) planoId = 'trimestral';
+          else if (testId.includes('semestral')) planoId = 'semestral';
+        }
+        
+        var plano = planos[planoId] || { name: 'Tom Certo', value: 0, currency: 'BRL' };
+        
+        // Dispara evento AddToCart
+        if (typeof fbq !== 'undefined') {
+          fbq('track', 'AddToCart', {
+            content_name: plano.name,
+            content_category: 'Assinatura Tom Certo',
+            content_type: 'product',
+            value: plano.value,
+            currency: plano.currency
+          });
+          console.log('[Meta Pixel] AddToCart event fired:', plano.name, 'R$', plano.value);
+        }
+        
+        // Também dispara InitiateCheckout para tracking mais completo
+        if (typeof fbq !== 'undefined') {
+          fbq('track', 'InitiateCheckout', {
+            content_name: plano.name,
+            content_category: 'Assinatura Tom Certo',
+            value: plano.value,
+            currency: plano.currency,
+            num_items: 1
+          });
+          console.log('[Meta Pixel] InitiateCheckout event fired:', plano.name);
+        }
+      });
+    });
+    
+    console.log('[Meta Pixel] AddToCart tracking initialized for', checkoutLinks.length, 'checkout buttons');
+  });
+  </script>
 </head>
 <body>
   <div class="App tc-grain">
