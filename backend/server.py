@@ -788,7 +788,6 @@ async def health():
 
 # ─── Admin UI (HTML Panel) ──────────────────────────────────────────────
 ADMIN_HTML_PATH = ROOT_DIR / "admin_ui.html"
-LANDING_HTML_PATH = ROOT_DIR / "landing.html"
 LOGO_PATH = ROOT_DIR.parent / "frontend" / "assets" / "images" / "logo.png"
 
 @api_router.get("/admin-logo")
@@ -813,52 +812,6 @@ async def admin_redirect_to_ui():
         return HTMLResponse("<h1>admin_ui.html não encontrado</h1>", status_code=500)
     return HTMLResponse(ADMIN_HTML_PATH.read_text(encoding="utf-8"))
 
-# ─── Preview da Landing Page via /api/preview ────────────────────────────
-LANDING_DIR = ROOT_DIR / "landing"
-LANDING_INDEX = LANDING_DIR / "index.html"
-
-@api_router.get("/preview", response_class=HTMLResponse)
-async def preview_landing():
-    """Preview da landing page para acesso via /api/preview."""
-    if LANDING_INDEX.exists():
-        # Modificar os paths de static para funcionar via /api/static
-        html_content = LANDING_INDEX.read_text(encoding="utf-8")
-        html_content = html_content.replace('"/static/', '"/api/static/')
-        html_content = html_content.replace("'/static/", "'/api/static/")
-        return HTMLResponse(html_content)
-    return HTMLResponse("<h1>Landing page não encontrada</h1>", status_code=500)
-
-@api_router.get("/static/{path:path}")
-async def serve_static(path: str):
-    """Serve arquivos estáticos da landing via /api/static/ com cache otimizado."""
-    file_path = LANDING_DIR / "static" / path
-    if file_path.exists() and file_path.is_file():
-        # Determinar content-type e cache baseado na extensão
-        ext = path.split('.')[-1].lower() if '.' in path else ''
-        media_types = {
-            'js': 'application/javascript',
-            'css': 'text/css',
-            'png': 'image/png',
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'webp': 'image/webp',
-            'svg': 'image/svg+xml',
-            'woff': 'font/woff',
-            'woff2': 'font/woff2',
-        }
-        media_type = media_types.get(ext, 'application/octet-stream')
-        # Cache de 1 ano para assets com hash no nome, 1 hora para outros
-        cache_time = 31536000 if any(c.isalnum() and len(c) > 6 for c in path.split('.')) else 3600
-        return FileResponse(
-            file_path,
-            media_type=media_type,
-            headers={
-                "Cache-Control": f"public, max-age={cache_time}, immutable" if cache_time > 3600 else f"public, max-age={cache_time}",
-                "Vary": "Accept-Encoding"
-            }
-        )
-    raise HTTPException(status_code=404, detail="File not found")
-
 # ─── Include router ─────────────────────────────────────────────────────
 app.include_router(api_router)
 
@@ -880,160 +833,33 @@ async def download_apk_direct():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url=APK_EXTERNAL_URL, status_code=302)
 
-# ─── Arquivos estáticos da landing page (CSS, JS) ────────────────────────
-LANDING_DIR = ROOT_DIR / "landing"
-LANDING_V2_DIR = ROOT_DIR / "landing_v2"
-if LANDING_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(LANDING_DIR / "static")), name="static")
-# Monta os estáticos da v2 em /app/static
-if LANDING_V2_DIR.exists() and (LANDING_V2_DIR / "static").exists():
-    app.mount("/app/static", StaticFiles(directory=str(LANDING_V2_DIR / "static")), name="static_v2")
-
-# ─── Logos otimizadas da landing page ─────────────────────────────────────
-@app.get("/tom-certo-logo-128.png")
-async def logo_128():
-    """Logo otimizada 128px."""
-    logo_path = LANDING_DIR / "tom-certo-logo-128.png"
-    if logo_path.exists():
-        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
-    raise HTTPException(status_code=404, detail="Logo não encontrada")
-
-@app.get("/tom-certo-logo-256.png")
-async def logo_256():
-    """Logo otimizada 256px."""
-    logo_path = LANDING_DIR / "tom-certo-logo-256.png"
-    if logo_path.exists():
-        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
-    raise HTTPException(status_code=404, detail="Logo não encontrada")
-
-@app.get("/tom-certo-logo-512.png")
-async def logo_512():
-    """Logo otimizada 512px."""
-    logo_path = LANDING_DIR / "tom-certo-logo-512.png"
-    if logo_path.exists():
-        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
-    raise HTTPException(status_code=404, detail="Logo não encontrada")
-
-@app.get("/tom-certo-logo-512.webp")
-async def logo_512_webp():
-    """Logo otimizada 512px WebP."""
-    logo_path = LANDING_DIR / "tom-certo-logo-512.webp"
-    if logo_path.exists():
-        return FileResponse(str(logo_path), media_type="image/webp", headers={"Cache-Control": "public, max-age=31536000"})
-    raise HTTPException(status_code=404, detail="Logo não encontrada")
-
-@app.get("/tom-certo-logo.png")
-async def logo_full():
-    """Logo completa."""
-    logo_path = LANDING_DIR / "tom-certo-logo.png"
-    if logo_path.exists():
-        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
-    raise HTTPException(status_code=404, detail="Logo não encontrada")
-
-@app.get("/tom-certo-logo-clean.png")
-async def logo_clean():
-    """Logo clean para o bundle React."""
-    # Usa a logo otimizada 512px em vez da original
-    logo_path = LANDING_DIR / "tom-certo-logo-512.png"
-    if logo_path.exists():
-        return FileResponse(str(logo_path), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
-    # Fallback para a original se existir
-    logo_path_orig = LANDING_DIR / "tom-certo-logo-clean.png"
-    if logo_path_orig.exists():
-        return FileResponse(str(logo_path_orig), media_type="image/png", headers={"Cache-Control": "public, max-age=31536000"})
-    raise HTTPException(status_code=404, detail="Logo não encontrada")
-
-# ─── Favicon e ícones ─────────────────────────────────────────────────────
-
-@app.get("/favicon.ico")
-async def favicon():
-    """Serve o favicon ICO."""
-    path = LANDING_DIR / "favicon.ico"
-    if path.exists():
-        return FileResponse(str(path), media_type="image/x-icon")
-    return JSONResponse({"error": "favicon not found"}, status_code=404)
-
-@app.get("/favicon-16.png")
-async def favicon_16():
-    path = LANDING_DIR / "favicon-16.png"
-    if path.exists():
-        return FileResponse(str(path), media_type="image/png")
-    raise HTTPException(status_code=404)
-
-@app.get("/favicon-32.png")
-async def favicon_32():
-    path = LANDING_DIR / "favicon-32.png"
-    if path.exists():
-        return FileResponse(str(path), media_type="image/png")
-    raise HTTPException(status_code=404)
-
-@app.get("/favicon-192.png")
-async def favicon_192():
-    path = LANDING_DIR / "favicon-192.png"
-    if path.exists():
-        return FileResponse(str(path), media_type="image/png")
-    raise HTTPException(status_code=404)
-
-@app.get("/favicon-512.png")
-async def favicon_512():
-    path = LANDING_DIR / "favicon-512.png"
-    if path.exists():
-        return FileResponse(str(path), media_type="image/png")
-    raise HTTPException(status_code=404)
-
-@app.get("/apple-touch-icon.png")
-async def apple_touch_icon():
-    path = LANDING_DIR / "apple-touch-icon.png"
-    if path.exists():
-        return FileResponse(str(path), media_type="image/png")
-    raise HTTPException(status_code=404)
-
-# ─── Landing page — serve no root "/" e em "/landing" ───────────────────
-# NOVA landing page em HTML puro (sem React) para performance máxima
-LANDING_NEW_DIR = ROOT_DIR / "landing_new"
-LANDING_NEW_INDEX = LANDING_NEW_DIR / "index.html"
-
-# Legado - mantido para fallback
-LANDING_INDEX = LANDING_DIR / "index.html"
-LANDING_V2_DIR = ROOT_DIR / "landing_v2"
-LANDING_V2_INDEX = LANDING_V2_DIR / "index.html"
-
-@app.get("/app", response_class=HTMLResponse)
-async def landing_v2():
-    """Alias para a landing principal."""
-    return await landing_root()
-
+# ─── Rota raiz — sem landing page ─────────────────────────────────────────
 @app.get("/", response_class=HTMLResponse)
-async def landing_root():
-    """Página de vendas do Tom Certo (root) — HTML PURO, carregamento instantâneo."""
-    # Prioridade: nova landing HTML puro
-    if LANDING_NEW_INDEX.exists():
-        return HTMLResponse(
-            LANDING_NEW_INDEX.read_text(encoding="utf-8"),
-            headers={
-                "Cache-Control": "public, max-age=3600",
-                "Content-Type": "text/html; charset=utf-8"
-            }
-        )
-    # Fallback: React build
-    if LANDING_INDEX.exists():
-        return HTMLResponse(LANDING_INDEX.read_text(encoding="utf-8"))
-    # Fallback: landing.html antigo
-    if LANDING_HTML_PATH.exists():
-        return HTMLResponse(LANDING_HTML_PATH.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>Landing page não encontrada</h1>", status_code=500)
-
-@app.get("/landing", response_class=HTMLResponse)
-async def landing_page():
-    """Página de vendas do Tom Certo (alias)."""
-    return await landing_root()
-
-@app.get("/landing-react", response_class=HTMLResponse)
-async def landing_react():
-    """Acesso à versão React antiga (para comparação/debug)."""
-    if LANDING_INDEX.exists():
-        return HTMLResponse(LANDING_INDEX.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>Landing React não encontrada</h1>", status_code=404)
+async def root_page():
+    """Rota raiz - redireciona para o painel admin ou retorna mensagem simples."""
+    return HTMLResponse("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Tom Certo API</title>
+        <style>
+            body { font-family: system-ui; background: #0A0A0A; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+            .container { text-align: center; }
+            h1 { color: #FFB800; font-size: 2.5rem; margin-bottom: 0.5rem; }
+            p { color: #9CA3AF; margin-bottom: 2rem; }
+            a { color: #FFB800; text-decoration: none; padding: 12px 24px; border: 1px solid #FFB800; border-radius: 8px; }
+            a:hover { background: #FFB800; color: #000; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Tom Certo</h1>
+            <p>API Server v2</p>
+            <a href="/api/admin">Painel Admin</a>
+        </div>
+    </body>
+    </html>
+    """)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
