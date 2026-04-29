@@ -11,6 +11,56 @@
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="preload" as="image" href="/tom-certo-logo-clean.png" />
   <link rel="stylesheet" href="/tom-certo.css" />
+  
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1762463901557600');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=1762463901557600&ev=PageView&noscript=1"
+  /></noscript>
+  <!-- End Meta Pixel Code -->
+  
+  <!-- ViewContent Event - dispara após 3 segundos ou scroll -->
+  <script>
+  (function() {
+    var viewContentFired = false;
+    
+    function fireViewContent() {
+      if (viewContentFired) return;
+      viewContentFired = true;
+      if (typeof fbq !== 'undefined') {
+        fbq('track', 'ViewContent', {
+          content_name: 'Tom Certo Landing Page',
+          content_category: 'Landing Page'
+        });
+        console.log('[Meta Pixel] ViewContent event fired');
+      }
+    }
+    
+    // Dispara após 3 segundos na página
+    setTimeout(fireViewContent, 3000);
+    
+    // Ou dispara quando o usuário rolar 25% da página
+    function checkScroll() {
+      var scrollPercent = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+      if (scrollPercent >= 25) {
+        fireViewContent();
+        window.removeEventListener('scroll', checkScroll);
+      }
+    }
+    window.addEventListener('scroll', checkScroll);
+  })();
+  </script>
 </head>
 <body>
   <div class="App tc-grain">

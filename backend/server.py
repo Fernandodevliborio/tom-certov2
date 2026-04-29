@@ -833,10 +833,32 @@ async def download_apk_direct():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url=APK_EXTERNAL_URL, status_code=302)
 
-# ─── Rota raiz — sem landing page ─────────────────────────────────────────
+# ─── Landing Page Estática ────────────────────────────────────────────────
+LANDING_DIR = ROOT_DIR / "tom-certo-emergent-ready" / "standalone-html"
+
+@app.get("/tom-certo.css")
+async def serve_landing_css():
+    """Serve o CSS da landing page."""
+    css_path = LANDING_DIR / "tom-certo.css"
+    if css_path.exists():
+        return FileResponse(str(css_path), media_type="text/css")
+    raise HTTPException(404, "CSS not found")
+
+@app.get("/tom-certo-logo-clean.png")
+async def serve_landing_logo():
+    """Serve o logo da landing page."""
+    logo_path = LANDING_DIR / "tom-certo-logo-clean.png"
+    if logo_path.exists():
+        return FileResponse(str(logo_path), media_type="image/png")
+    raise HTTPException(404, "Logo not found")
+
 @app.get("/", response_class=HTMLResponse)
 async def root_page():
-    """Rota raiz - redireciona para o painel admin ou retorna mensagem simples."""
+    """Serve a landing page principal."""
+    index_path = LANDING_DIR / "index.html"
+    if index_path.exists():
+        return HTMLResponse(index_path.read_text(encoding="utf-8"))
+    # Fallback se não existir
     return HTMLResponse("""
     <!DOCTYPE html>
     <html>
