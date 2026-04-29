@@ -3,289 +3,989 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#0a0a0a">
-  <meta name="description" content="Tom Certo — Descubra o tom da música em segundos. Pare de travar no ensaio.">
-  <title>Tom Certo — Achei o tom. A música ainda nem começou.</title>
+  <meta name="theme-color" content="#0A0A0A">
+  <meta name="description" content="Tom Certo — A primeira IA de detecção harmônica feita para músicos de igreja. Toque com confiança, acompanhe qualquer voz.">
+  <title>Tom Certo — Nunca mais fique tentando achar o tom enquanto a igreja canta.</title>
   
   <link rel="icon" href="/favicon.ico">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Archivo:wght@700;800;900&display=swap" rel="stylesheet">
   
   <style>
+    /* ═══════════════════════════════════════════════════════════════════════
+       RESET & VARIABLES — Premium Agency Level
+       ═══════════════════════════════════════════════════════════════════════ */
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     
     :root{
-      --bg:#0a0a0a;
-      --bg-card:#111;
-      --gold:#FFB020;
-      --gold-light:#FFCA5C;
-      --gold-dark:#D4920F;
-      --text:#fff;
+      --bg:#0A0A0A;
+      --bg-card:rgba(17,17,17,0.7);
+      --bg-glass:rgba(255,255,255,0.03);
+      --gold:#FFB800;
+      --gold-light:#FFCA4D;
+      --gold-dark:#CC9300;
+      --gold-glow:rgba(255,184,0,0.4);
+      --text:#FFFFFF;
       --text-muted:#9CA3AF;
+      --text-dim:#6B7280;
       --green:#10B981;
-      --cream:#FFF8E7;
+      --red:#EF4444;
+      --border:rgba(255,255,255,0.08);
+      --border-gold:rgba(255,184,0,0.25);
+      --radius-sm:8px;
+      --radius-md:16px;
+      --radius-lg:24px;
+      --radius-xl:32px;
     }
     
-    html{scroll-behavior:smooth}
-    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
+    html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+    body{
+      font-family:'Inter',system-ui,-apple-system,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      line-height:1.6;
+      overflow-x:hidden;
+      font-size:16px;
+    }
     img{max-width:100%;display:block}
     a{text-decoration:none;color:inherit}
     
+    /* Container */
     .container{max-width:1200px;margin:0 auto;padding:0 20px}
-    .section{padding:80px 0}
-    .text-center{text-align:center}
+    @media(min-width:768px){.container{padding:0 32px}}
     
-    /* Typography */
-    h1,h2,h3{font-family:'Outfit',sans-serif;font-weight:800;line-height:1.1}
-    .title-xl{font-size:clamp(32px,8vw,56px);margin-bottom:20px}
-    .title-lg{font-size:clamp(28px,6vw,44px);margin-bottom:16px}
-    .title-md{font-size:clamp(20px,4vw,28px)}
+    /* Typography — Archivo for Impact */
+    h1,h2,h3{font-family:'Archivo','Inter',sans-serif;font-weight:800;line-height:1.1;letter-spacing:-0.02em}
+    .title-hero{font-size:clamp(28px,7vw,56px);font-weight:900;margin-bottom:24px}
+    .title-section{font-size:clamp(24px,5vw,44px);margin-bottom:20px}
+    .title-card{font-size:clamp(18px,3vw,24px);margin-bottom:12px}
     .text-gold{color:var(--gold)}
-    .subtitle{font-size:clamp(16px,4vw,20px);color:var(--text-muted);max-width:560px;margin:0 auto 32px}
+    .text-gradient{background:linear-gradient(135deg,var(--gold-light),var(--gold),var(--gold-dark));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
     
-    /* Badge */
-    .badge{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:rgba(255,176,32,0.1);border:1px solid rgba(255,176,32,0.3);border-radius:24px;font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:24px}
-    .badge::before{content:'';width:8px;height:8px;background:var(--gold);border-radius:50%;animation:pulse 2s infinite}
-    .badge-cream{background:rgba(255,176,32,0.15);border-color:var(--gold-dark);color:var(--gold-dark)}
+    .subtitle{
+      font-size:clamp(16px,3.5vw,20px);
+      color:var(--text-muted);
+      max-width:580px;
+      margin:0 auto 40px;
+      line-height:1.7;
+    }
     
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+    /* ═══════════════════════════════════════════════════════════════════════
+       GLASSMORPHISM COMPONENTS
+       ═══════════════════════════════════════════════════════════════════════ */
+    .glass{
+      background:var(--bg-glass);
+      backdrop-filter:blur(20px);
+      -webkit-backdrop-filter:blur(20px);
+      border:1px solid var(--border);
+      border-radius:var(--radius-lg);
+    }
+    .glass-gold{
+      background:rgba(255,184,0,0.05);
+      border:1px solid var(--border-gold);
+    }
     
-    /* Buttons */
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:16px 32px;border-radius:14px;font-size:16px;font-weight:700;transition:transform 0.2s,box-shadow 0.2s;cursor:pointer;border:none}
-    .btn-gold{background:linear-gradient(180deg,var(--gold-light),var(--gold),var(--gold-dark));color:#000;box-shadow:0 8px 24px rgba(255,176,32,0.4)}
-    .btn-gold:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(255,176,32,0.5)}
-    .btn-outline{background:transparent;border:1px solid #333;color:var(--text-muted)}
-    .btn-outline:hover{border-color:#555;color:var(--text)}
-    .btn-full{width:100%}
+    /* Badge Premium */
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 20px;
+      background:rgba(255,184,0,0.08);
+      border:1px solid var(--border-gold);
+      border-radius:100px;
+      font-size:11px;
+      font-weight:700;
+      color:var(--gold);
+      text-transform:uppercase;
+      letter-spacing:1.5px;
+      margin-bottom:24px;
+    }
+    .badge-dot{
+      width:6px;
+      height:6px;
+      background:var(--gold);
+      border-radius:50%;
+      animation:pulseDot 2s ease-in-out infinite;
+    }
+    @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)}}
     
-    /* ═══════════════════════════════════════════════════════════════
-       HERO
-       ═══════════════════════════════════════════════════════════════ */
-    .hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px 20px;position:relative}
-    .hero-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:500px;height:500px;background:radial-gradient(circle,rgba(255,176,32,0.08) 0%,transparent 70%);animation:breathe 6s ease-in-out infinite;pointer-events:none}
-    .hero-content{position:relative;z-index:2;max-width:640px}
-    .hero-buttons{display:flex;flex-direction:column;gap:12px;margin-bottom:40px}
+    /* Buttons — Premium */
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      padding:18px 36px;
+      border-radius:14px;
+      font-size:16px;
+      font-weight:700;
+      transition:all 0.3s cubic-bezier(0.4,0,0.2,1);
+      cursor:pointer;
+      border:none;
+      position:relative;
+      overflow:hidden;
+    }
+    .btn-primary{
+      background:linear-gradient(135deg,var(--gold-light) 0%,var(--gold) 50%,var(--gold-dark) 100%);
+      color:#000;
+      box-shadow:0 8px 32px var(--gold-glow),0 0 0 1px rgba(255,184,0,0.3);
+    }
+    .btn-primary:hover{
+      transform:translateY(-3px);
+      box-shadow:0 16px 48px var(--gold-glow),0 0 0 1px rgba(255,184,0,0.5);
+    }
+    .btn-primary:active{transform:translateY(-1px)}
     
-    @keyframes breathe{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:0.6}50%{transform:translate(-50%,-50%) scale(1.1);opacity:1}}
+    .btn-secondary{
+      background:transparent;
+      border:1px solid var(--border);
+      color:var(--text-muted);
+    }
+    .btn-secondary:hover{border-color:var(--gold);color:var(--gold)}
     
-    @media(min-width:480px){.hero-buttons{flex-direction:row;justify-content:center}}
+    .btn-pulse{animation:btnPulse 3s ease-in-out infinite}
+    @keyframes btnPulse{0%,100%{box-shadow:0 8px 32px var(--gold-glow)}50%{box-shadow:0 8px 48px rgba(255,184,0,0.6)}}
     
-    /* ═══════════════════════════════════════════════════════════════
-       PHONE MOCKUP - ANIMADO
-       ═══════════════════════════════════════════════════════════════ */
-    .phone-section{padding:40px 20px 80px;position:relative}
-    .phone-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:400px;height:400px;background:radial-gradient(circle,rgba(255,176,32,0.08) 0%,transparent 60%);pointer-events:none}
+    /* ═══════════════════════════════════════════════════════════════════════
+       HERO SECTION — 100vh Premium
+       ═══════════════════════════════════════════════════════════════════════ */
+    .hero{
+      min-height:100vh;
+      min-height:100dvh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:80px 20px 60px;
+      position:relative;
+      overflow:hidden;
+    }
     
-    .phone-wrapper{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center}
+    /* Ambient Glow Effects */
+    .hero-glow{
+      position:absolute;
+      width:600px;
+      height:600px;
+      border-radius:50%;
+      filter:blur(120px);
+      pointer-events:none;
+      animation:ambientFloat 12s ease-in-out infinite;
+    }
+    .hero-glow-1{top:-200px;left:-200px;background:rgba(255,184,0,0.08)}
+    .hero-glow-2{bottom:-200px;right:-200px;background:rgba(255,184,0,0.05);animation-delay:6s}
+    .hero-glow-center{
+      top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      width:800px;height:800px;
+      background:radial-gradient(circle,rgba(255,184,0,0.06) 0%,transparent 60%);
+      animation:breathe 8s ease-in-out infinite;
+    }
+    @keyframes ambientFloat{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,20px)}}
+    @keyframes breathe{0%,100%{opacity:0.6;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}}
     
-    .phone-frame{width:280px;max-width:85%;background:linear-gradient(145deg,#1a1a1a,#0d0d0d);border-radius:44px;padding:12px;box-shadow:0 40px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.05);animation:float 8s ease-in-out infinite;position:relative}
-    .phone-frame::before{content:'';position:absolute;inset:-2px;border-radius:46px;background:conic-gradient(from 0deg,transparent,var(--gold),transparent,transparent,var(--gold),transparent);animation:rotate 12s linear infinite;opacity:0.2;z-index:-1}
+    .hero-content{position:relative;z-index:2;max-width:720px}
     
-    @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
-    @keyframes rotate{to{transform:rotate(360deg)}}
+    .hero-title{margin-bottom:24px}
+    .hero-title .highlight{
+      display:inline;
+      position:relative;
+    }
+    .hero-title .highlight::after{
+      content:'';
+      position:absolute;
+      bottom:4px;
+      left:0;
+      width:100%;
+      height:8px;
+      background:linear-gradient(90deg,var(--gold-glow),transparent);
+      opacity:0.5;
+      z-index:-1;
+    }
     
-    .phone-screen{background:var(--bg);border-radius:36px;padding:24px 16px;min-height:440px;display:flex;flex-direction:column;align-items:center;position:relative;overflow:hidden}
-    .phone-notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:80px;height:24px;background:#000;border-radius:16px}
+    .hero-subtitle{
+      font-size:clamp(16px,3.5vw,20px);
+      color:var(--text-muted);
+      max-width:560px;
+      margin:0 auto 40px;
+      line-height:1.8;
+    }
     
-    .phone-badge{margin-top:32px;padding:6px 12px;background:rgba(255,176,32,0.15);border:1px solid rgba(255,176,32,0.3);border-radius:8px;font-size:10px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
-    .phone-desc{font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:20px;padding:0 10px;line-height:1.5}
+    .hero-buttons{
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      margin-bottom:48px;
+    }
+    @media(min-width:480px){
+      .hero-buttons{flex-direction:row;justify-content:center}
+    }
     
-    /* Detector animado */
-    .detector{position:relative;width:140px;height:140px;margin-bottom:16px}
-    .detector-ring{position:absolute;inset:0;border:2px solid var(--gold);border-radius:50%;opacity:0;animation:ripple 4s ease-out infinite}
+    /* Trust Badges */
+    .trust-row{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:center;
+      gap:24px;
+      margin-top:48px;
+      padding-top:32px;
+      border-top:1px solid var(--border);
+    }
+    .trust-item{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size:13px;
+      color:var(--text-dim);
+    }
+    .trust-item svg{width:18px;height:18px;color:var(--gold)}
+    
+    /* ═══════════════════════════════════════════════════════════════════════
+       PHONE MOCKUP — Premium Animated
+       ═══════════════════════════════════════════════════════════════════════ */
+    .showcase{
+      padding:60px 20px 100px;
+      position:relative;
+      overflow:hidden;
+    }
+    .showcase-glow{
+      position:absolute;
+      top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      width:500px;height:500px;
+      background:radial-gradient(circle,rgba(255,184,0,0.08) 0%,transparent 60%);
+      pointer-events:none;
+    }
+    
+    .showcase-wrapper{
+      position:relative;
+      z-index:2;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+    }
+    
+    .phone-mockup{
+      width:300px;
+      max-width:90%;
+      background:linear-gradient(160deg,#1F1F1F 0%,#0D0D0D 100%);
+      border-radius:48px;
+      padding:14px;
+      box-shadow:
+        0 60px 120px rgba(0,0,0,0.7),
+        0 0 0 1px rgba(255,255,255,0.05),
+        inset 0 1px 0 rgba(255,255,255,0.1);
+      animation:phoneFloat 10s ease-in-out infinite;
+      position:relative;
+    }
+    .phone-mockup::before{
+      content:'';
+      position:absolute;
+      inset:-3px;
+      border-radius:51px;
+      background:conic-gradient(from 0deg,transparent 0%,var(--gold) 10%,transparent 20%,transparent 80%,var(--gold) 90%,transparent 100%);
+      animation:borderRotate 15s linear infinite;
+      opacity:0.15;
+      z-index:-1;
+    }
+    @keyframes phoneFloat{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-12px) rotate(1deg)}}
+    @keyframes borderRotate{to{transform:rotate(360deg)}}
+    
+    .phone-screen{
+      background:var(--bg);
+      border-radius:38px;
+      padding:28px 18px;
+      min-height:480px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      position:relative;
+      overflow:hidden;
+    }
+    .phone-notch{
+      position:absolute;
+      top:10px;
+      left:50%;
+      transform:translateX(-50%);
+      width:90px;
+      height:28px;
+      background:#000;
+      border-radius:20px;
+    }
+    
+    .screen-badge{
+      margin-top:40px;
+      padding:8px 14px;
+      background:rgba(255,184,0,0.12);
+      border:1px solid var(--border-gold);
+      border-radius:8px;
+      font-size:9px;
+      font-weight:800;
+      color:var(--gold);
+      text-transform:uppercase;
+      letter-spacing:2px;
+    }
+    .screen-desc{
+      font-size:11px;
+      color:var(--text-muted);
+      text-align:center;
+      margin:12px 0 24px;
+      padding:0 8px;
+      line-height:1.6;
+    }
+    
+    /* Detector Animation */
+    .detector{
+      position:relative;
+      width:150px;
+      height:150px;
+      margin-bottom:20px;
+    }
+    .detector-ring{
+      position:absolute;
+      inset:0;
+      border:2px solid var(--gold);
+      border-radius:50%;
+      opacity:0;
+      animation:ripple 4s ease-out infinite;
+    }
     .detector-ring:nth-child(2){animation-delay:1.3s}
     .detector-ring:nth-child(3){animation-delay:2.6s}
-    @keyframes ripple{0%{transform:scale(1);opacity:0.3}100%{transform:scale(1.8);opacity:0}}
+    @keyframes ripple{0%{transform:scale(1);opacity:0.4}100%{transform:scale(2);opacity:0}}
     
-    .detector-circle{position:absolute;inset:20px;background:radial-gradient(circle,rgba(255,176,32,0.15) 0%,transparent 70%);border:2px solid rgba(255,176,32,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:glow 4s ease-in-out infinite}
-    @keyframes glow{0%,100%{box-shadow:0 0 20px rgba(255,176,32,0.2)}50%{box-shadow:0 0 40px rgba(255,176,32,0.4)}}
+    .detector-core{
+      position:absolute;
+      inset:25px;
+      background:radial-gradient(circle,rgba(255,184,0,0.12) 0%,transparent 70%);
+      border:2px solid rgba(255,184,0,0.35);
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      animation:coreGlow 5s ease-in-out infinite;
+    }
+    @keyframes coreGlow{0%,100%{box-shadow:0 0 30px rgba(255,184,0,0.15)}50%{box-shadow:0 0 50px rgba(255,184,0,0.35)}}
     
-    .detector-icon{width:48px;height:48px;background:linear-gradient(135deg,var(--gold-light),var(--gold-dark));border-radius:50%;display:flex;align-items:center;justify-content:center;animation:iconPulse 3s ease-in-out infinite}
-    .detector-icon svg{width:24px;height:24px;fill:#000}
-    @keyframes iconPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+    .detector-icon{
+      width:52px;
+      height:52px;
+      background:linear-gradient(135deg,var(--gold-light),var(--gold-dark));
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      animation:iconPulse 4s ease-in-out infinite;
+    }
+    .detector-icon svg{width:26px;height:26px;fill:#000}
+    @keyframes iconPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
     
     /* Waveform */
-    .waveform{display:flex;align-items:center;justify-content:center;gap:3px;height:32px;margin-bottom:12px}
-    .waveform span{width:3px;background:linear-gradient(180deg,var(--gold),var(--gold-dark));border-radius:3px;animation:wave 1.5s ease-in-out infinite}
-    .waveform span:nth-child(1){height:20%;animation-delay:0s}
-    .waveform span:nth-child(2){height:40%;animation-delay:0.1s}
-    .waveform span:nth-child(3){height:60%;animation-delay:0.2s}
-    .waveform span:nth-child(4){height:80%;animation-delay:0.3s}
-    .waveform span:nth-child(5){height:60%;animation-delay:0.4s}
-    .waveform span:nth-child(6){height:40%;animation-delay:0.5s}
-    .waveform span:nth-child(7){height:20%;animation-delay:0.6s}
-    @keyframes wave{0%,100%{height:20%}50%{height:80%}}
+    .waveform{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:4px;
+      height:36px;
+      margin-bottom:16px;
+    }
+    .waveform span{
+      width:4px;
+      background:linear-gradient(180deg,var(--gold-light),var(--gold-dark));
+      border-radius:4px;
+      animation:wave 1.8s ease-in-out infinite;
+    }
+    .waveform span:nth-child(1){height:25%;animation-delay:0s}
+    .waveform span:nth-child(2){height:45%;animation-delay:0.15s}
+    .waveform span:nth-child(3){height:65%;animation-delay:0.3s}
+    .waveform span:nth-child(4){height:85%;animation-delay:0.45s}
+    .waveform span:nth-child(5){height:65%;animation-delay:0.6s}
+    .waveform span:nth-child(6){height:45%;animation-delay:0.75s}
+    .waveform span:nth-child(7){height:25%;animation-delay:0.9s}
+    @keyframes wave{0%,100%{height:25%}50%{height:85%}}
     
-    .phone-status{font-size:11px;color:var(--gold);text-transform:uppercase;letter-spacing:2px;animation:pulse 2s infinite}
-    .phone-tagline{margin-top:16px;font-size:12px;color:var(--text-muted);text-align:center}
-    .phone-tagline strong{color:var(--gold)}
+    .screen-status{
+      font-size:10px;
+      color:var(--gold);
+      text-transform:uppercase;
+      letter-spacing:3px;
+      font-weight:700;
+      animation:pulseDot 2s infinite;
+    }
     
-    /* Feature pills */
-    .feature-pills{display:grid;gap:12px;margin-top:40px;max-width:380px;width:100%}
-    .feature-pill{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--bg-card);border-radius:12px;border:1px solid #222;transition:transform 0.2s,border-color 0.2s}
-    .feature-pill:hover{transform:translateX(4px);border-color:rgba(255,176,32,0.3)}
-    .feature-pill svg{width:20px;height:20px;color:var(--gold);flex-shrink:0}
-    .feature-pill span{font-size:14px;font-weight:500}
+    /* Feature Pills */
+    .feature-pills{
+      display:grid;
+      gap:14px;
+      margin-top:48px;
+      max-width:420px;
+      width:100%;
+    }
+    .feature-pill{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      padding:16px 20px;
+      background:var(--bg-glass);
+      backdrop-filter:blur(10px);
+      border-radius:14px;
+      border:1px solid var(--border);
+      transition:all 0.3s ease;
+    }
+    .feature-pill:hover{
+      transform:translateX(6px);
+      border-color:var(--border-gold);
+      background:rgba(255,184,0,0.05);
+    }
+    .feature-pill svg{width:22px;height:22px;color:var(--gold);flex-shrink:0}
+    .feature-pill span{font-size:14px;font-weight:500;color:var(--text)}
     
-    /* ═══════════════════════════════════════════════════════════════
-       PAIN POINTS
-       ═══════════════════════════════════════════════════════════════ */
-    .section-cream{background:var(--cream);color:#1a1a1a}
-    .pain-grid{display:grid;gap:16px;margin-top:40px}
-    @media(min-width:640px){.pain-grid{grid-template-columns:repeat(2,1fr)}}
-    @media(min-width:1024px){.pain-grid{grid-template-columns:repeat(3,1fr)}}
+    /* ═══════════════════════════════════════════════════════════════════════
+       PAIN POINTS — BENTO GRID Premium
+       ═══════════════════════════════════════════════════════════════════════ */
+    .pains{
+      padding:100px 20px;
+      background:linear-gradient(180deg,var(--bg) 0%,#050505 100%);
+    }
+    .pains .container{max-width:1100px}
     
-    .pain-card{background:#fff;border-radius:16px;padding:24px;border:1px solid #E5E7EB;transition:transform 0.3s,box-shadow 0.3s}
-    .pain-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,0.1)}
-    .pain-card h3{font-size:18px;margin-bottom:8px;color:#1a1a1a}
-    .pain-card p{font-size:14px;color:#6B7280;line-height:1.6}
+    .bento-grid{
+      display:grid;
+      gap:16px;
+      margin-top:48px;
+    }
+    @media(min-width:640px){
+      .bento-grid{
+        grid-template-columns:repeat(2,1fr);
+        grid-template-rows:auto auto auto;
+      }
+      .bento-grid .bento-card:nth-child(1){grid-column:span 2}
+      .bento-grid .bento-card:nth-child(4){grid-column:span 2}
+    }
+    @media(min-width:1024px){
+      .bento-grid{
+        grid-template-columns:repeat(3,1fr);
+        grid-template-rows:auto auto;
+      }
+      .bento-grid .bento-card:nth-child(1){grid-column:span 2;grid-row:span 1}
+      .bento-grid .bento-card:nth-child(4){grid-column:span 1}
+      .bento-grid .bento-card:nth-child(6){grid-column:span 2}
+    }
     
-    /* ═══════════════════════════════════════════════════════════════
-       COMPARISON
-       ═══════════════════════════════════════════════════════════════ */
-    .comparison{display:grid;gap:20px;margin-top:50px}
-    @media(min-width:768px){.comparison{grid-template-columns:1fr 1fr}}
+    .bento-card{
+      background:var(--bg-glass);
+      backdrop-filter:blur(20px);
+      border:1px solid var(--border);
+      border-radius:var(--radius-lg);
+      padding:28px;
+      transition:all 0.4s cubic-bezier(0.4,0,0.2,1);
+      position:relative;
+      overflow:hidden;
+    }
+    .bento-card::before{
+      content:'';
+      position:absolute;
+      top:0;left:0;
+      width:100%;height:100%;
+      background:linear-gradient(135deg,rgba(255,184,0,0.03) 0%,transparent 50%);
+      opacity:0;
+      transition:opacity 0.4s;
+    }
+    .bento-card:hover{
+      transform:translateY(-4px);
+      border-color:var(--border-gold);
+      box-shadow:0 20px 60px rgba(0,0,0,0.3);
+    }
+    .bento-card:hover::before{opacity:1}
     
-    .comparison-box{border-radius:16px;padding:28px 24px}
-    .comparison-before{background:#fff;border:1px solid #E5E7EB}
-    .comparison-after{background:linear-gradient(135deg,rgba(255,176,32,0.12),rgba(255,202,92,0.05));border:2px solid var(--gold)}
+    .bento-icon{
+      width:48px;
+      height:48px;
+      background:rgba(255,184,0,0.1);
+      border:1px solid var(--border-gold);
+      border-radius:14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin-bottom:20px;
+    }
+    .bento-icon svg{width:24px;height:24px;color:var(--gold)}
     
-    .comparison-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
-    .comparison-label-before{color:#6B7280}
-    .comparison-label-after{color:var(--green)}
+    .bento-card h3{
+      font-size:18px;
+      font-weight:700;
+      margin-bottom:10px;
+      color:var(--text);
+    }
+    .bento-card p{
+      font-size:14px;
+      color:var(--text-muted);
+      line-height:1.7;
+    }
     
-    .comparison-list{list-style:none}
-    .comparison-list li{display:flex;align-items:flex-start;gap:10px;padding:10px 0;font-size:14px;color:#374151;border-bottom:1px solid rgba(0,0,0,0.05)}
-    .comparison-list li:last-child{border:none}
-    .comparison-list svg{width:18px;height:18px;flex-shrink:0;margin-top:2px}
-    .icon-x{color:#EF4444}
-    .icon-check{color:var(--green)}
+    /* ═══════════════════════════════════════════════════════════════════════
+       COMPARISON — Before/After
+       ═══════════════════════════════════════════════════════════════════════ */
+    .comparison{
+      padding:100px 20px;
+    }
+    .comparison-grid{
+      display:grid;
+      gap:24px;
+      margin-top:48px;
+    }
+    @media(min-width:768px){.comparison-grid{grid-template-columns:1fr 1fr}}
     
-    /* ═══════════════════════════════════════════════════════════════
-       STEPS
-       ═══════════════════════════════════════════════════════════════ */
-    .steps{display:grid;gap:32px;margin-top:48px}
+    .compare-card{
+      padding:32px;
+      border-radius:var(--radius-lg);
+      border:1px solid var(--border);
+    }
+    .compare-card.before{
+      background:linear-gradient(135deg,rgba(239,68,68,0.05) 0%,transparent 100%);
+      border-color:rgba(239,68,68,0.2);
+    }
+    .compare-card.after{
+      background:linear-gradient(135deg,rgba(16,185,129,0.05) 0%,transparent 100%);
+      border-color:rgba(16,185,129,0.2);
+    }
+    
+    .compare-header{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-bottom:24px;
+      padding-bottom:16px;
+      border-bottom:1px solid var(--border);
+    }
+    .compare-icon{
+      width:40px;height:40px;
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .before .compare-icon{background:rgba(239,68,68,0.15)}
+    .before .compare-icon svg{color:var(--red)}
+    .after .compare-icon{background:rgba(16,185,129,0.15)}
+    .after .compare-icon svg{color:var(--green)}
+    
+    .compare-header h3{font-size:20px;font-weight:700}
+    .before .compare-header h3{color:var(--red)}
+    .after .compare-header h3{color:var(--green)}
+    
+    .compare-list{list-style:none;display:flex;flex-direction:column;gap:14px}
+    .compare-list li{
+      display:flex;
+      align-items:flex-start;
+      gap:12px;
+      font-size:14px;
+      color:var(--text-muted);
+      line-height:1.6;
+    }
+    .compare-list li svg{width:18px;height:18px;flex-shrink:0;margin-top:2px}
+    .before .compare-list li svg{color:var(--red)}
+    .after .compare-list li svg{color:var(--green)}
+    
+    /* ═══════════════════════════════════════════════════════════════════════
+       HOW IT WORKS
+       ═══════════════════════════════════════════════════════════════════════ */
+    .how-it-works{
+      padding:100px 20px;
+      background:linear-gradient(180deg,#050505 0%,var(--bg) 100%);
+    }
+    
+    .steps{
+      display:grid;
+      gap:24px;
+      margin-top:48px;
+    }
     @media(min-width:768px){.steps{grid-template-columns:repeat(3,1fr)}}
     
-    .step{text-align:center}
-    .step-num{width:56px;height:56px;margin:0 auto 20px;background:linear-gradient(135deg,var(--gold-light),var(--gold-dark));border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-size:24px;font-weight:800;color:#000;box-shadow:0 8px 24px rgba(255,176,32,0.3)}
-    .step h3{font-size:20px;margin-bottom:8px}
-    .step p{font-size:14px;color:var(--text-muted);max-width:280px;margin:0 auto}
+    .step-card{
+      text-align:center;
+      padding:32px 24px;
+      background:var(--bg-glass);
+      backdrop-filter:blur(20px);
+      border:1px solid var(--border);
+      border-radius:var(--radius-lg);
+      position:relative;
+    }
+    .step-card:hover{border-color:var(--border-gold)}
     
-    /* ═══════════════════════════════════════════════════════════════
-       BENEFITS
-       ═══════════════════════════════════════════════════════════════ */
-    .benefits-grid{display:grid;gap:20px;margin-top:48px}
-    @media(min-width:640px){.benefits-grid{grid-template-columns:repeat(2,1fr)}}
-    @media(min-width:1024px){.benefits-grid{grid-template-columns:repeat(3,1fr)}}
+    .step-number{
+      width:56px;
+      height:56px;
+      margin:0 auto 20px;
+      background:linear-gradient(135deg,var(--gold),var(--gold-dark));
+      border-radius:16px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      font-weight:800;
+      color:#000;
+    }
+    .step-card h3{font-size:18px;margin-bottom:10px}
+    .step-card p{font-size:14px;color:var(--text-muted);line-height:1.7}
     
-    .benefit-card{background:var(--bg-card);border-radius:16px;padding:28px 24px;border:1px solid #1a1a1a;transition:transform 0.3s,border-color 0.3s}
-    .benefit-card:hover{transform:translateY(-4px);border-color:rgba(255,176,32,0.3)}
-    .benefit-card svg{width:36px;height:36px;color:var(--gold);margin-bottom:16px}
-    .benefit-card h3{font-size:18px;margin-bottom:8px}
-    .benefit-card p{font-size:14px;color:var(--text-muted)}
+    /* ═══════════════════════════════════════════════════════════════════════
+       FEATURES SHOWCASE
+       ═══════════════════════════════════════════════════════════════════════ */
+    .features{
+      padding:100px 20px;
+    }
     
-    /* ═══════════════════════════════════════════════════════════════
-       TUNER
-       ═══════════════════════════════════════════════════════════════ */
-    .tuner-box{margin-top:48px;background:var(--bg-card);border-radius:20px;padding:40px 24px;border:1px solid #1a1a1a;text-align:center;position:relative;overflow:hidden}
-    .tuner-box::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;background:radial-gradient(circle,rgba(16,185,129,0.1) 0%,transparent 70%);pointer-events:none}
+    .features-grid{
+      display:grid;
+      gap:20px;
+      margin-top:48px;
+    }
+    @media(min-width:768px){.features-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(min-width:1024px){.features-grid{grid-template-columns:repeat(3,1fr)}}
     
-    .tuner-visual{position:relative;z-index:2;width:100px;height:100px;margin:0 auto 20px;background:radial-gradient(circle,rgba(16,185,129,0.15) 0%,transparent 70%);border:2px solid rgba(16,185,129,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;animation:glowGreen 3s ease-in-out infinite}
-    @keyframes glowGreen{0%,100%{box-shadow:0 0 15px rgba(16,185,129,0.2)}50%{box-shadow:0 0 30px rgba(16,185,129,0.4)}}
+    .feature-card{
+      padding:28px;
+      background:var(--bg-glass);
+      backdrop-filter:blur(20px);
+      border:1px solid var(--border);
+      border-radius:var(--radius-lg);
+      transition:all 0.3s ease;
+    }
+    .feature-card:hover{
+      border-color:var(--border-gold);
+      transform:translateY(-4px);
+    }
     
-    .tuner-note{font-family:'Outfit',sans-serif;font-size:40px;font-weight:800;color:var(--green)}
-    .tuner-status{font-size:14px;color:var(--green);font-weight:600;margin-bottom:20px;position:relative;z-index:2}
-    .tuner-features{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;position:relative;z-index:2}
-    .tuner-feature{padding:8px 14px;background:rgba(255,255,255,0.05);border-radius:20px;font-size:12px;color:var(--text-muted)}
+    .feature-card-icon{
+      width:52px;height:52px;
+      background:rgba(255,184,0,0.1);
+      border:1px solid var(--border-gold);
+      border-radius:14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin-bottom:20px;
+    }
+    .feature-card-icon svg{width:26px;height:26px;color:var(--gold)}
     
-    /* ═══════════════════════════════════════════════════════════════
-       PRICING
-       ═══════════════════════════════════════════════════════════════ */
-    .pricing-grid{display:grid;gap:20px;margin-top:48px}
-    @media(min-width:768px){.pricing-grid{grid-template-columns:repeat(3,1fr);align-items:start}}
+    .feature-card h3{font-size:18px;margin-bottom:10px}
+    .feature-card p{font-size:14px;color:var(--text-muted);line-height:1.7}
     
-    .plan-card{background:var(--bg-card);border-radius:20px;padding:32px 24px;border:1px solid #1a1a1a;position:relative;transition:transform 0.3s}
-    .plan-card:hover{transform:translateY(-4px)}
-    .plan-featured{border:2px solid var(--gold);background:linear-gradient(180deg,rgba(255,176,32,0.08),var(--bg-card))}
-    @media(min-width:768px){.plan-featured{transform:scale(1.03)}.plan-featured:hover{transform:scale(1.03) translateY(-4px)}}
+    /* ═══════════════════════════════════════════════════════════════════════
+       PRICING — Premium Cards
+       ═══════════════════════════════════════════════════════════════════════ */
+    .pricing{
+      padding:100px 20px;
+      background:linear-gradient(180deg,var(--bg) 0%,#050505 100%);
+    }
     
-    .plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#FF6B35,#F7931A);color:#fff;font-size:11px;font-weight:700;padding:6px 14px;border-radius:20px;white-space:nowrap}
-    .plan-name{font-family:'Outfit',sans-serif;font-size:22px;font-weight:700;margin-bottom:6px}
-    .plan-desc{font-size:13px;color:var(--text-muted);margin-bottom:20px}
-    .plan-price{margin-bottom:24px}
-    .plan-price-value{font-family:'Outfit',sans-serif;font-size:36px;font-weight:800;color:var(--gold)}
-    .plan-price-period{font-size:14px;color:var(--text-muted)}
+    .pricing-grid{
+      display:grid;
+      gap:20px;
+      margin-top:48px;
+      max-width:1000px;
+      margin-left:auto;
+      margin-right:auto;
+    }
+    @media(min-width:768px){.pricing-grid{grid-template-columns:repeat(3,1fr);align-items:center}}
     
-    .plan-features{list-style:none;margin-bottom:24px}
-    .plan-features li{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:14px;color:var(--text-muted);border-bottom:1px solid #1a1a1a}
-    .plan-features li:last-child{border:none}
-    .plan-features svg{width:18px;height:18px;color:var(--green);flex-shrink:0}
+    .pricing-card{
+      padding:32px 28px;
+      background:var(--bg-glass);
+      backdrop-filter:blur(20px);
+      border:1px solid var(--border);
+      border-radius:var(--radius-xl);
+      text-align:center;
+      position:relative;
+      transition:all 0.3s ease;
+    }
+    .pricing-card:hover{border-color:var(--border-gold)}
     
-    /* ═══════════════════════════════════════════════════════════════
+    .pricing-card.featured{
+      background:linear-gradient(135deg,rgba(255,184,0,0.08) 0%,rgba(255,184,0,0.02) 100%);
+      border:2px solid var(--gold);
+      box-shadow:0 0 60px rgba(255,184,0,0.15);
+      transform:scale(1.02);
+    }
+    @media(min-width:768px){.pricing-card.featured{transform:scale(1.05)}}
+    
+    .pricing-badge{
+      position:absolute;
+      top:-14px;
+      left:50%;
+      transform:translateX(-50%);
+      padding:8px 20px;
+      background:linear-gradient(135deg,var(--gold-light),var(--gold-dark));
+      border-radius:100px;
+      font-size:11px;
+      font-weight:800;
+      color:#000;
+      text-transform:uppercase;
+      letter-spacing:1px;
+      white-space:nowrap;
+    }
+    
+    .pricing-period{
+      font-size:14px;
+      color:var(--text-muted);
+      text-transform:uppercase;
+      letter-spacing:1px;
+      margin-bottom:8px;
+    }
+    .pricing-price{
+      font-size:48px;
+      font-weight:900;
+      color:var(--text);
+      margin-bottom:8px;
+      font-family:'Archivo',sans-serif;
+    }
+    .pricing-price span{font-size:18px;color:var(--text-muted)}
+    .pricing-per{font-size:13px;color:var(--text-dim);margin-bottom:24px}
+    
+    .pricing-features{
+      list-style:none;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      margin-bottom:28px;
+      text-align:left;
+    }
+    .pricing-features li{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:14px;
+      color:var(--text-muted);
+    }
+    .pricing-features li svg{width:18px;height:18px;color:var(--green);flex-shrink:0}
+    
+    .pricing-card .btn{width:100%}
+    
+    /* ═══════════════════════════════════════════════════════════════════════
        FAQ
-       ═══════════════════════════════════════════════════════════════ */
-    .faq-list{margin-top:48px;max-width:800px;margin-left:auto;margin-right:auto}
-    .faq-item{border-bottom:1px solid #1a1a1a}
-    .faq-question{width:100%;display:flex;align-items:center;justify-content:space-between;padding:20px 0;font-size:16px;font-weight:600;text-align:left;background:none;border:none;color:var(--text);cursor:pointer;transition:color 0.2s}
+       ═══════════════════════════════════════════════════════════════════════ */
+    .faq{
+      padding:100px 20px;
+    }
+    .faq .container{max-width:800px}
+    
+    .faq-list{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      margin-top:48px;
+    }
+    .faq-item{
+      background:var(--bg-glass);
+      backdrop-filter:blur(20px);
+      border:1px solid var(--border);
+      border-radius:var(--radius-md);
+      overflow:hidden;
+    }
+    .faq-question{
+      width:100%;
+      padding:20px 24px;
+      background:transparent;
+      border:none;
+      color:var(--text);
+      font-size:16px;
+      font-weight:600;
+      text-align:left;
+      cursor:pointer;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      transition:color 0.3s;
+    }
     .faq-question:hover{color:var(--gold)}
-    .faq-question svg{width:20px;height:20px;color:var(--gold);transition:transform 0.3s;flex-shrink:0;margin-left:16px}
+    .faq-question svg{
+      width:20px;height:20px;
+      color:var(--text-muted);
+      transition:transform 0.3s;
+    }
     .faq-item.open .faq-question svg{transform:rotate(180deg)}
-    .faq-answer{max-height:0;overflow:hidden;transition:max-height 0.3s}
-    .faq-item.open .faq-answer{max-height:300px}
-    .faq-answer-inner{padding-bottom:20px;font-size:15px;color:var(--text-muted);line-height:1.7}
     
-    /* ═══════════════════════════════════════════════════════════════
+    .faq-answer{
+      max-height:0;
+      overflow:hidden;
+      transition:max-height 0.3s ease;
+    }
+    .faq-item.open .faq-answer{max-height:200px}
+    .faq-answer p{
+      padding:0 24px 20px;
+      font-size:14px;
+      color:var(--text-muted);
+      line-height:1.7;
+    }
+    
+    /* ═══════════════════════════════════════════════════════════════════════
+       CTA FINAL
+       ═══════════════════════════════════════════════════════════════════════ */
+    .cta-final{
+      padding:100px 20px;
+      text-align:center;
+      background:linear-gradient(180deg,#050505 0%,var(--bg) 50%,#050505 100%);
+      position:relative;
+      overflow:hidden;
+    }
+    .cta-glow{
+      position:absolute;
+      top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      width:600px;height:600px;
+      background:radial-gradient(circle,rgba(255,184,0,0.1) 0%,transparent 60%);
+      pointer-events:none;
+    }
+    .cta-final .container{position:relative;z-index:2}
+    
+    /* ═══════════════════════════════════════════════════════════════════════
        FOOTER
-       ═══════════════════════════════════════════════════════════════ */
-    .footer{padding:40px 20px;text-align:center;border-top:1px solid #1a1a1a}
-    .footer-logo{font-family:'Outfit',sans-serif;font-size:20px;font-weight:800;color:var(--gold);margin-bottom:8px}
-    .footer-text{font-size:13px;color:var(--text-muted)}
+       ═══════════════════════════════════════════════════════════════════════ */
+    .footer{
+      padding:40px 20px;
+      border-top:1px solid var(--border);
+      text-align:center;
+    }
+    .footer-logo{
+      font-family:'Archivo',sans-serif;
+      font-size:20px;
+      font-weight:800;
+      color:var(--gold);
+      margin-bottom:16px;
+    }
+    .footer p{font-size:13px;color:var(--text-dim)}
     
-    /* WhatsApp */
-    .whatsapp{position:fixed;bottom:24px;right:24px;width:56px;height:56px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(37,211,102,0.4);z-index:1000;transition:transform 0.2s}
-    .whatsapp:hover{transform:scale(1.1)}
-    .whatsapp svg{width:28px;height:28px;fill:#fff}
+    /* ═══════════════════════════════════════════════════════════════════════
+       WHATSAPP FLOAT — Premium with Badge
+       ═══════════════════════════════════════════════════════════════════════ */
+    .whatsapp-float{
+      position:fixed;
+      bottom:24px;
+      right:24px;
+      z-index:1000;
+    }
+    .whatsapp-btn{
+      width:60px;
+      height:60px;
+      background:linear-gradient(135deg,#25D366,#128C7E);
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 8px 24px rgba(37,211,102,0.4);
+      transition:all 0.3s ease;
+      position:relative;
+    }
+    .whatsapp-btn:hover{
+      transform:scale(1.1);
+      box-shadow:0 12px 32px rgba(37,211,102,0.5);
+    }
+    .whatsapp-btn svg{width:32px;height:32px;fill:#fff}
     
-    /* Hide Emergent */
-    #emergent-badge,[id*="emergent"],a[href*="emergent"]{display:none!important}
+    .whatsapp-badge{
+      position:absolute;
+      top:-8px;
+      right:-8px;
+      padding:4px 8px;
+      background:var(--gold);
+      border-radius:8px;
+      font-size:9px;
+      font-weight:700;
+      color:#000;
+      white-space:nowrap;
+      animation:badgePulse 2s infinite;
+    }
+    @keyframes badgePulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+    
+    /* ═══════════════════════════════════════════════════════════════════════
+       MOBILE OPTIMIZATIONS
+       ═══════════════════════════════════════════════════════════════════════ */
+    @media(max-width:640px){
+      .hero{padding:60px 16px 40px}
+      .hero-buttons .btn{width:100%;padding:16px 24px}
+      .trust-row{flex-direction:column;gap:16px;align-items:center}
+      .bento-card{padding:24px}
+      .pricing-card{padding:28px 20px}
+      .pricing-price{font-size:40px}
+      .whatsapp-float{bottom:16px;right:16px}
+      .whatsapp-btn{width:56px;height:56px}
+    }
   </style>
 </head>
 <body>
-  <!-- HERO -->
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       HERO SECTION
+       ═══════════════════════════════════════════════════════════════════════ -->
   <section class="hero">
-    <div class="hero-glow"></div>
+    <div class="hero-glow hero-glow-1"></div>
+    <div class="hero-glow hero-glow-2"></div>
+    <div class="hero-glow hero-glow-center"></div>
+    
     <div class="hero-content">
-      <div class="badge">Feito para músico de igreja</div>
-      <h1 class="title-xl">Enquanto outros procuram o tom…<br><span class="text-gold">você já está tocando.</span></h1>
-      <p class="subtitle">Descubra o tom e o campo harmônico em segundos — sem travar no culto, sem depender de ninguém.</p>
+      <div class="badge">
+        <span class="badge-dot"></span>
+        Tecnologia de Precisão Harmônica
+      </div>
+      
+      <h1 class="title-hero">
+        Nunca mais fique tentando achar o tom <span class="highlight text-gradient">enquanto a igreja canta.</span>
+      </h1>
+      
+      <p class="hero-subtitle">
+        A primeira IA de detecção harmônica feita para músicos de igreja. Toque com confiança, acompanhe qualquer voz e <strong>nunca mais dependa de ninguém.</strong>
+      </p>
+      
       <div class="hero-buttons">
-        <a href="#planos" class="btn btn-gold">Quero o Tom Certo <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
-        <a href="#como-funciona" class="btn btn-outline">Ver como funciona</a>
+        <a href="#planos" class="btn btn-primary btn-pulse">
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg>
+          Quero tocar com confiança
+        </a>
+        <a href="#como-funciona" class="btn btn-secondary">
+          Como funciona?
+        </a>
+      </div>
+      
+      <div class="trust-row">
+        <div class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span>Algoritmo Anti-Ruído para Cultos</span>
+        </div>
+        <div class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span>Detecção em Segundos</span>
+        </div>
+        <div class="trust-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <span>Funciona Offline</span>
+        </div>
       </div>
     </div>
   </section>
-
-  <!-- PHONE MOCKUP -->
-  <section class="phone-section">
-    <div class="phone-glow"></div>
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       PHONE SHOWCASE
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="showcase">
+    <div class="showcase-glow"></div>
     <div class="container">
-      <div class="phone-wrapper">
-        <div class="phone-frame">
+      <div class="showcase-wrapper">
+        <div class="phone-mockup">
           <div class="phone-screen">
             <div class="phone-notch"></div>
-            <div class="phone-badge">Sem enrolação</div>
-            <p class="phone-desc">IA que detecta o tom e o campo harmônico em segundos com precisão real, no meio do culto.</p>
+            
+            <div class="screen-badge">Detecção Harmônica</div>
+            <p class="screen-desc">Análise em tempo real com precisão de IA</p>
             
             <div class="detector">
               <div class="detector-ring"></div>
               <div class="detector-ring"></div>
               <div class="detector-ring"></div>
-              <div class="detector-circle">
+              <div class="detector-core">
                 <div class="detector-icon">
-                  <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
+                  <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
                 </div>
               </div>
             </div>
@@ -294,326 +994,395 @@
               <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
             </div>
             
-            <div class="phone-status">Analisando…</div>
-            <p class="phone-tagline">Detecção inteligente. <strong>Resultado preciso.</strong></p>
+            <div class="screen-status">Analisando Tom...</div>
           </div>
         </div>
         
         <div class="feature-pills">
           <div class="feature-pill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <span>Tom da música em segundos</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span>Campo Harmônico Completo</span>
           </div>
           <div class="feature-pill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <span>Campo harmônico completo</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span>Detecção Instantânea</span>
           </div>
           <div class="feature-pill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <span>Funciona com voz ou instrumento</span>
-          </div>
-          <div class="feature-pill">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            <span>Afinador profissional incluso</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+            <span>Funciona 100% Offline</span>
           </div>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- PAIN POINTS -->
-  <section class="section section-cream">
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       PAIN POINTS — BENTO GRID
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="pains" id="dores">
     <div class="container">
-      <div class="text-center">
-        <div class="badge badge-cream">A dor é real</div>
-        <h2 class="title-lg" style="color:#1a1a1a">Você se <span class="text-gold">reconhece aqui?</span></h2>
-        <p class="subtitle" style="color:#6B7280">Se uma dessas frases passou pela sua cabeça em algum ensaio ou culto, esta página é pra você.</p>
+      <div style="text-align:center">
+        <div class="badge"><span class="badge-dot"></span>Por que músicos estão mudando</div>
+        <h2 class="title-section">Cansado de <span class="text-gradient">travar no ensaio?</span></h2>
+        <p class="subtitle">Reconhece alguma dessas situações? Você não está sozinho.</p>
       </div>
       
-      <div class="pain-grid">
-        <div class="pain-card">
-          <h3>"Quando consigo achar o tom, a música já acabou."</h3>
-          <p>Você fica tentando, testando, e o louvor passa por você sem você tocar uma nota certa.</p>
-        </div>
-        <div class="pain-card">
-          <h3>"Travei de novo no ensaio."</h3>
-          <p>O resto da banda começa a tocar e você ainda está procurando o tom da música.</p>
-        </div>
-        <div class="pain-card">
-          <h3>"Tive que pedir o tom pra alguém."</h3>
-          <p>Sempre dependendo do tecladista ou de outro músico pra te dizer onde começar.</p>
-        </div>
-        <div class="pain-card">
-          <h3>"O cantor mudou o tom… e agora?"</h3>
-          <p>Quando muda no meio da música, você fica perdido e o louvor desafina.</p>
-        </div>
-        <div class="pain-card">
-          <h3>"Toquei acordes errados na frente de todo mundo."</h3>
-          <p>A insegurança bate, o suor desce, e o domingo vira pesadelo.</p>
-        </div>
-        <div class="pain-card">
-          <h3>"Eu queria conseguir tocar de ouvido."</h3>
-          <p>Mas sem saber o tom, é impossível acompanhar uma música nova rapidamente.</p>
-        </div>
-      </div>
-      
-      <!-- COMPARISON -->
-      <div class="comparison">
-        <div class="comparison-box comparison-before">
-          <div class="comparison-label comparison-label-before">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
-            Antes
+      <div class="bento-grid">
+        <div class="bento-card">
+          <div class="bento-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
           </div>
-          <ul class="comparison-list">
-            <li><svg class="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Toca acordes errados no culto</li>
-            <li><svg class="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Sente vergonha de tentar tocar de ouvido</li>
-            <li><svg class="icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>Estuda teoria por meses sem conseguir aplicar</li>
+          <h3>A música começa e você ainda está procurando o tom</h3>
+          <p>Enquanto a congregação já está cantando, você fica testando acordes aleatórios, torcendo para acertar antes do refrão.</p>
+        </div>
+        
+        <div class="bento-card">
+          <div class="bento-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3>Depende do líder de louvor</h3>
+          <p>Se ele não falar o tom, você fica perdido. E quando ele muda de tom no meio da música? Pânico total.</p>
+        </div>
+        
+        <div class="bento-card">
+          <div class="bento-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3>Vergonha de perguntar (de novo)</h3>
+          <p>Você já perguntou o tom 3 vezes e ainda não decorou. Perguntar de novo vai parecer que você não se preparou.</p>
+        </div>
+        
+        <div class="bento-card">
+          <div class="bento-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <h3>Apps genéricos não funcionam no ambiente de culto</h3>
+          <p>Afinadores comuns detectam uma nota de cada vez. No meio do louvor, com vozes e instrumentos misturados, eles simplesmente travam.</p>
+        </div>
+        
+        <div class="bento-card">
+          <div class="bento-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <h3>Músicas novas = ansiedade</h3>
+          <p>Quando aparece uma música que você nunca tocou, o nervosismo bate. E se errar na frente de todo mundo?</p>
+        </div>
+        
+        <div class="bento-card">
+          <div class="bento-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          </div>
+          <h3>Cifras da internet nem sempre estão certas</h3>
+          <p>Você confia na cifra, mas o cantor está cantando em outro tom. Aí você precisa transpor na hora e tudo vira bagunça.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       COMPARISON — BEFORE/AFTER
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="comparison">
+    <div class="container">
+      <div style="text-align:center">
+        <div class="badge"><span class="badge-dot"></span>A Transformação</div>
+        <h2 class="title-section">De músico <span style="color:var(--red)">inseguro</span> para <span class="text-gradient">autoridade</span></h2>
+      </div>
+      
+      <div class="comparison-grid">
+        <div class="compare-card before">
+          <div class="compare-header">
+            <div class="compare-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
+            <h3>Antes do Tom Certo</h3>
+          </div>
+          <ul class="compare-list">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Fica perdido esperando alguém dizer o tom</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Testa acordes aleatórios até acertar</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Depende 100% do líder de louvor</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Vergonha de perguntar o tom</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Ansiedade com músicas novas</li>
           </ul>
         </div>
-        <div class="comparison-box comparison-after">
-          <div class="comparison-label comparison-label-after">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            Com Tom Certo
+        
+        <div class="compare-card after">
+          <div class="compare-header">
+            <div class="compare-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <h3>Com o Tom Certo</h3>
           </div>
-          <ul class="comparison-list">
-            <li><svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Descobre o tom em segundos</li>
-            <li><svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Toca sozinho, sem precisar perguntar</li>
-            <li><svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Acompanha qualquer mudança de tom na hora</li>
-            <li><svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Vê o campo harmônico pronto, sem teoria</li>
+          <ul class="compare-list">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Descobre o tom em segundos, sozinho</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Entra na música junto com a congregação</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Autonomia total no instrumento</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Confiança para improvisar e criar</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Toca qualquer música de ouvido</li>
           </ul>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- HOW IT WORKS -->
-  <section id="como-funciona" class="section">
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       HOW IT WORKS
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="how-it-works" id="como-funciona">
     <div class="container">
-      <div class="text-center">
-        <div class="badge">Como funciona</div>
-        <h2 class="title-lg">Três passos. <span class="text-gold">Zero teoria.</span></h2>
-        <p class="subtitle">Você não precisa saber escala, intervalo ou nada complicado. O app faz o trabalho pesado.</p>
+      <div style="text-align:center">
+        <div class="badge"><span class="badge-dot"></span>Simples de usar</div>
+        <h2 class="title-section">Como funciona o <span class="text-gradient">Tom Certo</span></h2>
+        <p class="subtitle">3 passos para nunca mais ficar perdido no tom</p>
       </div>
       
       <div class="steps">
-        <div class="step">
-          <div class="step-num">1</div>
-          <h3>Aproxime do som</h3>
-          <p>Pode ser a voz do cantor, o seu instrumento ou o som ambiente do ensaio. O app escuta.</p>
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <h3>Abra o app</h3>
+          <p>Toque no botão de detectar. O app já começa a ouvir automaticamente.</p>
         </div>
-        <div class="step">
-          <div class="step-num">2</div>
-          <h3>O tom aparece</h3>
-          <p>Em poucos segundos o Tom Certo te mostra exatamente em que tom a música está.</p>
+        
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <h3>Deixe o app ouvir</h3>
+          <p>Cante, toque ou deixe a música rolar. A IA analisa o áudio em tempo real.</p>
         </div>
-        <div class="step">
-          <div class="step-num">3</div>
-          <h3>Toque de cara</h3>
-          <p>Veja o campo harmônico completo na tela. Sem chute, sem testar acorde por acorde.</p>
+        
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <h3>Veja o resultado</h3>
+          <p>O tom aparece na tela junto com o campo harmônico completo. É só tocar!</p>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- BENEFITS -->
-  <section class="section">
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       FEATURES
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="features">
     <div class="container">
-      <div class="text-center">
-        <div class="badge">O que você ganha</div>
-        <h2 class="title-lg">Resultado. <span class="text-gold">Não promessa.</span></h2>
+      <div style="text-align:center">
+        <div class="badge"><span class="badge-dot"></span>Recursos Premium</div>
+        <h2 class="title-section">Tecnologia que <span class="text-gradient">entende música</span></h2>
       </div>
       
-      <div class="benefits-grid">
-        <div class="benefit-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          <h3>Tom em segundos</h3>
-          <p>Nada de testar acorde por acorde. O app entrega o tom antes da música começar.</p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </div>
+          <h3>Campo Harmônico</h3>
+          <p>Veja todos os acordes que combinam com o tom detectado. Improvise sem medo.</p>
         </div>
-        <div class="benefit-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <h3>Confiança no culto</h3>
-          <p>Suba pra tocar sabendo que vai começar certo, do primeiro acorde ao último.</p>
+        
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Anti-Ruído Inteligente</h3>
+          <p>Algoritmo otimizado para ambientes de culto com vozes, palmas e instrumentos.</p>
         </div>
-        <div class="benefit-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          <h3>Sem depender de ninguém</h3>
-          <p>Pare de perguntar o tom pro tecladista. Você descobre sozinho, na hora.</p>
+        
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+          </div>
+          <h3>100% Offline</h3>
+          <p>Funciona sem internet. Perfeito para igrejas com sinal fraco ou inexistente.</p>
         </div>
-        <div class="benefit-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
-          <h3>Cabe no seu bolso</h3>
-          <p>Funciona direto no celular. Sem cabo, sem computador, sem complicação.</p>
+        
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <h3>Detecção Rápida</h3>
+          <p>Resultado em segundos. Não perca mais o início da música.</p>
         </div>
-        <div class="benefit-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
-          <h3>Voz, instrumento ou ambiente</h3>
-          <p>Capta o som do cantor, do violão, do teclado ou da música tocando perto.</p>
+        
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </div>
+          <h3>Afinador Integrado</h3>
+          <p>Afine seu instrumento antes do ensaio. Tudo em um único app.</p>
         </div>
-        <div class="benefit-card">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-          <h3>Evolui sem estudar teoria</h3>
-          <p>Você toca de ouvido enquanto aprende — o app vira seu professor de tonalidade.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- TUNER -->
-  <section class="section">
-    <div class="container">
-      <div class="text-center">
-        <div class="badge">Afinador profissional incluso</div>
-        <h2 class="title-lg">Seu instrumento <span class="text-gold">afinado em 5 segundos.</span></h2>
-        <p class="subtitle">Violão, guitarra ou baixo. Precisão de centavos de Hertz, mesmo na bagunça do ensaio.</p>
-      </div>
-      
-      <div class="tuner-box">
-        <div class="tuner-visual">
-          <span class="tuner-note">E</span>
-        </div>
-        <div class="tuner-status">✓ Afinado</div>
-        <div class="tuner-features">
-          <span class="tuner-feature">Precisão profissional</span>
-          <span class="tuner-feature">Violão · Guitarra · Baixo</span>
-          <span class="tuner-feature">Ouve mesmo no barulho</span>
+        
+        <div class="feature-card">
+          <div class="feature-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <h3>Atualizações OTA</h3>
+          <p>Novas funcionalidades chegam automaticamente, sem precisar reinstalar.</p>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- PRICING -->
-  <section id="planos" class="section">
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       PRICING
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="pricing" id="planos">
     <div class="container">
-      <div class="text-center">
-        <div class="badge">Escolha seu plano</div>
-        <h2 class="title-lg">Comece hoje. Toque <span class="text-gold">no tom certo amanhã.</span></h2>
-        <p class="subtitle">Três opções claras. Sem pegadinha. Sem letra miúda.</p>
+      <div style="text-align:center">
+        <div class="badge"><span class="badge-dot"></span>Investimento</div>
+        <h2 class="title-section">Escolha seu <span class="text-gradient">plano</span></h2>
+        <p class="subtitle">Acesso completo a todas as funcionalidades. Cancele quando quiser.</p>
       </div>
       
       <div class="pricing-grid">
-        <div class="plan-card">
-          <h3 class="plan-name">Mensal</h3>
-          <p class="plan-desc">Pague pouco e use sem compromisso de longo prazo.</p>
-          <div class="plan-price">
-            <span class="plan-price-value">R$ 9,90</span>
-            <span class="plan-price-period">por mês</span>
-          </div>
-          <ul class="plan-features">
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Detector de tom</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Campo harmônico</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Afinador profissional</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Suporte incluído</li>
+        <div class="pricing-card">
+          <div class="pricing-period">Mensal</div>
+          <div class="pricing-price">R$9<span>,90</span></div>
+          <div class="pricing-per">por mês</div>
+          <ul class="pricing-features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Detecção de tom ilimitada</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Campo harmônico completo</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Afinador inteligente</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Funciona offline</li>
           </ul>
-          <a href="https://pay.cakto.com.br/x6hmjp3_864389" class="btn btn-gold btn-full">Começar agora</a>
+          <a href="https://pay.cakto.com.br/AwMPrBe" class="btn btn-secondary">Assinar mensal</a>
         </div>
         
-        <div class="plan-card plan-featured">
-          <div class="plan-badge">🔥 Mais escolhido</div>
-          <h3 class="plan-name">Trimestral</h3>
-          <p class="plan-desc">O equilíbrio perfeito entre preço e tranquilidade.</p>
-          <div class="plan-price">
-            <span class="plan-price-value">R$ 19,90</span>
-            <span class="plan-price-period">a cada 3 meses</span>
-          </div>
-          <ul class="plan-features">
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Detector de tom</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Campo harmônico</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Afinador profissional</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Suporte incluído</li>
+        <div class="pricing-card featured">
+          <div class="pricing-badge">Mais escolhido</div>
+          <div class="pricing-period">Trimestral</div>
+          <div class="pricing-price">R$19<span>,90</span></div>
+          <div class="pricing-per">a cada 3 meses • R$6,63/mês</div>
+          <ul class="pricing-features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Tudo do plano mensal</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><strong>33% de economia</strong></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Suporte prioritário</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Acesso antecipado a novidades</li>
           </ul>
-          <a href="https://pay.cakto.com.br/3mp6tpt" class="btn btn-gold btn-full">Acesso imediato</a>
+          <a href="https://pay.cakto.com.br/3hI4rrL" class="btn btn-primary">Quero economizar 33%</a>
         </div>
         
-        <div class="plan-card">
-          <h3 class="plan-name">Semestral</h3>
-          <p class="plan-desc">Menos de R$ 7 por mês. A escolha de quem quer evoluir.</p>
-          <div class="plan-price">
-            <span class="plan-price-value">R$ 39,90</span>
-            <span class="plan-price-period">a cada 6 meses</span>
-          </div>
-          <ul class="plan-features">
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Detector de tom</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Campo harmônico</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Afinador profissional</li>
-            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Suporte incluído</li>
+        <div class="pricing-card">
+          <div class="pricing-period">Semestral</div>
+          <div class="pricing-price">R$39<span>,90</span></div>
+          <div class="pricing-per">a cada 6 meses • R$6,65/mês</div>
+          <ul class="pricing-features">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Tudo do plano trimestral</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg><strong>33% de economia</strong></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>6 meses de tranquilidade</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Melhor custo-benefício</li>
           </ul>
-          <a href="https://pay.cakto.com.br/9gcmz9j" class="btn btn-gold btn-full">Garantir acesso</a>
+          <a href="https://pay.cakto.com.br/2oEXWmO" class="btn btn-secondary">Assinar semestral</a>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- FAQ -->
-  <section class="section">
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       FAQ
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="faq" id="faq">
     <div class="container">
-      <div class="text-center">
-        <div class="badge">Dúvidas frequentes</div>
-        <h2 class="title-lg">Tudo que você precisa saber.</h2>
+      <div style="text-align:center">
+        <div class="badge"><span class="badge-dot"></span>Dúvidas frequentes</div>
+        <h2 class="title-section">Perguntas <span class="text-gradient">respondidas</span></h2>
       </div>
       
       <div class="faq-list">
         <div class="faq-item">
-          <button class="faq-question">Eu sou iniciante. Vou conseguir usar?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <div class="faq-answer"><div class="faq-answer-inner">Sim! O Tom Certo foi feito justamente para quem não tem formação musical. É só abrir o app, aproximar do som e ele te mostra o tom. Sem teoria, sem complicação.</div></div>
+          <button class="faq-question">
+            Funciona com qualquer instrumento?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <p>Sim! O Tom Certo detecta o tom a partir de qualquer fonte sonora: voz, violão, teclado, guitarra, baixo e até músicas gravadas.</p>
+          </div>
         </div>
+        
         <div class="faq-item">
-          <button class="faq-question">Preciso ter conhecimento de teoria musical?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <div class="faq-answer"><div class="faq-answer-inner">Não. O app faz todo o trabalho de análise. Você só precisa saber tocar os acordes que ele mostra na tela.</div></div>
+          <button class="faq-question">
+            Precisa de internet para funcionar?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <p>Não! O app funciona 100% offline. Perfeito para igrejas com sinal fraco ou sem internet.</p>
+          </div>
         </div>
+        
         <div class="faq-item">
-          <button class="faq-question">Funciona com qualquer instrumento?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <div class="faq-answer"><div class="faq-answer-inner">Funciona com violão, guitarra, teclado, voz e qualquer som que tenha notas definidas. Quanto mais claro o som, mais preciso o resultado.</div></div>
+          <button class="faq-question">
+            Funciona em Android e iPhone?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <p>Sim! O Tom Certo está disponível para Android e iOS (iPhone/iPad).</p>
+          </div>
         </div>
+        
         <div class="faq-item">
-          <button class="faq-question">Funciona durante o ensaio com barulho?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <div class="faq-answer"><div class="faq-answer-inner">Sim. O algoritmo de IA foi treinado para filtrar ruídos e captar a frequência principal. Funciona mesmo com conversa e outros instrumentos tocando.</div></div>
+          <button class="faq-question">
+            Como recebo o acesso após pagar?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <p>Após a confirmação do pagamento, você recebe um e-mail com as instruções de acesso. Se não encontrar, verifique sua pasta de spam.</p>
+          </div>
         </div>
+        
         <div class="faq-item">
-          <button class="faq-question">Funciona offline?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <div class="faq-answer"><div class="faq-answer-inner">O afinador funciona offline. A detecção de tom precisa de conexão com a internet para processar o áudio com mais precisão.</div></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question">Qual a diferença entre os planos?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <div class="faq-answer"><div class="faq-answer-inner">Todos os planos dão acesso completo ao app. A diferença é só no período de assinatura e no preço por mês. Quanto maior o período, maior a economia.</div></div>
-        </div>
-        <div class="faq-item">
-          <button class="faq-question">Posso cancelar quando quiser?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>
-          <div class="faq-answer"><div class="faq-answer-inner">Sim. Você pode cancelar a qualquer momento pelo próprio app ou entrando em contato com nosso suporte. Sem burocracia.</div></div>
+          <button class="faq-question">
+            Posso cancelar quando quiser?
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="faq-answer">
+            <p>Sim! Você pode cancelar sua assinatura a qualquer momento, sem burocracia. O acesso continua até o fim do período pago.</p>
+          </div>
         </div>
       </div>
     </div>
   </section>
-
-  <!-- FOOTER -->
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       CTA FINAL
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <section class="cta-final">
+    <div class="cta-glow"></div>
+    <div class="container">
+      <h2 class="title-section">Pronto para tocar com <span class="text-gradient">confiança?</span></h2>
+      <p class="subtitle">Junte-se a milhares de músicos de igreja que já descobriram o poder do Tom Certo.</p>
+      <a href="#planos" class="btn btn-primary btn-pulse">
+        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg>
+        Começar agora
+      </a>
+    </div>
+  </section>
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════════════════ -->
   <footer class="footer">
     <div class="container">
       <div class="footer-logo">Tom Certo</div>
-      <p class="footer-text">© 2025 Tom Certo. Todos os direitos reservados.</p>
+      <p>© 2025 Tom Certo. Todos os direitos reservados.</p>
     </div>
   </footer>
-
-  <!-- WhatsApp -->
-  <a href="https://wa.me/5511999999999" class="whatsapp" target="_blank" aria-label="WhatsApp">
-    <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+  
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       WHATSAPP FLOAT
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <a href="https://wa.me/5511999999999?text=Olá! Tenho uma dúvida sobre o Tom Certo" target="_blank" class="whatsapp-float">
+    <div class="whatsapp-btn">
+      <div class="whatsapp-badge">Online</div>
+      <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+    </div>
   </a>
-
+  
+  <!-- FAQ Toggle Script -->
   <script>
-    // FAQ Accordion
-    document.querySelectorAll('.faq-question').forEach(btn=>{
-      btn.onclick=()=>{
-        const item=btn.parentElement;
-        const open=item.classList.contains('open');
-        document.querySelectorAll('.faq-item').forEach(i=>i.classList.remove('open'));
-        if(!open)item.classList.add('open');
-      };
-    });
-    
-    // Smooth scroll
-    document.querySelectorAll('a[href^="#"]').forEach(a=>{
-      a.onclick=e=>{
-        const t=document.querySelector(a.getAttribute('href'));
-        if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth'});}
-      };
+    document.querySelectorAll('.faq-question').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = btn.closest('.faq-item');
+        const wasOpen = item.classList.contains('open');
+        document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+        if (!wasOpen) item.classList.add('open');
+      });
     });
   </script>
 </body>
