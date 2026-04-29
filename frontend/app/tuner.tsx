@@ -178,6 +178,78 @@ function TunerScreen() {
   
   const tuner = useTuner();
   
+  // ═══════════════════════════════════════════════════════════════════════
+  // NOVO: Estado de detecção de som real
+  // ═══════════════════════════════════════════════════════════════════════
+  const MIN_NOISE_LEVEL = 0.08;  // Limite mínimo de volume para considerar som
+  const [isDetectingSound, setIsDetectingSound] = useState(false);
+  const [lastTunedString, setLastTunedString] = useState<string | null>(null);
+  const tunedSoundTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Verificar se há som real sendo detectado
+  useEffect(() => {
+    const hasRealSound = tuner.noiseLevel >= MIN_NOISE_LEVEL && tuner.frequency !== null;
+    setIsDetectingSound(hasRealSound);
+    
+    // Reset quando silêncio
+    if (!hasRealSound) {
+      // Delay antes de resetar o estado para evitar flickering
+      const timeout = setTimeout(() => {
+        if (tuner.noiseLevel < MIN_NOISE_LEVEL) {
+          setIsDetectingSound(false);
+        }
+      }, 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [tuner.noiseLevel, tuner.frequency]);
+  
+  // ═══════════════════════════════════════════════════════════════════════
+  // NOVO: Feedback sonoro quando afinado
+  // ═══════════════════════════════════════════════════════════════════════
+  const playTunedSound = useCallback(async (stringName: string) => {
+    // Evitar tocar som repetidamente para a mesma corda
+    if (lastTunedString === stringName) return;
+    
+    // Evitar som muito frequente
+    if (tunedSoundTimeoutRef.current) return;
+    
+    try {
+      // Usar expo-av para tocar som de confirmação
+      const { Audio } = require('expo-av');
+      
+      // Som de confirmação suave (beep curto)
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+      });
+      
+      // Criar um som sintético simples usando oscillator concept
+      // Como não temos arquivo de áudio, vamos usar vibração como alternativa
+      const Haptics = require('expo-haptics');
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      setLastTunedString(stringName);
+      
+      // Cooldown de 2 segundos antes de permitir outro som
+      tunedSoundTimeoutRef.current = setTimeout(() => {
+        tunedSoundTimeoutRef.current = null;
+        setLastTunedString(null);
+      }, 2000);
+      
+    } catch (err) {
+      console.log('[Tuner] Haptics not available:', err);
+    }
+  }, [lastTunedString]);
+  
+  // Limpar timeout no unmount
+  useEffect(() => {
+    return () => {
+      if (tunedSoundTimeoutRef.current) {
+        clearTimeout(tunedSoundTimeoutRef.current);
+      }
+    };
+  }, []);
+  
   // Animações
   const needleAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -188,35 +260,93 @@ function TunerScreen() {
   
   const currentInstrument = INSTRUMENTS[instrument];
   
-  // Nota detectada
-  const detectedNote = tuner.frequency ? getClosestNote(tuner.frequency) : null;
+  // Nota detectada - APENAS se há som real
+  const detectedNote = (isDetectingSound && tuner.frequency) ? getClosestNote(tuner.frequency) : null;
   const cents = detectedNote?.cents || 0;
   
-  // Status da afinação
+  // ═══════════════════════════════════════════════════════════════════════
+  // NOVO: Status da afinação MELHORADO
+  // Não mostra instruções em silêncio
+  // ═══════════════════════════════════════════════════════════════════════
   const getTuningStatus = () => {
     if (tuner.error) {
-      return { status: 'error', message: tuner.error, color: C.red, glow: C.redGlow };
+      return { 
+        status: 'error', 
+        message: tuner.error, 
+        color: C.red, 
+        glow: C.redGlow,
+        icon: 'alert-circle' as const,
+      };
     }
     if (isLoading) {
-      return { status: 'loading', message: 'Iniciando...', color: C.text2, glow: 'transparent' };
+      return { 
+        status: 'loading', 
+        message: 'Iniciando microfone...', 
+        color: C.text2, 
+        glow: 'transparent',
+        icon: 'mic-outline' as const,
+      };
     }
     if (!tuner.isActive) {
-      return { status: 'idle', message: 'Aguardando...', color: C.text2, glow: 'transparent' };
-    }
-    if (!detectedNote) {
-      return { status: 'waiting', message: 'Toque uma nota', color: C.text2, glow: 'transparent' };
+      return { 
+        status: 'idle', 
+        message: 'Toque uma corda para começar', 
+        color: C.text2, 
+        glow: 'transparent',
+        icon: 'musical-notes-outline' as const,
+      };
     }
     
+    // ════════════════════════════════════════════════════════════════
+    // SILÊNCIO ou ruído baixo: Mensagem neutra e didática
+    // ════════════════════════════════════════════════════════════════
+    if (!isDetectingSound || !detectedNote) {
+      return { 
+        status: 'waiting', 
+        message: 'Toque uma corda para começar', 
+        color: C.text3, 
+        glow: 'transparent',
+        icon: 'musical-notes-outline' as const,
+      };
+    }
+    
+    // ════════════════════════════════════════════════════════════════
+    // SOM DETECTADO: Mostrar instruções de afinação
+    // ════════════════════════════════════════════════════════════════
     const absCents = Math.abs(cents);
     
     if (absCents <= 3) {
-      return { status: 'perfect', message: 'PERFEITO', color: C.green, glow: C.greenGlow };
-    } else if (absCents <= 10) {
-      return { status: 'almost', message: 'Quase lá', color: C.amber, glow: C.amberGlow };
-    } else if (cents < -10) {
-      return { status: 'low', message: 'Aperte ↑', color: C.blue, glow: C.blueGlow };
+      return { 
+        status: 'perfect', 
+        message: 'Afinado ✓', 
+        color: C.green, 
+        glow: C.greenGlow,
+        icon: 'checkmark-circle' as const,
+      };
+    } else if (absCents <= 8) {
+      return { 
+        status: 'almost', 
+        message: 'Quase lá...', 
+        color: C.amber, 
+        glow: C.amberGlow,
+        icon: 'ellipse' as const,
+      };
+    } else if (cents < -8) {
+      return { 
+        status: 'low', 
+        message: 'Aperte a corda ↑', 
+        color: C.blue, 
+        glow: C.blueGlow,
+        icon: 'arrow-up-circle' as const,
+      };
     } else {
-      return { status: 'high', message: 'Afrouxe ↓', color: C.red, glow: C.redGlow };
+      return { 
+        status: 'high', 
+        message: 'Afrouxe a corda ↓', 
+        color: C.red, 
+        glow: C.redGlow,
+        icon: 'arrow-down-circle' as const,
+      };
     }
   };
   
@@ -226,7 +356,7 @@ function TunerScreen() {
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.04, duration: 1800, useNativeDriver: true }), // Reduzido de 1.1, mais lento
+        Animated.timing(pulseAnim, { toValue: 1.04, duration: 1800, useNativeDriver: true }),
         Animated.timing(pulseAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
       ])
     );
@@ -234,20 +364,27 @@ function TunerScreen() {
     return () => pulse.stop();
   }, []);
   
-  // Animação de ondas - MAIS LENTAS
+  // Animação de ondas - APENAS quando detectando som
   useEffect(() => {
+    if (!isDetectingSound) {
+      waveAnim1.setValue(0);
+      waveAnim2.setValue(0);
+      waveAnim3.setValue(0);
+      return;
+    }
+    
     const createWave = (anim: Animated.Value, delay: number) => {
       return Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
-          Animated.timing(anim, { toValue: 1, duration: 3500, useNativeDriver: true }), // Aumentado de 2000
+          Animated.timing(anim, { toValue: 1, duration: 3500, useNativeDriver: true }),
           Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
         ])
       );
     };
     
     const wave1 = createWave(waveAnim1, 0);
-    const wave2 = createWave(waveAnim2, 1000); // Delays maiores
+    const wave2 = createWave(waveAnim2, 1000);
     const wave3 = createWave(waveAnim3, 2000);
     
     wave1.start();
@@ -259,10 +396,21 @@ function TunerScreen() {
       wave2.stop();
       wave3.stop();
     };
-  }, []);
+  }, [isDetectingSound]);
   
-  // Animação do ponteiro baseado nos cents
+  // Animação do ponteiro baseado nos cents - APENAS quando detectando som
   useEffect(() => {
+    if (!isDetectingSound) {
+      // Centralizar ponteiro no silêncio
+      Animated.spring(needleAnim, {
+        toValue: 0,
+        friction: 10,
+        tension: 50,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+    
     const normalizedCents = Math.max(-50, Math.min(50, cents)) / 50;
     Animated.spring(needleAnim, {
       toValue: normalizedCents,
@@ -270,15 +418,15 @@ function TunerScreen() {
       tension: 50,
       useNativeDriver: true,
     }).start();
-  }, [cents]);
+  }, [cents, isDetectingSound]);
   
-  // Glow quando afinado - MAIS SUAVE E LENTO
+  // Glow quando afinado
   useEffect(() => {
     if (status.status === 'perfect') {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(glowAnim, { toValue: 0.8, duration: 800, useNativeDriver: true }), // Reduzido de 1
-          Animated.timing(glowAnim, { toValue: 0.5, duration: 800, useNativeDriver: true }), // Mais lento (800ms vs 500ms)
+          Animated.timing(glowAnim, { toValue: 0.8, duration: 800, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 0.5, duration: 800, useNativeDriver: true }),
         ])
       ).start();
     } else {
@@ -329,9 +477,9 @@ function TunerScreen() {
     outputRange: ['-45deg', '45deg'],
   });
   
-  // Encontra a corda mais próxima
+  // Encontra a corda mais próxima - APENAS quando detectando som
   const getClosestString = () => {
-    if (!tuner.frequency) return null;
+    if (!isDetectingSound || !tuner.frequency) return null;
     let closest = currentInstrument.strings[0];
     let minDiff = Math.abs(tuner.frequency - closest.freq);
     
@@ -346,6 +494,15 @@ function TunerScreen() {
   };
   
   const closestString = getClosestString();
+  
+  // ═══════════════════════════════════════════════════════════════════════
+  // NOVO: Tocar som/vibração quando afinado
+  // ═══════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (status.status === 'perfect' && closestString) {
+      playTunedSound(closestString.name);
+    }
+  }, [status.status, closestString?.name, playTunedSound]);
   
   return (
     <View style={ss.container}>
@@ -519,33 +676,27 @@ function TunerScreen() {
                 </Text>
               </View>
               
-              {/* Status Card */}
-              <View style={[ss.statusCard, { borderColor: status.color }]}>
-                <View style={[ss.statusGlow, { backgroundColor: status.glow }]} />
+              {/* Status Card MELHORADO */}
+              <View style={[ss.statusCard, { borderColor: isDetectingSound ? status.color : C.border }]}>
+                <View style={[ss.statusGlow, { backgroundColor: isDetectingSound ? status.glow : 'transparent' }]} />
                 <Ionicons
-                  name={
-                    status.status === 'perfect' ? 'checkmark-circle' :
-                    status.status === 'almost' ? 'ellipse' :
-                    status.status === 'low' ? 'arrow-up-circle' :
-                    status.status === 'high' ? 'arrow-down-circle' :
-                    status.status === 'error' ? 'alert-circle' :
-                    'mic-outline'
-                  }
+                  name={status.icon}
                   size={28}
                   color={status.color}
                 />
                 <Text style={[ss.statusText, { color: status.color }]}>
                   {status.message}
                 </Text>
-                {detectedNote && Math.abs(cents) > 3 && (
+                {/* Mostrar cents apenas quando detectando som e não afinado */}
+                {isDetectingSound && detectedNote && Math.abs(cents) > 3 && (
                   <Text style={ss.centsText}>
                     {cents > 0 ? '+' : ''}{cents} cents
                   </Text>
                 )}
               </View>
               
-              {/* Corda detectada */}
-              {closestString && tuner.frequency && (
+              {/* Corda detectada - Só mostra quando detectando som */}
+              {isDetectingSound && closestString && tuner.frequency && (
                 <View style={ss.stringInfo}>
                   <Ionicons name="musical-note" size={16} color={C.amber} />
                   <Text style={ss.stringInfoText}>{closestString.name}</Text>
@@ -560,7 +711,7 @@ function TunerScreen() {
           <Text style={ss.stringsTitle}>CORDAS • {currentInstrument.name.toUpperCase()}</Text>
           <View style={ss.stringsGrid}>
             {currentInstrument.strings.map((str, idx) => {
-              const isActive = closestString?.freq === str.freq && tuner.frequency;
+              const isActive = isDetectingSound && closestString?.freq === str.freq && tuner.frequency;
               const isPerfect = isActive && Math.abs(cents) <= 3;
               
               return (
