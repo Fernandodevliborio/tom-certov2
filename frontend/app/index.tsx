@@ -13,6 +13,19 @@ import { NOTES_BR, NOTES_INTL, formatKeyDisplay, getHarmonicField } from '../src
 import { useAuth } from '../src/auth/AuthContext';
 import { APP_VERSION_LABEL } from '../src/constants/version';
 import AudioVisualizer from '../src/components/AudioVisualizer';
+import {
+  StableKeyState,
+  createStableKeyState,
+  processAnalysis,
+  resetStableKeyState,
+  softResetStableKeyState,
+  getUserVisibleState,
+  shouldShowKey,
+  getDisplayKey,
+  hasRecentKeyChange,
+  incrementVisualConfidence,
+  STABLE_KEY_CONFIG,
+} from '../src/utils/stableKeyEngine';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -363,7 +376,7 @@ function InitialScreen({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ACTIVE SCREEN (mantém a lógica original)
+// ACTIVE SCREEN — LÓGICA DE ESTABILIDADE v2.0
 // ═══════════════════════════════════════════════════════════════════════════
 function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const {
@@ -373,146 +386,64 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     smartStatus, mlResult,
   } = det;
 
-  const MIN_CONFIRM_CONF = 0.20;
-  const FAST_CONFIRM_CONF = 0.35;
-  const LOCK_WINDOW_SIZE = 3;
-  const KEY_CHANGE_THRESHOLD = 4;
-
-  const lockWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor'; confidence: number; at: number }>>([]);
-  const lockedKeyRef = useRef<{
-    tonic: number; quality: 'major' | 'minor'; key_name: string; 
-    confidence: number; at: number; analysisCount: number;
-  } | null>(null);
-  const [lockedKeyTick, setLockedKeyTick] = useState(0);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NOVO ENGINE DE ESTABILIDADE v2.0
+  // ═══════════════════════════════════════════════════════════════════════════
+  const [stableState, setStableState] = useState<StableKeyState>(createStableKeyState());
+  const [recentKeyChange, setRecentKeyChange] = useState(false);
   
-  const [pendingKeyChange, setPendingKeyChange] = useState<{
-    tonic: number; quality: 'major' | 'minor'; key_name: string; count: number;
-  } | null>(null);
-  const pendingKeyWindowRef = useRef<Array<{ tonic: number; quality: 'major' | 'minor' }>>([]);
-
-  const [visualConfidence, setVisualConfidence] = useState(0);
-  const visualConfTimerRef = useRef<NodeJS.Timeout | null>(null);
-
+  // Processar novas análises ML
   useEffect(() => {
     if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
+    
     const conf = mlResult.confidence ?? 0;
     const tonic = mlResult.tonic;
     const quality = mlResult.quality as 'major' | 'minor';
     const keyName = mlResult.key_name || '';
-    const now = Date.now();
-
-    if (!lockedKeyRef.current) {
-      lockWindowRef.current = [
-        ...lockWindowRef.current.slice(-(LOCK_WINDOW_SIZE - 1)),
-        { tonic, quality, confidence: conf, at: now },
-      ];
-
-      const counts = new Map<string, { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' }>();
-      for (const r of lockWindowRef.current) {
-        const k = `${r.tonic}-${r.quality}`;
-        const e = counts.get(k) || { count: 0, sumConf: 0, tonic: r.tonic, quality: r.quality };
-        e.count += 1;
-        e.sumConf += r.confidence;
-        counts.set(k, e);
+    
+    setStableState(prev => {
+      const hadLockedKey = prev.lockedKey !== null;
+      const newState = processAnalysis(prev, { tonic, quality, confidence: conf, keyName });
+      
+      // Detectar mudança de tom
+      if (hadLockedKey && newState.lockedKey && 
+          (prev.lockedKey!.tonic !== newState.lockedKey.tonic || 
+           prev.lockedKey!.quality !== newState.lockedKey.quality)) {
+        setRecentKeyChange(true);
+        setTimeout(() => setRecentKeyChange(false), 3000);
       }
-
-      let bestEntry: { count: number; sumConf: number; tonic: number; quality: 'major' | 'minor' } | null = null;
-      for (const v of counts.values()) {
-        if (!bestEntry || v.count > bestEntry.count ||
-            (v.count === bestEntry.count && v.sumConf > bestEntry.sumConf)) {
-          bestEntry = v;
-        }
-      }
-      if (!bestEntry) return;
-
-      const shouldLock = conf >= FAST_CONFIRM_CONF || bestEntry.count >= 2;
-      if (shouldLock) {
-        lockedKeyRef.current = {
-          tonic: bestEntry.tonic, quality: bestEntry.quality, key_name: keyName,
-          confidence: bestEntry.sumConf / bestEntry.count, at: now, analysisCount: 1,
-        };
-        setVisualConfidence(60);
-        setLockedKeyTick(t => t + 1);
-        pendingKeyWindowRef.current = [];
-        setPendingKeyChange(null);
-      }
-      return;
-    }
-
-    const lockedKey = `${lockedKeyRef.current.tonic}-${lockedKeyRef.current.quality}`;
-    const newKey = `${tonic}-${quality}`;
-
-    if (lockedKey === newKey) {
-      lockedKeyRef.current.analysisCount += 1;
-      lockedKeyRef.current.confidence = Math.max(lockedKeyRef.current.confidence, conf);
-      pendingKeyWindowRef.current = [];
-      setPendingKeyChange(null);
-      setVisualConfidence(prev => {
-        const increment = 5 + Math.floor(lockedKeyRef.current!.analysisCount / 2) * 2;
-        return Math.min(95, prev + increment);
-      });
-    } else {
-      pendingKeyWindowRef.current = [
-        ...pendingKeyWindowRef.current.slice(-(KEY_CHANGE_THRESHOLD - 1)),
-        { tonic, quality },
-      ];
-
-      const newKeyCount = pendingKeyWindowRef.current.filter(
-        r => r.tonic === tonic && r.quality === quality
-      ).length;
-
-      if (newKeyCount >= KEY_CHANGE_THRESHOLD) {
-        lockedKeyRef.current = {
-          tonic, quality, key_name: keyName,
-          confidence: conf, at: now, analysisCount: 1,
-        };
-        setVisualConfidence(65);
-        setLockedKeyTick(t => t + 1);
-        pendingKeyWindowRef.current = [];
-        setPendingKeyChange(null);
-      } else if (newKeyCount >= 2) {
-        setPendingKeyChange({ tonic, quality, key_name: keyName, count: newKeyCount });
-      }
-    }
+      
+      return newState;
+    });
   }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
 
+  // Incrementar confiança visual gradualmente
   useEffect(() => {
-    if (!lockedKeyRef.current || !isRunning) {
-      if (visualConfTimerRef.current) {
-        clearInterval(visualConfTimerRef.current);
-        visualConfTimerRef.current = null;
-      }
-      return;
-    }
+    if (!stableState.lockedKey || !isRunning) return;
     
-    visualConfTimerRef.current = setInterval(() => {
-      setVisualConfidence(prev => {
-        if (prev >= 98) return prev;
-        return prev + 1;
-      });
+    const timer = setInterval(() => {
+      setStableState(prev => incrementVisualConfidence(prev));
     }, 2000);
     
-    return () => {
-      if (visualConfTimerRef.current) {
-        clearInterval(visualConfTimerRef.current);
-        visualConfTimerRef.current = null;
-      }
-    };
-  }, [lockedKeyRef.current?.tonic, isRunning]);
+    return () => clearInterval(timer);
+  }, [stableState.lockedKey?.tonic, isRunning]);
 
+  // Reset quando para de rodar
   useEffect(() => {
     if (!isRunning) {
-      lockedKeyRef.current = null;
-      lockWindowRef.current = [];
-      pendingKeyWindowRef.current = [];
-      setPendingKeyChange(null);
-      setVisualConfidence(0);
-      setLockedKeyTick(t => t + 1);
+      setStableState(createStableKeyState());
+      setRecentKeyChange(false);
     }
   }, [isRunning]);
 
-  type Stage = 'idle' | 'listening' | 'analyzing' | 'confirmed';
-
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DERIVAR ESTADO VISUAL DO ENGINE
+  // ═══════════════════════════════════════════════════════════════════════════
+  const userVisibleState = getUserVisibleState(stableState);
+  const displayKey = getDisplayKey(stableState);
+  const showKey = shouldShowKey(stableState);
+  
+  // Contador de análises (para UI)
   const [analysisCount, setAnalysisCount] = useState(0);
   const [lastAnalysisAt, setLastAnalysisAt] = useState<number | null>(null);
 
@@ -530,114 +461,85 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     }
   }, [isRunning]);
 
-  const mlStage: Stage = useMemo(() => {
-    if (lockedKeyRef.current) return 'confirmed';
-    if (!isRunning) return 'idle';
-    if (
-      mlResult?.success &&
-      mlResult.tonic !== undefined &&
-      mlResult.quality
-    ) return 'confirmed';
-    if (analysisCount === 0) return 'listening';
-    return 'analyzing';
-  }, [isRunning, analysisCount, mlResult?.success, mlResult?.tonic, mlResult?.quality, lockedKeyTick]);
-
-  const confirmedKey = lockedKeyRef.current
-    ? { root: lockedKeyRef.current.tonic, quality: lockedKeyRef.current.quality }
-    : null;
-
-  const provisionalKey = (
-    !lockedKeyRef.current &&
-    mlResult?.success &&
-    isRunning &&
-    mlResult.tonic !== undefined &&
-    mlResult.quality
-  ) ? { root: mlResult.tonic!, quality: mlResult.quality as 'major' | 'minor' } : null;
-
-  const displayKey = confirmedKey ?? provisionalKey;
-  const isProvisional = displayKey !== null && confirmedKey === null;
-
-  const DYNAMIC_MESSAGES = [
-    { icon: 'mic', label: 'OUVINDO', sub: 'Cante ou toque — estamos captando o áudio…' },
-    { icon: 'musical-notes', label: 'CAPTANDO', sub: 'Continue cantando ou tocando…' },
-    { icon: 'ear', label: 'ANALISANDO', sub: 'Processando as notas que você tocou…' },
-    { icon: 'pulse', label: 'DETECTANDO', sub: 'Identificando a tonalidade da música…' },
+  // Mensagens dinâmicas para fase de escuta (mais inteligentes)
+  const SMART_MESSAGES = [
+    { icon: 'ear', label: 'OUVINDO', sub: 'Ouvindo com inteligência…' },
+    { icon: 'analytics', label: 'ANALISANDO', sub: 'Analisando estabilidade do tom…' },
+    { icon: 'pulse', label: 'VERIFICANDO', sub: 'Verificando consistência musical…' },
+    { icon: 'musical-notes', label: 'CAPTANDO', sub: 'Captando mais notas…' },
   ];
 
   const [dynamicMsgIndex, setDynamicMsgIndex] = useState(0);
   useEffect(() => {
-    if (!isRunning || mlStage === 'confirmed') {
+    if (!isRunning || userVisibleState === 'confirmed') {
       setDynamicMsgIndex(0);
       return;
     }
     const interval = setInterval(() => {
-      setDynamicMsgIndex(prev => (prev + 1) % DYNAMIC_MESSAGES.length);
-    }, 2500);
+      setDynamicMsgIndex(prev => (prev + 1) % SMART_MESSAGES.length);
+    }, 3000); // Mais lento (3s)
     return () => clearInterval(interval);
-  }, [isRunning, mlStage]);
+  }, [isRunning, userVisibleState]);
 
   const statusInfo = useMemo(() => {
-    if (mlStage === 'confirmed') {
-      return { icon: 'checkmark-circle', label: 'DETECTADO', sub: 'Tom identificado!' };
+    if (userVisibleState === 'confirmed') {
+      return { 
+        icon: recentKeyChange ? 'swap-horizontal' : 'checkmark-circle', 
+        label: recentKeyChange ? 'ATUALIZADO' : 'DETECTADO', 
+        sub: recentKeyChange ? 'Nova tonalidade confirmada' : 'Tom identificado com segurança!' 
+      };
     }
-    return DYNAMIC_MESSAGES[dynamicMsgIndex];
-  }, [mlStage, dynamicMsgIndex]);
+    
+    // Durante escuta/análise: mensagens inteligentes
+    if (stableState.internalStage === 'listening') {
+      return SMART_MESSAGES[0];
+    }
+    if (stableState.internalStage === 'candidate' || stableState.internalStage === 'stableCandidate') {
+      return SMART_MESSAGES[dynamicMsgIndex];
+    }
+    return SMART_MESSAGES[dynamicMsgIndex];
+  }, [userVisibleState, stableState.internalStage, dynamicMsgIndex, recentKeyChange]);
 
-  const confPct = (() => {
-    if (lockedKeyRef.current) {
-      return visualConfidence;
-    }
-    if (mlResult?.success) {
-      const rawConf = Math.round((mlResult.confidence ?? 0) * 100);
-      return Math.max(30, rawConf);
-    }
-    return 0;
-  })();
+  // Confiança e cores (usa novo engine)
+  const confPct = stableState.visualConfidence;
   const confColor = confPct >= 70 ? C.green : confPct >= 50 ? C.amber : C.text2;
   
   const confLabel = (() => {
-    if (!lockedKeyRef.current) return 'Analisando...';
-    if (visualConfidence >= 90) return 'Alta confiança';
-    if (visualConfidence >= 75) return 'Tom estável';
-    if (visualConfidence >= 60) return 'Tom validado';
+    if (!stableState.lockedKey) return '';
+    if (confPct >= 90) return 'Alta confiança';
+    if (confPct >= 75) return 'Tom estável';
+    if (confPct >= 60) return 'Tom confirmado';
     return 'Verificando...';
   })();
 
-  const [tickRefresh, setTickRefresh] = useState(0);
-  useEffect(() => {
-    if (!isRunning) return;
-    const t = setInterval(() => setTickRefresh(x => x + 1), 1000);
-    return () => clearInterval(t);
-  }, [isRunning]);
-
-  const lastAnalysisAgoTxt = useMemo(() => {
-    void tickRefresh;
-    if (!lastAnalysisAt) return null;
-    const ago = Math.round((Date.now() - lastAnalysisAt) / 1000);
-    if (ago < 5) return `análise há ${ago}s · ${analysisCount} análises`;
-    if (ago < 60) return `análise há ${ago}s · ${analysisCount} análises`;
-    return `última análise há ${Math.round(ago/60)}min · ${analysisCount} total`;
-  }, [lastAnalysisAt, analysisCount, tickRefresh]);
-
+  // Status bar label
   const statusLabel = (() => {
     if (!isRunning) return 'TOQUE PARA COMEÇAR';
-    if (mlStage === 'confirmed') return lockedKeyRef.current ? 'TOM DETECTADO' : 'TOM PROVISÓRIO';
-    if (mlStage === 'analyzing') return 'PROCESSANDO…';
-    return 'OUVINDO…';
+    if (userVisibleState === 'confirmed') {
+      return recentKeyChange ? 'TONALIDADE ATUALIZADA' : 'TOM DETECTADO';
+    }
+    if (stableState.internalStage === 'candidate' || stableState.internalStage === 'stableCandidate') {
+      return 'ANALISANDO ESTABILIDADE…';
+    }
+    return 'OUVINDO COM INTELIGÊNCIA…';
   })();
 
   const statusDotColor = (() => {
     if (!isRunning) return C.text3;
-    if (mlStage === 'confirmed') return lockedKeyRef.current ? C.green : C.amber;
-    if (mlStage === 'analyzing') return C.amber;
+    if (userVisibleState === 'confirmed') return C.green;
+    if (stableState.internalStage === 'candidate' || stableState.internalStage === 'stableCandidate') {
+      return C.amber;
+    }
     return C.text2;
   })();
 
+  // Campo harmônico
   const harmonicField = useMemo(
-    () => displayKey ? getHarmonicField(displayKey.root, displayKey.quality) : [],
-    [displayKey?.root, displayKey?.quality]
+    () => displayKey ? getHarmonicField(displayKey.tonic, displayKey.quality) : [],
+    [displayKey?.tonic, displayKey?.quality]
   );
 
+  // Animações
   const statusDot = useRef(new Animated.Value(1)).current;
   const noteOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -667,7 +569,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           <View style={ss.brandTextWrap}>
             <Text style={ss.headerBrand} numberOfLines={1}>Tom Certo</Text>
             <Text style={ss.headerVersion} numberOfLines={1}>
-              v3.4.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+              v3.5.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
             </Text>
           </View>
         </View>
@@ -704,10 +606,12 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
             ) : (
               <View style={ss.listeningHero}>
                 <Text style={ss.listeningTitle}>
-                  {detectionState === 'analyzing' ? 'Analisando' : 'Ouvindo'}
+                  {stableState.internalStage === 'listening' ? 'Ouvindo' : 'Analisando'}
                 </Text>
                 <Text style={ss.listeningSub}>
-                  Cante ou toque — o app já começou a captar
+                  {stableState.internalStage === 'listening' 
+                    ? 'Cante ou toque — o app está captando'
+                    : 'Verificando estabilidade do tom…'}
                 </Text>
               </View>
             )}
@@ -739,31 +643,27 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
         </View>
 
         <View style={ss.keyCardSlot}>
-          {displayKey ? (
-            <View testID="key-card" style={[ss.keyCard, isProvisional ? ss.keyCardProv : ss.keyCardConfirmed]}>
+          {/* Só mostra tom quando TRAVADO (nunca mostra hipóteses fracas) */}
+          {showKey && displayKey ? (
+            <View testID="key-card" style={[ss.keyCard, ss.keyCardConfirmed]}>
               <View style={ss.keyCardHeader}>
-                <View style={[
-                  ss.keyCardBadge,
-                  { borderColor: isProvisional ? C.amberBorder : 'rgba(34,197,94,0.35)' },
-                ]}>
+                <View style={[ss.keyCardBadge, { borderColor: 'rgba(34,197,94,0.35)' }]}>
                   <Ionicons
-                    name={isProvisional ? 'time-outline' : 'checkmark-circle'}
+                    name={recentKeyChange ? 'swap-horizontal' : 'checkmark-circle'}
                     size={11}
-                    color={isProvisional ? C.amber : C.green}
+                    color={C.green}
                   />
-                  <Text style={[ss.keyCardBadgeTxt, { color: isProvisional ? C.amber : C.green }]}>
-                    {isProvisional
-                      ? `ANALISANDO · ${analysisCount} análise${analysisCount !== 1 ? 's' : ''}`
-                      : confLabel.toUpperCase()
-                    }
+                  <Text style={[ss.keyCardBadgeTxt, { color: C.green }]}>
+                    {recentKeyChange ? 'NOVA TONALIDADE CONFIRMADA' : confLabel.toUpperCase()}
                   </Text>
                 </View>
                 <Text style={[ss.keyCardConfPct, { color: confColor }]}>{confPct}%</Text>
               </View>
-              <KeyDisplay root={displayKey.root} quality={displayKey.quality} provisional={isProvisional} />
+              <KeyDisplay root={displayKey.tonic} quality={displayKey.quality} provisional={false} />
               <ConfidenceBar pct={confPct} color={confColor} />
             </View>
           ) : isRunning ? (
+            // Card de "ouvindo/analisando" - SEM mostrar hipóteses fracas
             <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
               <View style={ss.keyCardHeader}>
                 <View style={[ss.keyCardBadge, { borderColor: C.amberBorder }]}>
@@ -773,32 +673,32 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               </View>
               <Text style={ss.analyzingTitle}>{statusInfo.sub}</Text>
               <Text style={ss.analyzingSub}>
-                {analysisCount > 0
-                  ? 'Ouvindo mais… refinando o resultado.'
-                  : 'Cante ou toque por alguns segundos.'}
+                {stableState.internalStage === 'listening'
+                  ? 'Cante ou toque por alguns segundos.'
+                  : stableState.internalStage === 'candidate'
+                  ? 'Identificando padrão tonal…'
+                  : 'Confirmando detecção…'}
               </Text>
+              {/* Indicador de progresso discreto */}
+              {(stableState.internalStage === 'candidate' || stableState.internalStage === 'stableCandidate') && (
+                <View style={ss.analysisProgress}>
+                  <View style={ss.analysisProgressBar}>
+                    <View style={[
+                      ss.analysisProgressFill, 
+                      { width: `${Math.min(100, analysisCount * 25)}%` }
+                    ]} />
+                  </View>
+                </View>
+              )}
             </View>
           ) : null}
         </View>
 
-        {pendingKeyChange && lockedKeyRef.current && (
-          <View style={ss.changeBanner}>
-            <Ionicons name="swap-horizontal-outline" size={14} color={C.blue} />
-            <Text style={ss.changeBannerTxt}>
-              Possível mudança para{' '}
-              <Text style={ss.changeBannerStrong}>
-                {pendingKeyChange.key_name}
-              </Text>
-              {' '}({pendingKeyChange.count}/{KEY_CHANGE_THRESHOLD})
-            </Text>
-          </View>
-        )}
+        {/* NÃO mostra "possível mudança" - análise é silenciosa */}
 
-        {displayKey && harmonicField.length > 0 && (
+        {showKey && displayKey && harmonicField.length > 0 && (
           <View style={ss.section}>
-            <Text style={ss.sectionLabel}>
-              CAMPO HARMÔNICO{isProvisional ? ' (PROVISÓRIO)' : ''}
-            </Text>
+            <Text style={ss.sectionLabel}>CAMPO HARMÔNICO</Text>
             <View style={ss.chordGrid}>
               {harmonicField.map((chord, i) => (
                 <View key={i} style={[ss.chordCard, chord.isTonic && ss.chordCardTonic]}>
@@ -1276,6 +1176,26 @@ const ss = StyleSheet.create({
   chordName: { fontFamily: 'Outfit_700Bold', fontSize: 16, color: C.white, letterSpacing: -0.3 },
   chordNameTonic: { color: C.amber },
   chordIntl: { fontFamily: 'Manrope_400Regular', fontSize: 10, color: C.text3, marginTop: 1 },
+
+  // Barra de progresso de análise (discreta)
+  analysisProgress: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  analysisProgressBar: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  analysisProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: C.amber,
+    opacity: 0.6,
+  },
 
   modalBg: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.82)',
