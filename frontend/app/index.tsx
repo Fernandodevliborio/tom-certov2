@@ -1342,8 +1342,6 @@ const ss = StyleSheet.create({
     height: 48, borderRadius: 99, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center',
   },
   modalPrimaryTxt: { fontFamily: 'Manrope_600SemiBold', fontSize: 15, color: C.bg, letterSpacing: 0.4 },
-  modalSecondary: { paddingVertical: 12 },
-  modalSecondaryTxt: { fontFamily: 'Manrope_500Medium', fontSize: 14, color: C.text2 },
 
   // ═══ ACORDES INTELIGENTES — Toggle ═══
   smartChordsToggle: {
