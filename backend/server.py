@@ -475,6 +475,217 @@ async def webhook_cakto(request: Request, background_tasks: BackgroundTasks):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# WEBHOOK TICTO — Integração de Pagamentos
+# ═══════════════════════════════════════════════════════════════════════════
+
+TICTO_WEBHOOK_TOKEN = os.environ.get('TICTO_WEBHOOK_TOKEN', '')
+
+
+@api_router.post("/webhook/ticto")
+async def webhook_ticto(request: Request, background_tasks: BackgroundTasks):
+    """
+    Webhook para receber eventos da Ticto (plataforma de pagamentos).
+    
+    Documentação Ticto: https://help.ticto.com.br/sou-produtor/tictools-integracoes/webhook
+    
+    Eventos suportados (versão 2.0):
+    - sale_approved / Venda Realizada: Pagamento aprovado → Cria token
+    - refund / Reembolso: Devolução → Cancela token
+    - chargeback: Contestação → Cancela token
+    - waiting_payment: Aguardando pagamento (ignorado)
+    - abandoned_cart: Carrinho abandonado (ignorado)
+    """
+    try:
+        payload = await request.json()
+        logger.info(f"[Webhook Ticto] Recebido: {payload}")
+        
+        # Validação do token (opcional mas recomendado)
+        auth_header = request.headers.get('Authorization', '') or request.headers.get('X-Ticto-Token', '')
+        if TICTO_WEBHOOK_TOKEN:
+            token_from_header = auth_header.replace('Bearer ', '').strip()
+            if token_from_header and token_from_header != TICTO_WEBHOOK_TOKEN:
+                logger.warning(f"[Webhook Ticto] Token inválido no header")
+                # Não bloqueia para compatibilidade
+        
+        # Ticto v2.0 usa estrutura diferente
+        # Pode vir como payload direto ou dentro de "data"
+        data = payload.get('data', payload)
+        
+        # Extrair evento (Ticto usa "event" ou "status")
+        event = (
+            payload.get('event') or 
+            payload.get('status') or 
+            data.get('event') or 
+            data.get('status') or 
+            ''
+        ).lower().strip()
+        
+        # Extrair dados do comprador
+        buyer = data.get('buyer') or data.get('customer') or data.get('comprador') or {}
+        customer_name = (
+            buyer.get('name') or 
+            buyer.get('nome') or 
+            data.get('customer_name') or 
+            data.get('nome') or 
+            ''
+        )
+        customer_email = (
+            buyer.get('email') or 
+            data.get('customer_email') or 
+            data.get('email') or 
+            ''
+        ).lower().strip()
+        
+        # Extrair dados do produto/plano
+        product = data.get('product') or data.get('produto') or data.get('offer') or {}
+        plan_str = (
+            product.get('name') or 
+            product.get('nome') or 
+            data.get('product_name') or 
+            data.get('plano') or 
+            'mensal'
+        )
+        
+        # Extrair ID da transação
+        transaction_id = (
+            data.get('transaction_id') or 
+            data.get('sale_id') or 
+            data.get('order_id') or 
+            data.get('id') or 
+            payload.get('id') or 
+            ''
+        )
+        
+        logger.info(f"[Webhook Ticto] Parsed: event={event} email={customer_email} product={plan_str} tx={transaction_id}")
+        
+        # ═══ EVENTO: Venda Aprovada ═══
+        if event in ('sale_approved', 'venda_realizada', 'approved', 'paid', 'completed', 'pagamento_aprovado'):
+            if not customer_email:
+                logger.warning(f"[Webhook Ticto] Venda sem email!")
+                return JSONResponse({
+                    "success": False,
+                    "error": "missing_email",
+                    "message": "Email do comprador não encontrado no payload",
+                }, status_code=400)
+            
+            plano = _parse_plan(plan_str)
+            
+            # Cria o token
+            token, expires_at = await create_new_token(
+                db=db,
+                plano=plano,
+                nome_usuario=customer_name,
+                email_compra=customer_email,
+                transaction_id=str(transaction_id),
+            )
+            
+            # Envia email em background
+            if customer_email:
+                background_tasks.add_task(
+                    send_welcome_email,
+                    to_email=customer_email,
+                    customer_name=customer_name or "Cliente",
+                    token=token,
+                    plano=plano.value,
+                )
+            
+            logger.info(f"[Webhook Ticto] ✓ VENDA APROVADA: Token {token[:4]}*** criado para {customer_email}")
+            
+            return JSONResponse({
+                "success": True,
+                "event": event,
+                "action": "token_created",
+                "token_preview": f"{token[:4]}****",
+                "plano": plano.value,
+                "expires_at": expires_at.isoformat(),
+                "email": customer_email,
+            })
+        
+        # ═══ EVENTO: Reembolso ═══
+        elif event in ('refund', 'refunded', 'reembolso', 'reembolsado'):
+            cancelled = await cancel_token(
+                db=db,
+                email=customer_email,
+                transaction_id=str(transaction_id) if transaction_id else None,
+                reason="reembolso",
+            )
+            
+            if customer_email and cancelled:
+                background_tasks.add_task(
+                    send_cancellation_email,
+                    to_email=customer_email,
+                    customer_name=customer_name or "Cliente",
+                    reason="reembolso",
+                )
+            
+            logger.info(f"[Webhook Ticto] ✓ REEMBOLSO: Token cancelado para {customer_email}")
+            
+            return JSONResponse({
+                "success": True,
+                "event": event,
+                "action": "token_cancelled",
+                "reason": "reembolso",
+                "cancelled": cancelled,
+            })
+        
+        # ═══ EVENTO: Chargeback ═══
+        elif event in ('chargeback', 'disputed', 'contestacao'):
+            cancelled = await cancel_token(
+                db=db,
+                email=customer_email,
+                transaction_id=str(transaction_id) if transaction_id else None,
+                reason="chargeback",
+            )
+            
+            if customer_email and cancelled:
+                background_tasks.add_task(
+                    send_cancellation_email,
+                    to_email=customer_email,
+                    customer_name=customer_name or "Cliente",
+                    reason="chargeback",
+                )
+            
+            logger.info(f"[Webhook Ticto] ✓ CHARGEBACK: Token cancelado para {customer_email}")
+            
+            return JSONResponse({
+                "success": True,
+                "event": event,
+                "action": "token_cancelled",
+                "reason": "chargeback",
+                "cancelled": cancelled,
+            })
+        
+        # ═══ EVENTOS IGNORADOS (apenas loga) ═══
+        elif event in ('waiting_payment', 'aguardando_pagamento', 'pending', 'pix_generated', 'pix_gerado', 
+                       'boleto_printed', 'boleto_impresso', 'abandoned_cart', 'carrinho_abandonado',
+                       'pix_expired', 'pix_expirado', 'boleto_overdue', 'boleto_atrasado'):
+            logger.info(f"[Webhook Ticto] Evento '{event}' recebido e ignorado (não requer ação)")
+            return JSONResponse({
+                "success": True,
+                "event": event,
+                "action": "ignored",
+                "message": f"Evento '{event}' não requer ação",
+            })
+        
+        # ═══ EVENTO DESCONHECIDO ═══
+        else:
+            logger.warning(f"[Webhook Ticto] Evento desconhecido: '{event}'")
+            return JSONResponse({
+                "success": True,
+                "event": event or "unknown",
+                "action": "ignored",
+                "message": "Evento não reconhecido",
+            })
+            
+    except Exception as e:
+        logger.error(f"[Webhook Ticto] Erro: {e}", exc_info=True)
+        return JSONResponse({
+            "success": False,
+            "error": str(e),
+        }, status_code=500)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # JOB DE EXPIRAÇÃO AUTOMÁTICA
 # ═══════════════════════════════════════════════════════════════════════════
 
