@@ -74,11 +74,16 @@ interface Props {
   quality: 'major' | 'minor';
   currentNote?: number | null;  // Nota sendo cantada/tocada agora
   onClose?: () => void;
+  expanded?: boolean;
+  compact?: boolean;  // Novo: modo compacto
 }
 
-export default function SmartChordsMode({ tonic, quality, currentNote, onClose }: Props) {
+export default function SmartChordsMode({ tonic, quality, currentNote, onClose, expanded = true, compact = false }: Props) {
   const [instrument, setInstrument] = useState<InstrumentType>('violao');
   const [selectedChordIndex, setSelectedChordIndex] = useState<number>(0);
+
+  // Se não está expandido, não renderiza nada
+  if (!expanded) return null;
 
   // Campo harmônico
   const harmonicField = useMemo(
@@ -507,10 +512,10 @@ function getChordNotes(root: number, quality: 'major' | 'minor' | 'dim'): number
 const ss = StyleSheet.create({
   container: {
     backgroundColor: C.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 8,
+    borderRadius: 12,
+    padding: 12,
+    marginHorizontal: 0,
+    marginVertical: 4,
   },
 
   // Header
@@ -518,24 +523,24 @@ const ss = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   headerLeft: {},
   headerTitle: {
     fontFamily: 'Outfit_700Bold',
-    fontSize: 18,
+    fontSize: 14,
     color: C.white,
   },
   headerSub: {
     fontFamily: 'Manrope_500Medium',
-    fontSize: 13,
+    fontSize: 11,
     color: C.text2,
-    marginTop: 2,
+    marginTop: 1,
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: C.surfaceLight,
     alignItems: 'center',
     justifyContent: 'center',
@@ -545,45 +550,45 @@ const ss = StyleSheet.create({
   instrumentBar: {
     flexDirection: 'row',
     backgroundColor: C.bg,
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16,
+    borderRadius: 8,
+    padding: 3,
+    marginBottom: 10,
   },
   instrumentBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 4,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 3,
   },
   instrumentBtnActive: {
     backgroundColor: C.surfaceLight,
   },
   instrumentEmoji: {
-    fontSize: 16,
+    fontSize: 12,
   },
   instrumentLabel: {
     fontFamily: 'Manrope_500Medium',
-    fontSize: 11,
+    fontSize: 9,
     color: C.text3,
   },
   instrumentLabelActive: {
     color: C.white,
   },
 
-  // Grade de Acordes
+  // Grade de Acordes - mais compacta
   chordGridScroll: {
-    paddingVertical: 4,
-    gap: 8,
+    paddingVertical: 2,
+    gap: 4,
   },
   chordCard: {
-    width: 64,
+    width: 52,
     backgroundColor: C.bg,
-    borderRadius: 10,
-    padding: 8,
-    marginRight: 8,
+    borderRadius: 8,
+    padding: 6,
+    marginRight: 6,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: C.border,
@@ -601,12 +606,12 @@ const ss = StyleSheet.create({
   },
   chordDegree: {
     fontFamily: 'Outfit_600SemiBold',
-    fontSize: 11,
-    marginBottom: 2,
+    fontSize: 9,
+    marginBottom: 1,
   },
   chordName: {
     fontFamily: 'Outfit_700Bold',
-    fontSize: 16,
+    fontSize: 13,
     color: C.white,
   },
   chordNameSelected: {
@@ -614,72 +619,72 @@ const ss = StyleSheet.create({
   },
   chordIntl: {
     fontFamily: 'Manrope_400Regular',
-    fontSize: 10,
+    fontSize: 8,
     color: C.text3,
-    marginTop: 2,
+    marginTop: 1,
   },
   activeIndicator: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    top: -3,
+    right: -3,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: C.green,
     alignItems: 'center',
     justifyContent: 'center',
   },
   activeIndicatorText: {
-    fontSize: 10,
+    fontSize: 8,
     color: C.white,
   },
 
-  // Detalhe do Acorde
+  // Detalhe do Acorde - mais compacto
   chordDetail: {
-    marginTop: 16,
+    marginTop: 10,
     backgroundColor: C.bg,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 12,
   },
   chordDetailHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   chordDetailName: {
     fontFamily: 'Outfit_700Bold',
-    fontSize: 28,
+    fontSize: 22,
     color: C.white,
   },
   chordDetailIntl: {
     fontFamily: 'Manrope_400Regular',
-    fontSize: 14,
+    fontSize: 11,
     color: C.text2,
   },
   functionBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
     borderWidth: 1,
   },
   functionBadgeText: {
     fontFamily: 'Outfit_600SemiBold',
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontSize: 8,
+    letterSpacing: 0.4,
   },
   functionDesc: {
     fontFamily: 'Manrope_400Regular',
-    fontSize: 13,
+    fontSize: 11,
     color: C.text2,
-    marginBottom: 16,
+    marginBottom: 10,
   },
 
-  // Container do Diagrama
+  // Container do Diagrama - mais compacto
   diagramContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 150,
+    minHeight: 120,
   },
   diagramPlaceholder: {
     padding: 20,

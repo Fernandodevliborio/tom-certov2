@@ -654,35 +654,57 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ss.scrollPad}>
         
-        {/* ═══ 1. NOTA EM TEMPO REAL (no topo, como original) ═══ */}
-        <View style={ss.noteHero}>
-          <View style={ss.noteHeroTopRow}>
-            <Text style={ss.noteHeroLabel}>NOTA EM TEMPO REAL</Text>
-            <AudioVisualizer level={audioLevel} active={isRunning} height={24} bars={5} />
+        {/* ═══ 1. ACORDE EM TEMPO REAL (não mais nota isolada) ═══ */}
+        <View style={ss.chordHero}>
+          <View style={ss.chordHeroTopRow}>
+            <Text style={ss.chordHeroLabel}>ACORDE EM TEMPO REAL</Text>
+            <AudioVisualizer level={audioLevel} active={isRunning} height={20} bars={4} />
           </View>
-          <Animated.View style={[ss.noteHeroBox, { opacity: noteOpacity }]}>
-            {currentNote !== null ? (
-              <>
-                <Text
-                  testID="current-note"
-                  style={ss.noteHeroTxt}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.55}
-                >
-                  {NOTES_BR[currentNote]}
-                </Text>
-                <Text style={ss.noteHeroIntl}>{NOTES_INTL[currentNote]}</Text>
-              </>
+          <Animated.View style={[ss.chordHeroBox, { opacity: noteOpacity }]}>
+            {showKey && displayKey && currentNote !== null ? (
+              (() => {
+                // Encontrar o acorde do campo harmônico que corresponde à nota
+                const chordMatch = harmonicField.find(c => c.root === currentNote);
+                const degrees = displayKey.quality === 'major' 
+                  ? ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°']
+                  : ['i', 'ii°', 'III', 'iv', 'v', 'VI', 'VII'];
+                const chordIndex = harmonicField.findIndex(c => c.root === currentNote);
+                const degree = chordIndex >= 0 ? degrees[chordIndex] : null;
+                
+                if (chordMatch) {
+                  return (
+                    <>
+                      <Text style={ss.chordHeroTxt} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                        {chordMatch.label}
+                      </Text>
+                      {degree && (
+                        <View style={ss.chordHeroDegreeBox}>
+                          <Text style={ss.chordHeroDegreeTxt}>Grau {degree}</Text>
+                        </View>
+                      )}
+                    </>
+                  );
+                }
+                // Nota fora do campo harmônico
+                return (
+                  <>
+                    <Text style={[ss.chordHeroTxt, ss.chordHeroTxtMuted]} numberOfLines={1}>
+                      {NOTES_BR[currentNote]}
+                    </Text>
+                    <Text style={ss.chordHeroOutside}>Fora do campo</Text>
+                  </>
+                );
+              })()
             ) : (
               <View style={ss.listeningHero}>
                 <Text style={ss.listeningTitle}>
-                  {stableState.internalStage === 'listening' ? 'Ouvindo' : 'Analisando'}
+                  {stableState.internalStage === 'listening' ? 'Ouvindo…' : 
+                   showKey ? 'Aguardando nota…' : 'Analisando…'}
                 </Text>
                 <Text style={ss.listeningSub}>
-                  {stableState.internalStage === 'listening' 
-                    ? 'Cante ou toque — o app está captando'
-                    : 'Verificando estabilidade do tom…'}
+                  {showKey 
+                    ? 'Toque ou cante para ver o acorde'
+                    : 'Identificando a tonalidade…'}
                 </Text>
               </View>
             )}
@@ -701,7 +723,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                     color={C.green}
                   />
                   <Text style={[ss.keyCardBadgeTxt, { color: C.green }]}>
-                    {recentKeyChange ? 'NOVA TONALIDADE CONFIRMADA' : confLabel.toUpperCase()}
+                    {recentKeyChange ? 'NOVA TONALIDADE' : confLabel.toUpperCase()}
                   </Text>
                 </View>
                 <Text style={[ss.keyCardConfPct, { color: confColor }]}>{confPct}%</Text>
@@ -721,25 +743,13 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               <Text style={ss.analyzingSub}>
                 {stableState.internalStage === 'listening'
                   ? 'Cante ou toque por alguns segundos.'
-                  : stableState.internalStage === 'candidate'
-                  ? 'Identificando padrão tonal…'
                   : 'Confirmando detecção…'}
               </Text>
-              {(stableState.internalStage === 'candidate' || stableState.internalStage === 'stableCandidate') && (
-                <View style={ss.analysisProgress}>
-                  <View style={ss.analysisProgressBar}>
-                    <View style={[
-                      ss.analysisProgressFill, 
-                      { width: `${Math.min(100, analysisCount * 25)}%` }
-                    ]} />
-                  </View>
-                </View>
-              )}
             </View>
           ) : null}
         </View>
 
-        {/* ═══ 3. BOTÃO NOVA DETECÇÃO — SEMPRE VISÍVEL ═══ */}
+        {/* ═══ 3. BOTÃO NOVA DETECÇÃO ═══ */}
         <TouchableOpacity
           testID="new-detection-btn"
           style={ss.newDetectionBtn}
@@ -750,7 +760,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           {isResetting ? (
             <>
               <ActivityIndicator size="small" color={C.amber} style={{ marginRight: 8 }} />
-              <Text style={ss.newDetectionTxt}>Reiniciando análise…</Text>
+              <Text style={ss.newDetectionTxt}>Reiniciando…</Text>
             </>
           ) : (
             <>
@@ -760,11 +770,11 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           )}
         </TouchableOpacity>
 
-        {/* ═══ 4. FAIXA COMPACTA: Campo Harmônico (no lugar do antigo Histórico) ═══ */}
+        {/* ═══ 4. CAMPO HARMÔNICO COMPLETO (GRID 2 LINHAS, SEM SCROLL) ═══ */}
         {showKey && displayKey && harmonicField.length > 0 && (
-          <View style={ss.harmonicStrip}>
-            <View style={ss.harmonicStripHeader}>
-              <Text style={ss.harmonicStripTitle}>CAMPO HARMÔNICO</Text>
+          <View style={ss.harmonicGrid}>
+            <View style={ss.harmonicGridHeader}>
+              <Text style={ss.harmonicGridTitle}>CAMPO HARMÔNICO</Text>
               <TouchableOpacity 
                 style={ss.diagramsBtn}
                 onPress={() => setShowSmartChords(!showSmartChords)}
@@ -772,7 +782,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               >
                 <Ionicons 
                   name={showSmartChords ? 'chevron-up' : 'apps-outline'} 
-                  size={14} 
+                  size={13} 
                   color={C.amber} 
                 />
                 <Text style={ss.diagramsBtnTxt}>
@@ -780,41 +790,70 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                 </Text>
               </TouchableOpacity>
             </View>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={ss.harmonicChipsRow}
-            >
-              {harmonicField.map((chord, i) => (
-                <View 
-                  key={i} 
-                  style={[
-                    ss.harmonicChip, 
-                    chord.isTonic && ss.harmonicChipTonic,
-                    currentNote !== null && chord.root === currentNote && ss.harmonicChipActive,
-                  ]}
-                >
-                  <Text style={ss.harmonicChipDegree}>{degreeLabel(i, displayKey.quality)}</Text>
-                  <Text style={[
-                    ss.harmonicChipName, 
-                    chord.isTonic && ss.harmonicChipNameTonic,
-                    currentNote !== null && chord.root === currentNote && ss.harmonicChipNameActive,
-                  ]}>
-                    {chord.label}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
+            
+            {/* Linha 1: I, ii, iii, IV */}
+            <View style={ss.harmonicRow}>
+              {harmonicField.slice(0, 4).map((chord, i) => {
+                const isActive = currentNote !== null && chord.root === currentNote;
+                return (
+                  <View 
+                    key={i} 
+                    style={[
+                      ss.harmonicCell, 
+                      chord.isTonic && ss.harmonicCellTonic,
+                      isActive && ss.harmonicCellActive,
+                    ]}
+                  >
+                    <Text style={[ss.harmonicDegree, isActive && ss.harmonicDegreeActive]}>
+                      {degreeLabel(i, displayKey.quality)}
+                    </Text>
+                    <Text style={[
+                      ss.harmonicName, 
+                      chord.isTonic && ss.harmonicNameTonic,
+                      isActive && ss.harmonicNameActive,
+                    ]}>
+                      {chord.label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+            
+            {/* Linha 2: V, vi, vii° */}
+            <View style={ss.harmonicRow}>
+              {harmonicField.slice(4, 7).map((chord, i) => {
+                const realIndex = i + 4;
+                const isActive = currentNote !== null && chord.root === currentNote;
+                return (
+                  <View 
+                    key={realIndex} 
+                    style={[
+                      ss.harmonicCell, 
+                      ss.harmonicCellSmaller,
+                      isActive && ss.harmonicCellActive,
+                    ]}
+                  >
+                    <Text style={[ss.harmonicDegree, isActive && ss.harmonicDegreeActive]}>
+                      {degreeLabel(realIndex, displayKey.quality)}
+                    </Text>
+                    <Text style={[ss.harmonicName, isActive && ss.harmonicNameActive]}>
+                      {chord.label}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 
-        {/* ═══ 5. ACORDES INTELIGENTES EM TEMPO REAL (área inferior) ═══ */}
-        {showKey && displayKey && (
+        {/* ═══ 5. ACORDES INTELIGENTES (COMPACTO) ═══ */}
+        {showKey && displayKey && showSmartChords && (
           <SmartChordsMode
             tonic={displayKey.tonic}
             quality={displayKey.quality}
             currentNote={currentNote}
             expanded={showSmartChords}
+            compact={true}
           />
         )}
 
@@ -1532,5 +1571,121 @@ const ss = StyleSheet.create({
   },
   recentNoteTxtLatest: {
     color: C.amber,
+  },
+
+  // ═══ ACORDE EM TEMPO REAL (novo) ═══
+  chordHero: {
+    backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border,
+    overflow: 'hidden',
+    minHeight: 140,
+  },
+  chordHeroTopRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4,
+  },
+  chordHeroLabel: { fontFamily: 'Manrope_600SemiBold', fontSize: 9, color: C.text3, letterSpacing: 2 },
+  chordHeroBox: {
+    alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    paddingHorizontal: 16, paddingBottom: 14, paddingTop: 0,
+    minHeight: 100,
+  },
+  chordHeroTxt: {
+    fontFamily: 'Outfit_800ExtraBold', fontSize: 52, color: C.white,
+    letterSpacing: -2, lineHeight: 58, textAlign: 'center',
+    includeFontPadding: false,
+  },
+  chordHeroTxtMuted: {
+    color: C.text2,
+    fontSize: 44,
+  },
+  chordHeroDegreeBox: {
+    backgroundColor: 'rgba(255,176,32,0.12)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 6,
+  },
+  chordHeroDegreeTxt: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 12,
+    color: C.amber,
+    letterSpacing: 0.5,
+  },
+  chordHeroOutside: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 11,
+    color: C.text3,
+    marginTop: 4,
+  },
+
+  // ═══ CAMPO HARMÔNICO GRID (2 linhas, sem scroll) ═══
+  harmonicGrid: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  harmonicGridHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  harmonicGridTitle: {
+    fontFamily: 'Outfit_600SemiBold',
+    fontSize: 10,
+    color: C.text3,
+    letterSpacing: 1,
+  },
+  harmonicRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 6,
+    marginBottom: 6,
+  },
+  harmonicCell: {
+    flex: 1,
+    backgroundColor: C.bg,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  harmonicCellSmaller: {
+    flex: 1,
+    maxWidth: '32%',
+  },
+  harmonicCellTonic: {
+    backgroundColor: 'rgba(255,176,32,0.08)',
+    borderColor: 'rgba(255,176,32,0.3)',
+  },
+  harmonicCellActive: {
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderColor: 'rgba(16,185,129,0.5)',
+  },
+  harmonicDegree: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 9,
+    color: C.text3,
+    letterSpacing: 0.3,
+    marginBottom: 2,
+  },
+  harmonicDegreeActive: {
+    color: C.green,
+  },
+  harmonicName: {
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 15,
+    color: C.white,
+  },
+  harmonicNameTonic: {
+    color: C.amber,
+  },
+  harmonicNameActive: {
+    color: C.green,
   },
 });
