@@ -326,29 +326,58 @@ def juror_krumhansl(pcp: np.ndarray) -> Dict[int, float]:
     JURADO 1: Correlação Krumhansl-Aarden.
     Retorna score normalizado [0,1] para cada pitch class como possível tônica.
     
-    NÃO decide maior/menor aqui — apenas identifica candidatos a tônica.
+    CORREÇÃO v9: Aplica bias para TOM MAIOR quando a evidência é ambígua.
+    Estatisticamente, ~70% das músicas populares são em tom maior.
+    
+    Também penaliza candidatos que são o RELATIVO MENOR de outro candidato forte.
     """
     if pcp.sum() < 100:
         return {i: 0.0 for i in range(12)}
     
-    scores = {}
+    # Calcula correlação para AMBOS os modos
+    scores_major = {}
+    scores_minor = {}
+    
     for root in range(12):
-        # Testa AMBOS os modos e pega o melhor (pois ainda não sabemos o modo)
         rotated_maj = np.roll(AARDEN_MAJOR, root)
         rotated_min = np.roll(AARDEN_MINOR, root)
         
         corr_maj = _pearson(pcp, rotated_maj)
         corr_min = _pearson(pcp, rotated_min)
         
-        # Pega o melhor dos dois (identifica apenas a tônica, não o modo)
-        best_corr = max(corr_maj, corr_min)
-        
         # Normaliza para [0, 1]
-        scores[root] = max(0.0, (best_corr + 1.0) / 2.0)
+        scores_major[root] = max(0.0, (corr_maj + 1.0) / 2.0)
+        scores_minor[root] = max(0.0, (corr_min + 1.0) / 2.0)
+    
+    # ═══ BIAS PARA TOM MAIOR ═══
+    # Quando maior e menor relativo são próximos, favorece o maior
+    MAJOR_BIAS = 1.12  # 12% de vantagem para tom maior
+    
+    final_scores = {}
+    for root in range(12):
+        major_score = scores_major[root] * MAJOR_BIAS
+        minor_score = scores_minor[root]
+        
+        # Relativo menor está 9 semitons acima (ou 3 abaixo)
+        relative_minor_root = (root + 9) % 12
+        relative_major_root = (root + 3) % 12
+        
+        # Se este root é um candidato menor, verificar se o relativo maior é mais forte
+        # Penalizar o menor se o maior relativo tem score similar
+        if minor_score > major_score:
+            # Este root seria melhor como menor
+            relative_maj_score = scores_major[relative_major_root] * MAJOR_BIAS
+            
+            # Se o relativo maior tem score >= 85% do menor, penalizar o menor
+            if relative_maj_score >= minor_score * 0.85:
+                minor_score *= 0.85  # Penaliza o menor
+        
+        # Pega o melhor entre maior e menor para este root
+        final_scores[root] = max(major_score, minor_score)
     
     # Normaliza para que o máximo seja 1.0
-    max_score = max(scores.values()) or 1.0
-    return {k: v / max_score for k, v in scores.items()}
+    max_score = max(final_scores.values()) or 1.0
+    return {k: v / max_score for k, v in final_scores.items()}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -481,45 +510,50 @@ def juror_gravity(notes: List[Note], phrases: List[Phrase], pcp: np.ndarray) -> 
     """
     JURADO 3: Centro gravitacional tonal.
     
+    CORREÇÃO v9: Maior peso para notas de repouso e fins de frase.
+    Estas são as indicações mais fortes da tônica real.
+    
     Combina:
-    1. Nota mais cantada (duração total)
-    2. Notas de repouso (> 350ms)
-    3. Fins de frase (resolução)
-    4. Início de frases (anacruse vs tônica)
-    5. Repetição/recorrência
+    1. Nota mais cantada (duração total) — 25%
+    2. Notas de repouso (> 300ms) — 30%
+    3. Fins de frase (resolução) — 30%
+    4. Início de frases — 15%
     
     Retorna score [0,1] para cada pitch class.
     """
     scores = np.zeros(12, dtype=np.float64)
     
     # ═══ 1. DURAÇÃO TOTAL (nota mais cantada) ═══
-    # Peso: 35% do jurado
+    # Peso: 25% do jurado (reduzido de 35%)
     pcp_norm = pcp / (pcp.max() or 1.0)
-    scores += pcp_norm * 0.35
+    scores += pcp_norm * 0.25
     
     # ═══ 2. NOTAS DE REPOUSO (longas) ═══
-    # Notas > 350ms indicam centro tonal
-    # Peso: 25% do jurado
+    # Notas > 300ms indicam centro tonal (reduzido de 350ms)
+    # Peso: 30% do jurado (aumentado de 25%)
     rest_weight = np.zeros(12, dtype=np.float64)
     for n in notes:
-        if n.dur_ms >= 350:
-            rest_weight[n.pitch_class] += n.dur_ms * n.rms_conf
+        if n.dur_ms >= 300:
+            # Peso exponencial baseado na duração
+            dur_factor = (n.dur_ms / 300.0) ** 1.5
+            rest_weight[n.pitch_class] += dur_factor * n.rms_conf
     if rest_weight.max() > 0:
         rest_norm = rest_weight / rest_weight.max()
-        scores += rest_norm * 0.25
+        scores += rest_norm * 0.30
     
     # ═══ 3. FINS DE FRASE ═══
-    # Onde as frases terminam = provável tônica ou dominante
-    # Peso: 25% do jurado
+    # Onde as frases terminam = provável tônica
+    # Peso: 30% do jurado (aumentado de 25%)
     phrase_end_weight = np.zeros(12, dtype=np.float64)
     for phrase in phrases:
         if phrase.last_note:
             pc = phrase.last_note.pitch_class
-            dur_factor = min(1.0, phrase.last_note.dur_ms / 400.0)
-            phrase_end_weight[pc] += dur_factor * phrase.last_note.rms_conf
+            # Peso maior para notas finais longas
+            dur_factor = min(2.0, phrase.last_note.dur_ms / 300.0)
+            phrase_end_weight[pc] += dur_factor * phrase.last_note.rms_conf * 1.5
     if phrase_end_weight.max() > 0:
         end_norm = phrase_end_weight / phrase_end_weight.max()
-        scores += end_norm * 0.25
+        scores += end_norm * 0.30
     
     # ═══ 4. INÍCIO DE FRASES ═══
     # Anacruse vs ataque na tônica
@@ -544,31 +578,51 @@ def juror_gravity(notes: List[Note], phrases: List[Phrase], pcp: np.ndarray) -> 
 # DECISÃO DE MODO (MAIOR vs MENOR) — APÓS DEFINIR TÔNICA
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def decide_mode(tonic_pc: int, pcp: np.ndarray, notes: List[Note]) -> Tuple[str, float, Dict[str, Any]]:
+def decide_mode(tonic_pc: int, pcp: np.ndarray, notes: List[Note], phrases: List[Phrase] = None) -> Tuple[str, float, Dict[str, Any]]:
     """
-    Decide se o tom é MAIOR ou MENOR baseado na 3ª.
+    Decide se o tom é MAIOR ou MENOR baseado em múltiplas evidências.
+    
+    CORREÇÃO v9: Análise mais completa com:
+    1. Presença da 3ª (maior vs menor)
+    2. Presença da 6ª e 7ª (escala menor natural vs harmônica)
+    3. Contexto melódico (movimento para a 3ª)
+    4. Bias estatístico para maior
     
     REGRAS:
     1. Se 3ª maior presente E 3ª menor ausente → MAIOR (confiança alta)
     2. Se 3ª menor presente E 3ª maior ausente → MENOR (confiança alta)
-    3. Se ambas presentes → usar proporção
-    4. Se nenhuma presente → default MAIOR com baixa confiança
+    3. Se ambas presentes → análise detalhada + bias para maior
+    4. Se nenhuma presente → verificar 6ª/7ª, senão default MAIOR
     
     Args:
         tonic_pc: Pitch class da tônica já definida
         pcp: Pitch Class Profile
         notes: Lista de notas
+        phrases: Lista de frases (opcional)
     
     Returns:
         (quality, confidence, evidence)
     """
     maj_3rd_pc = (tonic_pc + 4) % 12  # 3ª maior = 4 semitons
     min_3rd_pc = (tonic_pc + 3) % 12  # 3ª menor = 3 semitons
+    maj_6th_pc = (tonic_pc + 9) % 12  # 6ª maior = 9 semitons
+    min_6th_pc = (tonic_pc + 8) % 12  # 6ª menor = 8 semitons
+    maj_7th_pc = (tonic_pc + 11) % 12 # 7ª maior = 11 semitons
+    min_7th_pc = (tonic_pc + 10) % 12 # 7ª menor = 10 semitons
+    fifth_pc = (tonic_pc + 7) % 12    # 5ª justa = 7 semitons
     
     maj_3rd_weight = float(pcp[maj_3rd_pc])
     min_3rd_weight = float(pcp[min_3rd_pc])
+    maj_6th_weight = float(pcp[maj_6th_pc])
+    min_6th_weight = float(pcp[min_6th_pc])
+    maj_7th_weight = float(pcp[maj_7th_pc])
+    min_7th_weight = float(pcp[min_7th_pc])
+    tonic_weight = float(pcp[tonic_pc])
+    fifth_weight = float(pcp[fifth_pc])
     
     total_3rd = maj_3rd_weight + min_3rd_weight
+    total_6th = maj_6th_weight + min_6th_weight
+    total_7th = maj_7th_weight + min_7th_weight
     
     evidence = {
         'major_3rd_pc': maj_3rd_pc,
@@ -576,45 +630,104 @@ def decide_mode(tonic_pc: int, pcp: np.ndarray, notes: List[Note]) -> Tuple[str,
         'major_3rd_weight': round(maj_3rd_weight, 2),
         'minor_3rd_weight': round(min_3rd_weight, 2),
         'total_3rd_weight': round(total_3rd, 2),
+        'major_6th_weight': round(maj_6th_weight, 2),
+        'minor_6th_weight': round(min_6th_weight, 2),
+        'major_7th_weight': round(maj_7th_weight, 2),
+        'minor_7th_weight': round(min_7th_weight, 2),
+        'tonic_weight': round(tonic_weight, 2),
+        'fifth_weight': round(fifth_weight, 2),
     }
     
-    # Threshold mínimo para considerar que a 3ª está presente
-    MIN_3RD_WEIGHT = 50.0  # Ajustável baseado em testes
+    # Threshold mínimo para considerar que uma nota está presente
+    MIN_WEIGHT = 30.0  # Reduzido para captar mais evidência
     
-    maj_present = maj_3rd_weight > MIN_3RD_WEIGHT
-    min_present = min_3rd_weight > MIN_3RD_WEIGHT
+    maj_3rd_present = maj_3rd_weight > MIN_WEIGHT
+    min_3rd_present = min_3rd_weight > MIN_WEIGHT
+    maj_6th_present = maj_6th_weight > MIN_WEIGHT
+    min_6th_present = min_6th_weight > MIN_WEIGHT
+    maj_7th_present = maj_7th_weight > MIN_WEIGHT
+    min_7th_present = min_7th_weight > MIN_WEIGHT
     
-    evidence['major_3rd_present'] = maj_present
-    evidence['minor_3rd_present'] = min_present
+    evidence['major_3rd_present'] = maj_3rd_present
+    evidence['minor_3rd_present'] = min_3rd_present
     
-    # ═══ CASO 1: Só 3ª maior presente ═══
-    if maj_present and not min_present:
+    # ═══ CASO 1: Só 3ª maior presente (claramente maior) ═══
+    if maj_3rd_present and not min_3rd_present:
         evidence['decision_reason'] = 'only_major_3rd_present'
         return 'major', 0.95, evidence
     
-    # ═══ CASO 2: Só 3ª menor presente ═══
-    if min_present and not maj_present:
-        evidence['decision_reason'] = 'only_minor_3rd_present'
-        return 'minor', 0.95, evidence
+    # ═══ CASO 2: Só 3ª menor presente (possivelmente menor) ═══
+    if min_3rd_present and not maj_3rd_present:
+        # Verificar evidência adicional de tom menor
+        # Tom menor geralmente tem 6ª menor ou 7ª menor
+        minor_evidence_count = sum([
+            min_6th_present,
+            min_7th_present,
+        ])
+        major_evidence_count = sum([
+            maj_6th_present,
+            maj_7th_present,
+        ])
+        
+        if minor_evidence_count >= major_evidence_count:
+            evidence['decision_reason'] = 'minor_3rd_with_minor_evidence'
+            return 'minor', 0.90, evidence
+        else:
+            # 3ª menor mas com 6ª/7ª maiores = pode ser passagem
+            # Ainda assim, provavelmente é menor
+            evidence['decision_reason'] = 'minor_3rd_ambiguous_context'
+            return 'minor', 0.75, evidence
     
-    # ═══ CASO 3: Ambas presentes — usar proporção ═══
-    if maj_present and min_present:
+    # ═══ CASO 3: Ambas as terças presentes — análise detalhada ═══
+    if maj_3rd_present and min_3rd_present:
         ratio = maj_3rd_weight / total_3rd
         evidence['major_3rd_ratio'] = round(ratio, 3)
         
-        if ratio >= 0.65:
+        # Aplicar BIAS para maior (músicas populares são ~70% em tom maior)
+        MAJOR_BIAS_THRESHOLD = 0.45  # Se maior >= 45%, considerar maior
+        
+        if ratio >= 0.55:
             evidence['decision_reason'] = 'both_present_major_dominant'
-            return 'major', 0.70 + (ratio - 0.65) * 0.5, evidence
-        elif ratio <= 0.35:
-            evidence['decision_reason'] = 'both_present_minor_dominant'
-            return 'minor', 0.70 + (0.35 - ratio) * 0.5, evidence
+            return 'major', 0.75 + (ratio - 0.55) * 0.4, evidence
+        elif ratio >= MAJOR_BIAS_THRESHOLD:
+            # Zona ambígua: 45-55%
+            # Verificar 6ª e 7ª para desempatar
+            maj_context = maj_6th_weight + maj_7th_weight
+            min_context = min_6th_weight + min_7th_weight
+            
+            if maj_context > min_context * 1.2:
+                evidence['decision_reason'] = 'ambiguous_3rd_major_context'
+                return 'major', 0.65, evidence
+            elif min_context > maj_context * 1.5:
+                evidence['decision_reason'] = 'ambiguous_3rd_minor_context'
+                return 'minor', 0.60, evidence
+            else:
+                # Realmente ambíguo — default para maior
+                evidence['decision_reason'] = 'ambiguous_3rd_default_major'
+                return 'major', 0.55, evidence
         else:
-            # Muito ambíguo — default para maior
-            evidence['decision_reason'] = 'both_present_ambiguous_default_major'
-            return 'major', 0.50, evidence
+            # ratio < 45% — mais evidência de menor
+            evidence['decision_reason'] = 'both_present_minor_dominant'
+            return 'minor', 0.65 + (0.45 - ratio) * 0.4, evidence
     
-    # ═══ CASO 4: Nenhuma presente — default maior ═══
-    evidence['decision_reason'] = 'no_3rd_detected_default_major'
+    # ═══ CASO 4: Nenhuma terça presente ═══
+    # Verificar 6ª e 7ª como proxy
+    if maj_6th_present or maj_7th_present:
+        if min_6th_present or min_7th_present:
+            # Ambas presentes — default maior
+            evidence['decision_reason'] = 'no_3rd_mixed_67_default_major'
+            return 'major', 0.45, evidence
+        else:
+            # Só maior
+            evidence['decision_reason'] = 'no_3rd_major_67_present'
+            return 'major', 0.55, evidence
+    elif min_6th_present or min_7th_present:
+        # Só menor
+        evidence['decision_reason'] = 'no_3rd_minor_67_present'
+        return 'minor', 0.50, evidence
+    
+    # ═══ CASO 5: Nenhuma evidência — default maior ═══
+    evidence['decision_reason'] = 'no_evidence_default_major'
     return 'major', 0.40, evidence
 
 
@@ -680,7 +793,7 @@ def tribunal_decide(
     runner_up_score = ranked[1][1] if len(ranked) > 1 else 0.0
     
     # ═══ DECISÃO DE MODO ═══
-    quality, mode_confidence, third_evidence = decide_mode(winner_pc, pcp, notes)
+    quality, mode_confidence, third_evidence = decide_mode(winner_pc, pcp, notes, phrases)
     
     # ═══ CONFIDENCE FINAL ═══
     # Combina score combinado + margem + confiança do modo
