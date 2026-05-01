@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions,
   Easing, Platform, Modal, ScrollView, Linking, Alert, ActivityIndicator, Image,
@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
 import { router } from 'expo-router';
+import { useKeepAwake, activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
 import { useKeyDetection } from '../src/hooks/useKeyDetection';
 import { NOTES_BR, NOTES_INTL, formatKeyDisplay, getHarmonicField } from '../src/utils/noteUtils';
@@ -388,15 +389,75 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // KEEP AWAKE — Manter tela ligada durante detecção
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (isRunning) {
+      activateKeepAwakeAsync('detection-active').catch(() => {});
+    } else {
+      deactivateKeepAwake('detection-active');
+    }
+    
+    return () => {
+      deactivateKeepAwake('detection-active');
+    };
+  }, [isRunning]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // MODO ACORDES INTELIGENTES
   // ═══════════════════════════════════════════════════════════════════════════
   const [showSmartChords, setShowSmartChords] = useState(false);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ESTADO DE "NOVA DETECÇÃO"
+  // ═══════════════════════════════════════════════════════════════════════════
+  const [isResetting, setIsResetting] = useState(false);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // NOVO ENGINE DE ESTABILIDADE v2.0
   // ═══════════════════════════════════════════════════════════════════════════
   const [stableState, setStableState] = useState<StableKeyState>(createStableKeyState());
   const [recentKeyChange, setRecentKeyChange] = useState(false);
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FUNÇÃO: NOVA DETECÇÃO (Reset completo da sessão)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const resetDetectionSession = useCallback(async () => {
+    if (isResetting) return;
+    
+    setIsResetting(true);
+    
+    try {
+      // 1. Limpar estado visual local
+      setStableState(createStableKeyState());
+      setRecentKeyChange(false);
+      setShowSmartChords(false);
+      
+      // 2. Chamar reset do hook useKeyDetection (limpa buffers, notas, etc)
+      reset();
+      
+      // 3. Chamar endpoint do backend para limpar sessão
+      try {
+        const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+        await fetch(`${backendUrl}/api/analyze-key/reset`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+      } catch (err) {
+        // Ignorar erros de rede — o reset local já foi feito
+        console.log('[NovaDetecção] Backend reset opcional falhou:', err);
+      }
+      
+      // 4. Feedback visual
+      setTimeout(() => {
+        setIsResetting(false);
+      }, 1500);
+      
+    } catch (err) {
+      console.error('[NovaDetecção] Erro:', err);
+      setIsResetting(false);
+    }
+  }, [reset, isResetting]);
   
   // Processar novas análises ML
   useEffect(() => {
@@ -700,6 +761,29 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
             </View>
           ) : null}
         </View>
+
+        {/* ═══ BOTÃO NOVA DETECÇÃO ═══ */}
+        {showKey && displayKey && (
+          <TouchableOpacity
+            testID="new-detection-btn"
+            style={ss.newDetectionBtn}
+            onPress={resetDetectionSession}
+            activeOpacity={0.7}
+            disabled={isResetting}
+          >
+            {isResetting ? (
+              <>
+                <ActivityIndicator size="small" color={C.amber} style={{ marginRight: 8 }} />
+                <Text style={ss.newDetectionTxt}>Reiniciando análise…</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="refresh" size={16} color={C.text2} style={{ marginRight: 6 }} />
+                <Text style={ss.newDetectionTxt}>Nova Detecção</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
 
         {/* NÃO mostra "possível mudança" - análise é silenciosa */}
 
@@ -1298,5 +1382,25 @@ const ss = StyleSheet.create({
     fontFamily: 'Manrope_400Regular',
     fontSize: 11,
     color: C.text3,
+  },
+
+  // ═══ BOTÃO NOVA DETECÇÃO ═══
+  newDetectionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.surface,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  newDetectionTxt: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 13,
+    color: C.text2,
+    letterSpacing: 0.3,
   },
 });
