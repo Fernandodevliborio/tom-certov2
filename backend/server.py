@@ -1088,7 +1088,7 @@ async def root_page():
 # ─── Download do APK ────────────────────────────────────────────────────
 @app.get("/download", response_class=HTMLResponse)
 async def download_page():
-    """Página de download do APK com planos de assinatura"""
+    """Página de download do APK com instruções de instalação"""
     return HTMLResponse("""
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -1096,217 +1096,437 @@ async def download_page():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tom Certo - Download</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(180deg, #0a0a0a 0%, #141414 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            color: #fff;
+            line-height: 1.6;
         }
         .container {
-            max-width: 800px;
-            width: 100%;
+            max-width: 680px;
+            margin: 0 auto;
+            padding: 40px 20px 60px;
         }
+        
+        /* Header */
         .header {
             text-align: center;
             margin-bottom: 40px;
         }
-        .logo-img {
-            width: 80px;
-            height: 80px;
+        .logo {
+            width: 72px;
+            height: 72px;
             margin-bottom: 16px;
         }
-        h1 {
-            color: #fff;
+        .app-name {
             font-size: 32px;
-            margin-bottom: 8px;
-        }
-        .subtitle {
-            color: #FFB020;
-            font-size: 16px;
-        }
-        
-        /* Cards de Planos */
-        .plans {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-        .plan-card {
-            background: rgba(20,20,20,0.95);
-            border: 1px solid rgba(255,176,32,0.15);
-            border-radius: 16px;
-            padding: 24px;
-            text-align: center;
-            transition: transform 0.2s, border-color 0.2s;
-        }
-        .plan-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(255,176,32,0.4);
-        }
-        .plan-card.destaque {
-            border-color: #FFB020;
-            position: relative;
-        }
-        .plan-card.destaque::before {
-            content: 'MAIS POPULAR';
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #FFB020;
-            color: #000;
-            font-size: 10px;
             font-weight: 700;
-            padding: 4px 12px;
-            border-radius: 20px;
+            margin-bottom: 6px;
         }
-        .plan-name {
-            color: #fff;
-            font-size: 18px;
+        .app-tagline {
+            color: #FFB020;
+            font-size: 15px;
+            font-weight: 500;
+        }
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,176,32,0.1);
+            color: #FFB020;
+            font-size: 11px;
             font-weight: 600;
-            margin-bottom: 8px;
-        }
-        .plan-price {
-            color: #FFB020;
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-        .plan-duration {
-            color: #888;
-            font-size: 13px;
-            margin-bottom: 16px;
-        }
-        .plan-economia {
-            color: #10B981;
-            font-size: 12px;
-            margin-bottom: 16px;
-        }
-        .plan-btn {
-            display: block;
-            background: linear-gradient(135deg, #FFB020 0%, #FF9500 100%);
-            color: #000;
-            font-weight: 700;
-            font-size: 14px;
-            padding: 12px 20px;
-            border-radius: 8px;
-            text-decoration: none;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .plan-btn:hover {
-            transform: scale(1.02);
-            box-shadow: 0 4px 16px rgba(255,176,32,0.3);
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-top: 12px;
         }
         
-        /* Seção Download */
-        .download-section {
-            background: rgba(20,20,20,0.95);
-            border: 1px solid rgba(255,176,32,0.15);
+        /* Download Card */
+        .download-card {
+            background: linear-gradient(135deg, rgba(255,176,32,0.08) 0%, rgba(255,176,32,0.02) 100%);
+            border: 1px solid rgba(255,176,32,0.2);
             border-radius: 16px;
             padding: 32px;
             text-align: center;
+            margin-bottom: 32px;
         }
-        .download-section h2 {
-            color: #fff;
+        .download-title {
             font-size: 20px;
+            font-weight: 600;
             margin-bottom: 8px;
         }
-        .download-section p {
+        .download-subtitle {
             color: #888;
             font-size: 14px;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
         .download-btn {
             display: inline-flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
-            background: rgba(255,176,32,0.1);
-            border: 1px solid #FFB020;
-            color: #FFB020;
-            font-weight: 600;
-            font-size: 15px;
-            padding: 14px 28px;
-            border-radius: 10px;
+            background: linear-gradient(135deg, #FFB020 0%, #E69B00 100%);
+            color: #000;
+            font-weight: 700;
+            font-size: 16px;
+            padding: 16px 40px;
+            border-radius: 12px;
             text-decoration: none;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 20px rgba(255,176,32,0.25);
         }
         .download-btn:hover {
-            background: #FFB020;
-            color: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 28px rgba(255,176,32,0.35);
         }
         .download-btn svg {
             width: 20px;
             height: 20px;
         }
-        
-        .info {
+        .file-info {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 20px;
             color: #666;
-            font-size: 12px;
-            margin-top: 24px;
-            line-height: 1.6;
-            text-align: center;
+            font-size: 13px;
+        }
+        .file-info span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         
-        @media (max-width: 600px) {
-            .plans { grid-template-columns: 1fr; }
-            h1 { font-size: 24px; }
+        /* Steps Section */
+        .section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-title-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(255,176,32,0.15);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        
+        /* Steps */
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .step {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .step-number {
+            width: 28px;
+            height: 28px;
+            background: rgba(255,176,32,0.12);
+            border: 1px solid rgba(255,176,32,0.25);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #FFB020;
+            flex-shrink: 0;
+        }
+        .step-content h4 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #fff;
+        }
+        .step-content p {
+            font-size: 13px;
+            color: #888;
+            line-height: 1.5;
+        }
+        
+        /* Security Section */
+        .security-badges {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .security-badge {
+            background: rgba(16,185,129,0.08);
+            border: 1px solid rgba(16,185,129,0.15);
+            border-radius: 10px;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .security-badge-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(16,185,129,0.15);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        .security-badge-text {
+            font-size: 12px;
+            color: #888;
+            line-height: 1.4;
+        }
+        .security-badge-text strong {
+            display: block;
+            color: #10B981;
+            font-size: 13px;
+            margin-bottom: 2px;
+        }
+        
+        /* Activation Section */
+        .activation-box {
+            background: rgba(255,176,32,0.06);
+            border: 1px dashed rgba(255,176,32,0.25);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .activation-box h4 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #FFB020;
+        }
+        .activation-box p {
+            font-size: 13px;
+            color: #888;
+            line-height: 1.6;
+        }
+        
+        /* FAQ Section */
+        .faq-item {
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding: 16px 0;
+        }
+        .faq-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .faq-item:first-child {
+            padding-top: 0;
+        }
+        .faq-question {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+        .faq-answer {
+            font-size: 13px;
+            color: #888;
+            line-height: 1.6;
+        }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .footer-text {
+            color: #555;
+            font-size: 12px;
+        }
+        .footer-text a {
+            color: #FFB020;
+            text-decoration: none;
+        }
+        
+        /* Responsive */
+        @media (max-width: 500px) {
+            .container { padding: 24px 16px 40px; }
+            .app-name { font-size: 26px; }
+            .download-card { padding: 24px 20px; }
+            .download-btn { width: 100%; padding: 14px 24px; }
+            .security-badges { grid-template-columns: 1fr; }
+            .file-info { flex-direction: column; gap: 8px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Header -->
         <div class="header">
-            <img src="/tom-certo-logo-clean.png" alt="Tom Certo" class="logo-img">
-            <h1>Tom Certo</h1>
-            <p class="subtitle">Detecção Inteligente de Tom Musical</p>
+            <img src="/tom-certo-logo-clean.png" alt="Tom Certo" class="logo">
+            <h1 class="app-name">Tom Certo</h1>
+            <p class="app-tagline">Detecção Inteligente de Tom Musical</p>
+            <span class="version-badge">Versão 3.8.0 • Android</span>
         </div>
         
-        <div class="plans">
-            <div class="plan-card">
-                <div class="plan-name">Mensal</div>
-                <div class="plan-price">R$ 19,90</div>
-                <div class="plan-duration">por mês</div>
-                <a href="https://checkout.ticto.app/ODBC8F242" class="plan-btn" target="_blank">Assinar Agora</a>
-            </div>
-            
-            <div class="plan-card destaque">
-                <div class="plan-name">Trimestral</div>
-                <div class="plan-price">R$ 49,90</div>
-                <div class="plan-duration">a cada 3 meses</div>
-                <div class="plan-economia">Economia de 17%</div>
-                <a href="https://checkout.ticto.app/OF743CFCB" class="plan-btn" target="_blank">Assinar Agora</a>
-            </div>
-            
-            <div class="plan-card">
-                <div class="plan-name">Semestral</div>
-                <div class="plan-price">R$ 89,90</div>
-                <div class="plan-duration">a cada 6 meses</div>
-                <div class="plan-economia">Economia de 25%</div>
-                <a href="https://checkout.ticto.app/OC368DF22" class="plan-btn" target="_blank">Assinar Agora</a>
-            </div>
-        </div>
-        
-        <div class="download-section">
-            <h2>Já tem acesso?</h2>
-            <p>Baixe o aplicativo e ative com seu código de acesso</p>
+        <!-- Download Card -->
+        <div class="download-card">
+            <h2 class="download-title">Baixe o Aplicativo</h2>
+            <p class="download-subtitle">Disponível para dispositivos Android 8.0 ou superior</p>
             <a href="/TomCerto.apk" class="download-btn" download>
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
                 </svg>
-                Baixar APK (Android)
+                Baixar APK
             </a>
+            <div class="file-info">
+                <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                    </svg>
+                    TomCerto.apk
+                </span>
+                <span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12,3A9,9 0 0,0 3,12A9,9 0 0,0 12,21A9,9 0 0,0 21,12A9,9 0 0,0 12,3M12,19A7,7 0 0,1 5,12A7,7 0 0,1 12,5A7,7 0 0,1 19,12A7,7 0 0,1 12,19Z"/>
+                    </svg>
+                    ~90 MB
+                </span>
+            </div>
         </div>
         
-        <p class="info">
-            Após a compra, você receberá um email com o código de ativação.<br>
-            Instale o app, abra e insira o código para ativar seu acesso.
-        </p>
+        <!-- Installation Steps -->
+        <div class="section">
+            <h3 class="section-title">
+                <span class="section-title-icon">📲</span>
+                Como Instalar
+            </h3>
+            <div class="steps">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <div class="step-content">
+                        <h4>Baixe o arquivo APK</h4>
+                        <p>Clique no botão "Baixar APK" acima. O download começará automaticamente.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <div class="step-content">
+                        <h4>Permita a instalação</h4>
+                        <p>Acesse <strong>Configurações → Segurança</strong> e ative "Fontes desconhecidas" ou "Instalar apps desconhecidos" para o navegador.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <div class="step-content">
+                        <h4>Instale o aplicativo</h4>
+                        <p>Abra o arquivo baixado (geralmente na pasta Downloads) e toque em "Instalar".</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-number">4</span>
+                    <div class="step-content">
+                        <h4>Ative seu acesso</h4>
+                        <p>Abra o app e insira o código de ativação que você recebeu por email após a compra.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Security Section -->
+        <div class="section">
+            <h3 class="section-title">
+                <span class="section-title-icon">🔒</span>
+                Segurança Garantida
+            </h3>
+            <div class="security-badges">
+                <div class="security-badge">
+                    <span class="security-badge-icon">✓</span>
+                    <div class="security-badge-text">
+                        <strong>App Verificado</strong>
+                        Código assinado digitalmente
+                    </div>
+                </div>
+                <div class="security-badge">
+                    <span class="security-badge-icon">🛡️</span>
+                    <div class="security-badge-text">
+                        <strong>Sem Vírus</strong>
+                        Testado e aprovado
+                    </div>
+                </div>
+                <div class="security-badge">
+                    <span class="security-badge-icon">🔐</span>
+                    <div class="security-badge-text">
+                        <strong>Dados Protegidos</strong>
+                        Conexão criptografada
+                    </div>
+                </div>
+                <div class="security-badge">
+                    <span class="security-badge-icon">📱</span>
+                    <div class="security-badge-text">
+                        <strong>Permissões Mínimas</strong>
+                        Apenas microfone
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Activation Info -->
+        <div class="section">
+            <h3 class="section-title">
+                <span class="section-title-icon">🔑</span>
+                Código de Ativação
+            </h3>
+            <div class="activation-box">
+                <h4>Onde encontro meu código?</h4>
+                <p>Após a confirmação do pagamento, você receberá um email com seu código de ativação único. Use esse código na primeira vez que abrir o app para liberar todas as funcionalidades.</p>
+            </div>
+        </div>
+        
+        <!-- FAQ -->
+        <div class="section">
+            <h3 class="section-title">
+                <span class="section-title-icon">❓</span>
+                Perguntas Frequentes
+            </h3>
+            <div class="faq-item">
+                <p class="faq-question">O app funciona em iPhone/iOS?</p>
+                <p class="faq-answer">No momento, o Tom Certo está disponível apenas para Android. A versão iOS está em desenvolvimento.</p>
+            </div>
+            <div class="faq-item">
+                <p class="faq-question">É seguro instalar APK fora da Play Store?</p>
+                <p class="faq-answer">Sim! Nosso APK é assinado digitalmente e verificado. A instalação fora da Play Store é comum para apps especializados e é totalmente segura quando feita de fontes confiáveis como nosso site oficial.</p>
+            </div>
+            <div class="faq-item">
+                <p class="faq-question">Em quantos dispositivos posso usar?</p>
+                <p class="faq-answer">Seu código de ativação permite usar o app em até 3 dispositivos simultaneamente.</p>
+            </div>
+            <div class="faq-item">
+                <p class="faq-question">O app precisa de internet?</p>
+                <p class="faq-answer">Sim, a detecção de tom utiliza nossa tecnologia de IA na nuvem para garantir máxima precisão. É necessária uma conexão estável para uso.</p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p class="footer-text">
+                Precisa de ajuda? Entre em contato pelo <a href="mailto:suporte@tomcerto.online">suporte@tomcerto.online</a>
+            </p>
+        </div>
     </div>
 </body>
 </html>
