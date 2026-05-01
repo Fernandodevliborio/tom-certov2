@@ -52,13 +52,13 @@ SAMPLE_RATE = 16000
 HOP_MS = 10
 HOP_LENGTH = int(SAMPLE_RATE * HOP_MS / 1000)
 MODEL_CAPACITY = 'tiny'
-F0_MIN = 80.0   # Aumentado para filtrar ruído grave
-F0_MAX = 800.0  # Diminuído para filtrar ruído agudo
+F0_MIN = 65.0   # REDUZIDO para captar vozes graves
+F0_MAX = 1000.0 # AUMENTADO para captar vozes agudas
 
-# THRESHOLDS MAIS RIGOROSOS
-CONFIDENCE_THRESHOLD = 0.45  # AUMENTADO - só aceita notas com alta confiança
-MIN_NOTE_DUR_MS = 80         # Duração mínima de nota
-MIN_RMS_THRESHOLD = 0.02     # RMS mínimo para considerar áudio válido
+# THRESHOLDS MAIS PERMISSIVOS para não perder notas
+CONFIDENCE_THRESHOLD = 0.35  # REDUZIDO de 0.45 - aceita mais notas
+MIN_NOTE_DUR_MS = 60         # REDUZIDO de 80 - notas mais curtas
+MIN_RMS_THRESHOLD = 0.008    # REDUZIDO de 0.02 - mais sensível
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -398,14 +398,14 @@ class SessionAccumulator:
         """Retorna resultado baseado em todas as notas acumuladas."""
         # MUDANÇA CRÍTICA: Retornar resultado mesmo com poucas notas
         # Isso evita ficar travado em "analisando"
-        if len(self.all_notes) < 3:
+        if len(self.all_notes) < 2:
             # Ainda sem notas suficientes, mas retorna status claro
             return {
                 'success': False, 
                 'error': 'insufficient_data', 
                 'notes': len(self.all_notes),
                 'analyses': self.analysis_count,
-                'message': f'Coletando notas... ({len(self.all_notes)}/3)'
+                'message': f'Coletando notas... ({len(self.all_notes)}/2)'
             }
         
         result = analyze_tonality(self.all_notes)
@@ -422,7 +422,7 @@ class SessionAccumulator:
         self.vote_history.append(result.tonic)
         self.vote_history = self.vote_history[-10:]  # Últimos 10 votos
         
-        # Verificar se deve travar
+        # MUDANÇA: Lock mais rápido - assim que tiver um candidato com confiança razoável
         should_lock = self._should_lock(result)
         
         if should_lock:
@@ -465,27 +465,16 @@ class SessionAccumulator:
             # Já está travado - verificar se deve mudar
             return self._should_change(result)
         
-        # MUDANÇA: Critérios mais relaxados para lock inicial
-        # 1. Mínimo de 2 análises (era 3)
-        # 2. Confiança >= 0.50 (era 0.55)
-        # 3. Pelo menos 2 votos no mesmo tom (não precisa ser consecutivo)
+        # MUDANÇA AGRESSIVA: Lock muito mais rápido
+        # Critério 1: Qualquer confiança >= 0.40 com pelo menos 1 análise
+        if result.confidence >= 0.40:
+            return True
         
-        if self.analysis_count < 2:
-            return False
-        
-        if result.confidence < 0.50:
-            return False
-        
-        # Verificar votos no mesmo tom
+        # Critério 2: Se já tem 2+ votos no mesmo tom, lock imediato
         if len(self.vote_history) >= 2:
-            last_votes = self.vote_history[-3:] if len(self.vote_history) >= 3 else self.vote_history
-            votes_for_current = sum(1 for v in last_votes if v == result.tonic)
+            votes_for_current = sum(1 for v in self.vote_history[-3:] if v == result.tonic)
             if votes_for_current >= 2:
                 return True
-        
-        # Confiança muito alta permite lock imediato
-        if result.confidence >= 0.80:
-            return True
         
         return False
     
