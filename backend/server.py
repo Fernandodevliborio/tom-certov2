@@ -256,37 +256,55 @@ async def revalidate_session(body: RevalidateRequest):
         "expires_at": expires_at_str,
     })
 
-# ─── Analyze Key (CREPE + Krumhansl-Aarden + acumulador de sessão) ─────
-# Acumulador de PCP por device — ATIVO durante uma sessão, zerado pelo
-# endpoint /reset (chamado pelo frontend quando usuário clica START).
-# Cada análise sucessiva soma o PCP atual, deixando a detecção mais
-# estável a cada clipe (sem precisar esperar consenso entre clipes).
-import numpy as _np
-from collections import defaultdict as _dd
-_pcp_session: dict = _dd(lambda: {'pcp': _np.zeros(12), 'count': 0})
+# ═══════════════════════════════════════════════════════════════════════════
+# ML Key Detection v8 — TRIBUNAL DE EVIDÊNCIAS TONAL
+# ═══════════════════════════════════════════════════════════════════════════
+# Nova arquitetura com 3 jurados independentes:
+# - Krumhansl-Aarden (30%): Correlação estatística
+# - Cadências (35%): Padrões V→I, IV→I, II→V→I
+# - Gravidade (35%): Notas longas, fins de frase, repetição
+#
+# A decisão de MAIOR vs MENOR é feita APÓS definir a tônica,
+# usando a presença/ausência da 3ª.
+# ═══════════════════════════════════════════════════════════════════════════
+
+from key_detection_v8 import (
+    analyze_audio_bytes_v8,
+    reset_session as reset_v8_session,
+    NOTE_NAMES_BR,
+)
 
 
 @api_router.post("/analyze-key/reset")
 async def reset_session(request: Request):
-    """Zera o acumulador de PCP — chamado quando usuário inicia nova sessão."""
+    """Zera o acumulador de sessão — chamado quando usuário inicia nova análise."""
     device_id = request.headers.get('X-Device-Id', 'anon')
-    if device_id in _pcp_session:
-        _pcp_session.pop(device_id, None)
-    logger.info(f"[AnalyzeKey] sessão resetada dev={device_id[:8]}")
-    return {'reset': True, 'device': device_id[:8]}
+    reset_v8_session(device_id)
+    logger.info(f"[AnalyzeKey v8] sessão resetada dev={device_id[:8]}")
+    return {'reset': True, 'device': device_id[:8], 'version': 'tribunal-v8'}
 
 
 @api_router.post("/analyze-key")
 async def analyze_key(request: Request):
     """
-    Pipeline: CREPE → notas → PCP do clipe → SOMA no acumulador da sessão →
-    Krumhansl-Schmuckler com Aarden-Essen sobre o PCP acumulado.
-
-    O acumulador zera quando frontend chama /analyze-key/reset (no START).
+    TRIBUNAL DE EVIDÊNCIAS TONAL v8
+    
+    Pipeline:
+    1. CREPE extrai F0 com confidence
+    2. Segmenta notas e frases
+    3. 3 jurados votam independentemente:
+       - Krumhansl-Aarden (30%): correlação com perfis tonais
+       - Cadências (35%): detecta V→I, IV→I, II→V→I
+       - Gravidade (35%): notas longas, fins de frase, repetição
+    4. Combina votos e elege tônica
+    5. Decide modo (maior/menor) baseado na 3ª
+    6. Acumula evidência na sessão (memória de longo prazo)
+    7. Aplica histerese forte antes de mudar tom travado
     """
     audio_bytes = await request.body()
     device_id = request.headers.get('X-Device-Id', 'anon')
-    logger.info(f"[AnalyzeKey] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
+    logger.info(f"[AnalyzeKey v8] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
+    
     if not audio_bytes or len(audio_bytes) < 500:
         return JSONResponse({
             "success": False, "error": "audio_too_short",
@@ -294,90 +312,48 @@ async def analyze_key(request: Request):
         }, status_code=400)
 
     try:
-        from key_detection import (
-            load_audio_from_bytes, extract_f0_with_crepe, f0_to_midi,
-            segment_notes, detect_phrases,
-            compute_weighted_histogram, absorb_detuning,
-            compute_tonic_gravity, detect_key_from_notes,
-            SAMPLE_RATE as _SR,
+        result = analyze_audio_bytes_v8(
+            audio_bytes=audio_bytes,
+            device_id=device_id,
+            use_accumulator=True,
         )
-
-        audio = load_audio_from_bytes(audio_bytes, target_sr=_SR)
-        duration_s = float(len(audio) / _SR)
-        if duration_s < 1.5:
-            return JSONResponse({
-                'success': False, 'error': 'audio_too_short',
-                'message': f'Áudio muito curto ({duration_s:.1f}s).',
-                'duration_s': duration_s,
-            })
-
-        f0_hz, conf_arr = extract_f0_with_crepe(audio, _SR)
-        midi = f0_to_midi(f0_hz)
-        notes = segment_notes(midi, conf_arr)
-        phrases = detect_phrases(notes)
-
-        if not notes:
-            return JSONResponse({
-                'success': False, 'error': 'no_valid_pitch',
-                'message': 'Nenhuma nota detectada no áudio.',
-                'duration_s': duration_s,
-            })
-
-        # ── Acumulador de PCP da SESSÃO ──
-        # Calcula PCP do clipe atual (com suavização 12% nos vizinhos),
-        # SOMA no acumulador da sessão deste device.
-        # Detecção é feita sobre o PCP TOTAL acumulado — fica mais estável
-        # a cada clipe sucessivo. Reseta com /analyze-key/reset.
-        SMOOTH = 0.12
-        clip_pcp = _np.zeros(12, dtype=_np.float64)
-        for n in notes:
-            w = n['dur_ms'] * n.get('rms_conf', 1.0)
-            pc = n['pitch_class']
-            clip_pcp[pc]              += w * (1 - 2 * SMOOTH)
-            clip_pcp[(pc - 1) % 12]   += w * SMOOTH
-            clip_pcp[(pc + 1) % 12]   += w * SMOOTH
-
-        sess = _pcp_session[device_id]
-        sess['pcp'] = sess['pcp'] + clip_pcp
-        sess['count'] += 1
-
-        # Detecção sobre PCP ACUMULADO (não só o do clipe)
-        from key_detection import detect_key_theory_first
-        result = detect_key_theory_first(notes, phrases, pcp_override=sess['pcp'])
-        result['success'] = True
-        result['duration_s'] = duration_s
-        result['notes_count'] = len(notes)
-        result['phrases_count'] = len(phrases)
-        result['session_clips'] = int(sess['count'])
-        result['method'] = f'krumhansl-aarden+session-accum(N={int(sess["count"])})'
-
-        # Logging detalhado do novo algoritmo Krumhansl-Aarden
-        hist = result.get('histogram', [])
-        note_names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
-        hist_sorted = sorted(range(12), key=lambda i: hist[i], reverse=True) if len(hist) == 12 else []
-        hist_str = ' '.join(f"{note_names[i]}={hist[i]:.0f}" for i in hist_sorted[:5]) if hist_sorted else 'n/a'
-        tops = result.get('top_candidates', [])[:3]
-        tops_str = ' | '.join(
-            f"{t['key']}(corr={t['correlation']:.3f})"
-            for t in tops
-        )
-        diag = result.get('diag', {})
-        logger.info(
-            f"[AnalyzeKey] ✓ key={result.get('key_name', '?')} "
-            f"conf={result.get('confidence', 0):.2f} "
-            f"notes={len(notes)} phrases={len(phrases)} "
-            f"flags={result.get('flags', [])}"
-        )
-        logger.info(f"[AnalyzeKey]   PCP top5: {hist_str}")
-        logger.info(
-            f"[AnalyzeKey]   top3: {tops_str}  "
-            f"score_margin={diag.get('score_margin', 0):.3f} "
-            f"corr_margin={diag.get('corr_margin', 0):.3f}"
-        )
+        
+        # Logging detalhado do Tribunal v8
+        if result.get('success'):
+            cadences = result.get('cadences_found', [])
+            cadence_str = ', '.join(
+                f"{c['type']}→{c['resolved_to']}" for c in cadences
+            ) if cadences else 'nenhuma'
+            
+            tops = result.get('top_candidates', [])[:3]
+            tops_str = ' | '.join(
+                f"{t['tonic_name']}(ks={t.get('ks', 0):.2f} cad={t.get('cad', 0):.2f} grav={t.get('grav', 0):.2f})"
+                for t in tops
+            )
+            
+            third_ev = result.get('third_evidence', {})
+            third_str = f"3ªM={third_ev.get('major_3rd_weight', 0):.0f} 3ªm={third_ev.get('minor_3rd_weight', 0):.0f}"
+            
+            locked_str = '🔒TRAVADO' if result.get('locked') else '⏳pendente'
+            
+            logger.info(
+                f"[AnalyzeKey v8] ✓ {locked_str} key={result.get('key_name', '?')} "
+                f"conf={result.get('confidence', 0):.2f} "
+                f"notes={result.get('notes_count', 0)} phrases={result.get('phrases_count', 0)}"
+            )
+            logger.info(f"[AnalyzeKey v8]   cadências: {cadence_str}")
+            logger.info(f"[AnalyzeKey v8]   top3: {tops_str}")
+            logger.info(f"[AnalyzeKey v8]   terça: {third_str} ({third_ev.get('decision_reason', '?')})")
+            logger.info(f"[AnalyzeKey v8]   flags: {result.get('flags', [])}")
+        else:
+            logger.warning(
+                f"[AnalyzeKey v8] ✗ error={result.get('error')} msg={result.get('message')}"
+            )
 
         return JSONResponse(result)
+        
     except Exception as e:
-        logger.error(f"[AnalyzeKey] Erro: {e}", exc_info=True)
+        logger.error(f"[AnalyzeKey v8] Erro: {e}", exc_info=True)
         return JSONResponse({
             "success": False,
             "error": "internal_error",

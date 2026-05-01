@@ -54,6 +54,9 @@ function writeString(view: DataView, offset: number, str: string) {
   }
 }
 
+/**
+ * Resultado da análise ML com Tribunal de Evidências v8
+ */
 export interface MLAnalysisResult {
   success: boolean;
   duration_s?: number;
@@ -67,19 +70,84 @@ export interface MLAnalysisResult {
   quality?: 'major' | 'minor';
   key_name?: string;
   confidence?: number;
+  
+  // NOVO v8: Estado de travamento (histerese)
+  locked?: boolean;
+  locked_for_seconds?: number;
+  accumulated_analyses?: number;
+  
+  // Breakdown de confiança v8
   confidence_breakdown?: {
-    margin: number; third: number; material: number;
-    alignment: number; cadence: number;
+    combined_score?: number;
+    margin?: number;
+    mode_confidence?: number;
+    // Legacy (v7 e anteriores)
+    third?: number;
+    material?: number;
+    alignment?: number;
+    cadence?: number;
   };
+  
+  // NOVO v8: Votos dos jurados
+  votes?: {
+    krumhansl?: Record<string, number>;
+    cadences?: Record<string, number>;
+    gravity?: Record<string, number>;
+    combined?: Record<string, number>;
+  };
+  
+  // NOVO v8: Cadências detectadas
+  cadences_found?: Array<{
+    type: string;  // 'V→I', 'IV→I', 'II→V→I'
+    resolved_to: string;
+    strength: number;
+  }>;
+  
+  // NOVO v8: Evidência da 3ª (modo maior/menor)
+  third_evidence?: {
+    major_3rd_pc?: number;
+    minor_3rd_pc?: number;
+    major_3rd_weight?: number;
+    minor_3rd_weight?: number;
+    major_3rd_present?: boolean;
+    minor_3rd_present?: boolean;
+    major_3rd_ratio?: number;
+    decision_reason?: string;
+  };
+  
   flags?: Array<
     'close_call' | 'no_third_evidence' | 'ambiguous_third' |
-    'few_notes' | 'single_phrase' | 'no_resolution' | 'relative_ambiguous'
+    'few_notes' | 'single_phrase' | 'no_resolution' | 'relative_ambiguous' |
+    'no_cadences'  // NOVO v8
   >;
+  
   recommendation?: 'keep_analyzing' | 'uncertain_suggest_more_audio' | 'confident';
+  
+  // Top candidatos v8
   top_candidates?: Array<{
-    key: string; score: number; cadence: number; ks: number;
-    third_mul?: number; third_ratio?: number; alignment?: number; boost?: number;
+    tonic_pc?: number;
+    tonic_name?: string;
+    key?: string;  // legacy
+    score: number;
+    ks?: number;
+    cad?: number;
+    grav?: number;
+    // Legacy
+    cadence?: number;
+    third_mul?: number;
+    third_ratio?: number;
+    alignment?: number;
+    boost?: number;
+    correlation?: number;
   }>;
+  
+  // Estatísticas
+  stats?: {
+    notes_count?: number;
+    phrases_count?: number;
+    pcp_total?: number;
+  };
+  
   margin_abs?: number;
   margin_relative?: number;
   margin?: number; // legacy

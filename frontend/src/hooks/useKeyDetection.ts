@@ -415,11 +415,18 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       console.log('[ML] Enviando pro backend...');
       const result = await analyzeKeyML(clip, undefined, deviceIdRef.current ?? undefined);
       // eslint-disable-next-line no-console
-      console.log('[ML] Resposta do backend:', JSON.stringify(result).slice(0, 200));
+      console.log('[ML] Resposta do backend:', JSON.stringify(result).slice(0, 300));
       
       if (result.success) {
+        // Logging melhorado para Tribunal v8
+        const locked = result.locked ? '🔒TRAVADO' : '⏳pendente';
+        const cadences = result.cadences_found?.map(c => c.type).join(', ') || 'nenhuma';
+        const thirdReason = result.third_evidence?.decision_reason || '?';
         // eslint-disable-next-line no-console
-        console.log(`[ML] ✓ ${result.key_name} conf=${(result.confidence ?? 0).toFixed(2)} flags=${result.flags?.join(',') ?? ''}`);
+        console.log(
+          `[ML] ✓ ${locked} ${result.key_name} conf=${(result.confidence ?? 0).toFixed(2)} ` +
+          `cadências=[${cadences}] 3ª=${thirdReason} flags=${result.flags?.join(',') ?? ''}`
+        );
         setMlResult(result);
         setMlState('done');
       } else {
