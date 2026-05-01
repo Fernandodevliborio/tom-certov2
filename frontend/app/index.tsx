@@ -654,7 +654,42 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ss.scrollPad}>
         
-        {/* ═══ ÁREA PRINCIPAL: Tom Detectado + Confiança ═══ */}
+        {/* ═══ 1. NOTA EM TEMPO REAL (no topo, como original) ═══ */}
+        <View style={ss.noteHero}>
+          <View style={ss.noteHeroTopRow}>
+            <Text style={ss.noteHeroLabel}>NOTA EM TEMPO REAL</Text>
+            <AudioVisualizer level={audioLevel} active={isRunning} height={24} bars={5} />
+          </View>
+          <Animated.View style={[ss.noteHeroBox, { opacity: noteOpacity }]}>
+            {currentNote !== null ? (
+              <>
+                <Text
+                  testID="current-note"
+                  style={ss.noteHeroTxt}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.55}
+                >
+                  {NOTES_BR[currentNote]}
+                </Text>
+                <Text style={ss.noteHeroIntl}>{NOTES_INTL[currentNote]}</Text>
+              </>
+            ) : (
+              <View style={ss.listeningHero}>
+                <Text style={ss.listeningTitle}>
+                  {stableState.internalStage === 'listening' ? 'Ouvindo' : 'Analisando'}
+                </Text>
+                <Text style={ss.listeningSub}>
+                  {stableState.internalStage === 'listening' 
+                    ? 'Cante ou toque — o app está captando'
+                    : 'Verificando estabilidade do tom…'}
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+        </View>
+
+        {/* ═══ 2. TOM DETECTADO / CONFIANÇA ═══ */}
         <View style={ss.keyCardSlot}>
           {showKey && displayKey ? (
             <View testID="key-card" style={[ss.keyCard, ss.keyCardConfirmed]}>
@@ -704,7 +739,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           ) : null}
         </View>
 
-        {/* ═══ BOTÃO NOVA DETECÇÃO — SEMPRE VISÍVEL ═══ */}
+        {/* ═══ 3. BOTÃO NOVA DETECÇÃO — SEMPRE VISÍVEL ═══ */}
         <TouchableOpacity
           testID="new-detection-btn"
           style={ss.newDetectionBtn}
@@ -725,7 +760,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           )}
         </TouchableOpacity>
 
-        {/* ═══ FAIXA COMPACTA: Campo Harmônico ═══ */}
+        {/* ═══ 4. FAIXA COMPACTA: Campo Harmônico (no lugar do antigo Histórico) ═══ */}
         {showKey && displayKey && harmonicField.length > 0 && (
           <View style={ss.harmonicStrip}>
             <View style={ss.harmonicStripHeader}>
@@ -773,58 +808,15 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           </View>
         )}
 
-        {/* ═══ ACORDES INTELIGENTES (Expandido) ═══ */}
-        {showSmartChords && showKey && displayKey && (
+        {/* ═══ 5. ACORDES INTELIGENTES EM TEMPO REAL (área inferior) ═══ */}
+        {showKey && displayKey && (
           <SmartChordsMode
             tonic={displayKey.tonic}
             quality={displayKey.quality}
             currentNote={currentNote}
+            expanded={showSmartChords}
           />
         )}
-
-        {/* ═══ NOTAS INTELIGENTES EM TEMPO REAL ═══ */}
-        <View style={ss.liveNotesSection}>
-          <View style={ss.liveNotesHeader}>
-            <Text style={ss.liveNotesTitle}>NOTAS EM TEMPO REAL</Text>
-            <AudioVisualizer level={audioLevel} active={isRunning} height={20} bars={4} />
-          </View>
-          
-          <Animated.View style={[ss.liveNoteDisplay, { opacity: noteOpacity }]}>
-            {currentNote !== null ? (
-              <View style={ss.liveNoteActive}>
-                <Text style={ss.liveNoteMain}>{NOTES_BR[currentNote]}</Text>
-                <Text style={ss.liveNoteIntl}>{NOTES_INTL[currentNote]}</Text>
-              </View>
-            ) : (
-              <View style={ss.liveNoteEmpty}>
-                <Ionicons name="mic-outline" size={24} color={C.text3} />
-                <Text style={ss.liveNoteEmptyTxt}>
-                  {isRunning ? 'Ouvindo…' : 'Aguardando'}
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-
-          {/* Últimas notas captadas (mini-histórico) */}
-          {recentNotes.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={ss.recentNotesRow}
-            >
-              {recentNotes.slice(-8).map((pc, i) => {
-                const latest = i === recentNotes.slice(-8).length - 1;
-                return (
-                  <View key={i} style={[ss.recentNoteChip, latest && ss.recentNoteChipLatest]}>
-                    <Text style={[ss.recentNoteTxt, latest && ss.recentNoteTxtLatest]}>
-                      {NOTES_BR[pc]}
-                    </Text>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
 
       </ScrollView>
     </View>
