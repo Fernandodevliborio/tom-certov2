@@ -13,6 +13,7 @@ import { NOTES_BR, NOTES_INTL, formatKeyDisplay, getHarmonicField } from '../src
 import { useAuth } from '../src/auth/AuthContext';
 import { APP_VERSION_LABEL } from '../src/constants/version';
 import AudioVisualizer from '../src/components/AudioVisualizer';
+import SmartChordsMode from '../src/components/SmartChordsMode';
 import {
   StableKeyState,
   createStableKeyState,
@@ -387,6 +388,11 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // MODO ACORDES INTELIGENTES
+  // ═══════════════════════════════════════════════════════════════════════════
+  const [showSmartChords, setShowSmartChords] = useState(false);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // NOVO ENGINE DE ESTABILIDADE v2.0
   // ═══════════════════════════════════════════════════════════════════════════
   const [stableState, setStableState] = useState<StableKeyState>(createStableKeyState());
@@ -433,6 +439,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     if (!isRunning) {
       setStableState(createStableKeyState());
       setRecentKeyChange(false);
+      setShowSmartChords(false);
     }
   }, [isRunning]);
 
@@ -696,19 +703,59 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
 
         {/* NÃO mostra "possível mudança" - análise é silenciosa */}
 
+        {/* CAMPO HARMÔNICO — Versão compacta ou expandida */}
         {showKey && displayKey && harmonicField.length > 0 && (
-          <View style={ss.section}>
-            <Text style={ss.sectionLabel}>CAMPO HARMÔNICO</Text>
-            <View style={ss.chordGrid}>
-              {harmonicField.map((chord, i) => (
-                <View key={i} style={[ss.chordCard, chord.isTonic && ss.chordCardTonic]}>
-                  <Text style={ss.chordDegree}>{degreeLabel(i, displayKey.quality)}</Text>
-                  <Text style={[ss.chordName, chord.isTonic && ss.chordNameTonic]}>{chord.label}</Text>
-                  <Text style={ss.chordIntl}>{chordIntlLabel(chord.root, chord.quality)}</Text>
+          <>
+            {/* Botão para expandir/retrair */}
+            <TouchableOpacity 
+              style={ss.smartChordsToggle}
+              onPress={() => setShowSmartChords(!showSmartChords)}
+              activeOpacity={0.7}
+            >
+              <View style={ss.smartChordsToggleLeft}>
+                <Ionicons 
+                  name={showSmartChords ? 'musical-notes' : 'musical-notes-outline'} 
+                  size={18} 
+                  color={showSmartChords ? C.amber : C.text2} 
+                />
+                <Text style={[ss.smartChordsToggleText, showSmartChords && ss.smartChordsToggleTextActive]}>
+                  {showSmartChords ? 'ACORDES INTELIGENTES' : 'CAMPO HARMÔNICO'}
+                </Text>
+              </View>
+              <View style={ss.smartChordsToggleRight}>
+                <Text style={ss.smartChordsToggleHint}>
+                  {showSmartChords ? 'Retrair' : 'Ver diagramas'}
+                </Text>
+                <Ionicons 
+                  name={showSmartChords ? 'chevron-up' : 'chevron-down'} 
+                  size={16} 
+                  color={C.text3} 
+                />
+              </View>
+            </TouchableOpacity>
+
+            {showSmartChords ? (
+              /* MODO EXPANDIDO: Acordes Inteligentes */
+              <SmartChordsMode
+                tonic={displayKey.tonic}
+                quality={displayKey.quality}
+                currentNote={currentNote}
+              />
+            ) : (
+              /* MODO COMPACTO: Grid simples */
+              <View style={ss.section}>
+                <View style={ss.chordGrid}>
+                  {harmonicField.map((chord, i) => (
+                    <View key={i} style={[ss.chordCard, chord.isTonic && ss.chordCardTonic]}>
+                      <Text style={ss.chordDegree}>{degreeLabel(i, displayKey.quality)}</Text>
+                      <Text style={[ss.chordName, chord.isTonic && ss.chordNameTonic]}>{chord.label}</Text>
+                      <Text style={ss.chordIntl}>{chordIntlLabel(chord.root, chord.quality)}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
-            </View>
-          </View>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
     </View>
@@ -1211,4 +1258,45 @@ const ss = StyleSheet.create({
     height: 48, borderRadius: 99, backgroundColor: C.amber, alignItems: 'center', justifyContent: 'center',
   },
   modalPrimaryTxt: { fontFamily: 'Manrope_600SemiBold', fontSize: 15, color: C.bg, letterSpacing: 0.4 },
+  modalSecondary: { paddingVertical: 12 },
+  modalSecondaryTxt: { fontFamily: 'Manrope_500Medium', fontSize: 14, color: C.text2 },
+
+  // ═══ ACORDES INTELIGENTES — Toggle ═══
+  smartChordsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginHorizontal: 0,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  smartChordsToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  smartChordsToggleText: {
+    fontFamily: 'Outfit_600SemiBold',
+    fontSize: 12,
+    color: C.text2,
+    letterSpacing: 0.8,
+  },
+  smartChordsToggleTextActive: {
+    color: C.amber,
+  },
+  smartChordsToggleRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  smartChordsToggleHint: {
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 11,
+    color: C.text3,
+  },
 });
