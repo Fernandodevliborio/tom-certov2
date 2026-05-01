@@ -21,6 +21,9 @@
     --red: #EF4444;
     --red-soft: rgba(239,68,68,0.14);
     --blue: #60A5FA;
+    --blue-soft: rgba(96,165,250,0.14);
+    --purple: #A855F7;
+    --purple-soft: rgba(168,85,247,0.14);
     --text: #FFFFFF;
     --text2: #9BA1A6;
     --text3: #687280;
@@ -92,8 +95,9 @@
   .btn-ghost:hover { background: var(--surface3); }
   .btn-success { background: var(--green-soft); color: var(--green); border-color: rgba(34,197,94,0.4); }
   .btn-danger { background: var(--red-soft); color: var(--red); border-color: rgba(239,68,68,0.4); }
-  .btn-blue { background: rgba(96,165,250,0.14); color: var(--blue); border-color: rgba(96,165,250,0.4); }
+  .btn-blue { background: var(--blue-soft); color: var(--blue); border-color: rgba(96,165,250,0.4); }
   .btn-amber { background: var(--gold-soft); color: var(--gold); border-color: var(--gold-border); }
+  .btn-purple { background: var(--purple-soft); color: var(--purple); border-color: rgba(168,85,247,0.4); }
   .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
 
   /* ─── Token list ─── */
@@ -106,7 +110,7 @@
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 12px;
-    align-items: center;
+    align-items: start;
     transition: border-color 0.15s;
   }
   .token-card:hover { border-color: var(--border2); }
@@ -129,12 +133,27 @@
   .badge-active { background: var(--green-soft); color: var(--green); }
   .badge-revoked { background: var(--red-soft); color: var(--red); }
   .badge-expired { background: rgba(255,176,32,0.14); color: var(--gold); }
-  .badge-forever { background: rgba(96,165,250,0.14); color: var(--blue); }
+  .badge-forever { background: var(--blue-soft); color: var(--blue); }
+  .badge-essential { background: var(--blue-soft); color: var(--blue); }
+  .badge-professional { background: var(--purple-soft); color: var(--purple); }
 
   .tok-meta { display: flex; gap: 14px; font-size: 12px; color: var(--text2); flex-wrap: wrap; }
   .tok-meta span { display: inline-flex; align-items: center; gap: 5px; }
   .tok-meta strong { color: var(--text); font-weight: 600; }
   .tok-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* Device info box */
+  .device-info {
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .device-info .label { color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .device-info .value { color: var(--text); font-family: monospace; }
+  .device-info .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
 
   @media (max-width: 720px) {
     .token-card { grid-template-columns: 1fr; }
@@ -156,7 +175,7 @@
     border: 1px solid var(--border2);
     border-radius: 18px;
     padding: 28px;
-    width: 100%; max-width: 480px;
+    width: 100%; max-width: 520px;
     max-height: 90vh; overflow-y: auto;
   }
   .modal h2 { margin: 0 0 18px; font-size: 18px; }
@@ -164,6 +183,39 @@
   .form-row .row { display: flex; gap: 8px; }
   .form-row .row > * { flex: 1; }
   .modal-footer { display: flex; gap: 10px; margin-top: 22px; justify-content: flex-end; }
+
+  /* Plan selector */
+  .plan-selector { display: flex; gap: 10px; margin-bottom: 14px; }
+  .plan-option {
+    flex: 1;
+    padding: 14px;
+    border-radius: 12px;
+    border: 2px solid var(--border2);
+    background: var(--surface2);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .plan-option:hover { border-color: var(--border); }
+  .plan-option.selected { border-color: var(--gold); background: var(--gold-soft); }
+  .plan-option .name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .plan-option .price { font-size: 12px; color: var(--text2); }
+  .plan-option.professional .name { color: var(--purple); }
+  .plan-option.essential .name { color: var(--blue); }
+
+  /* Duration presets */
+  .duration-presets { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .duration-preset {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  .duration-preset:hover { border-color: var(--gold); }
+  .duration-preset.selected { border-color: var(--gold); background: var(--gold-soft); color: var(--gold); }
 
   /* ─── Toast ─── */
   .toast {
@@ -206,38 +258,6 @@
     border: 1px dashed var(--border2); border-radius: 14px;
   }
   .copy-hint { font-size: 10px; color: var(--text3); margin-left: 4px; }
-
-  /* ─── Selection Bar ─── */
-  .selection-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-  }
-  .selection-info {
-    display: flex;
-    align-items: center;
-  }
-  .selection-info input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-  }
-  .selection-actions {
-    display: flex;
-    gap: 10px;
-  }
-  .token-checkbox {
-    width: 18px;
-    height: 18px;
-    cursor: pointer;
-    margin-right: 12px;
-    flex-shrink: 0;
-  }
 
   /* ─── Result modal (show new token) ─── */
   .result-key {
@@ -315,28 +335,13 @@
       <option value="expirado">⏱ Expirados</option>
       <option value="cancelado">✕ Cancelados</option>
     </select>
-    <select id="filter-plan" style="width: auto; min-width: 130px;">
+    <select id="filter-plan" style="width: auto; min-width: 140px;">
       <option value="">Todos os planos</option>
-      <option value="mensal">Mensal</option>
-      <option value="trimestral">Trimestral</option>
-      <option value="semestral">Semestral</option>
+      <option value="essential">🔵 Essencial</option>
+      <option value="professional">🟣 Profissional</option>
     </select>
     <button class="btn btn-ghost" id="refresh-btn">↻ Atualizar</button>
-    <button class="btn btn-primary" id="new-btn">+ Novo Token</button>
-  </div>
-
-  <!-- Barra de Seleção Múltipla -->
-  <div id="selection-bar" class="selection-bar" style="display: none;">
-    <div class="selection-info">
-      <input type="checkbox" id="select-all" />
-      <label for="select-all" style="margin-left: 8px; font-weight: 600; cursor: pointer;">
-        <span id="selection-count">0</span> selecionado(s)
-      </label>
-    </div>
-    <div class="selection-actions">
-      <button class="btn btn-sm btn-danger" id="delete-selected">🗑 Excluir Selecionados</button>
-      <button class="btn btn-sm btn-danger" id="delete-all" style="background: #7F1D1D; border-color: #991B1B;">⚠️ Excluir TODOS</button>
-    </div>
+    <button class="btn btn-primary" id="new-btn">+ Adicionar Acesso</button>
   </div>
 
   <div id="token-list" class="token-grid"></div>
@@ -346,29 +351,42 @@
 <!-- Create Modal -->
 <div id="create-modal" class="modal-bg">
   <div class="modal">
-    <h2>Criar novo token</h2>
+    <h2>➕ Adicionar acesso manual</h2>
 
     <div class="form-row">
-      <label>Nome do usuário <span class="copy-hint">(opcional)</span></label>
+      <label>Nome do cliente</label>
       <input id="c-name" placeholder="ex: João Silva" autofocus />
     </div>
 
     <div class="form-row">
-      <label>Código do token</label>
-      <div class="row">
-        <input id="c-code" placeholder="Auto-gerado se vazio (ex: TC-A1B2-C3D4)" style="font-family: monospace; flex: 3;" />
-        <button class="btn btn-ghost" id="c-gen-btn" type="button" style="flex: 1; min-width: 110px;">⚡ Gerar</button>
+      <label>WhatsApp ou Email</label>
+      <input id="c-contact" placeholder="ex: 11999999999 ou email@exemplo.com" />
+    </div>
+
+    <label>Plano</label>
+    <div class="plan-selector">
+      <div class="plan-option essential selected" data-plan="essential">
+        <div class="name">🔵 Essencial</div>
+        <div class="price">R$ 9,90/mês</div>
+      </div>
+      <div class="plan-option professional" data-plan="professional">
+        <div class="name">🟣 Profissional</div>
+        <div class="price">R$ 19,90/mês</div>
       </div>
     </div>
 
-    <div class="form-row">
-      <label>Duração</label>
+    <label>Duração</label>
+    <div class="duration-presets">
+      <div class="duration-preset selected" data-days="30">30 dias</div>
+      <div class="duration-preset" data-days="90">90 dias</div>
+      <div class="duration-preset" data-days="180">180 dias</div>
+      <div class="duration-preset" data-days="365">1 ano</div>
+      <div class="duration-preset" data-days="custom">Personalizado</div>
+    </div>
+    <div id="custom-duration-row" class="form-row" style="display: none;">
       <div class="row">
-        <input id="c-duration-value" type="number" min="1" placeholder="ex: 30" style="flex: 2;" />
-        <select id="c-duration-unit" style="flex: 3;">
-          <option value="forever">Sem expiração</option>
-          <option value="minutes">Minutos</option>
-          <option value="hours">Horas</option>
+        <input id="c-duration-value" type="number" min="1" placeholder="Quantidade" />
+        <select id="c-duration-unit">
           <option value="days" selected>Dias</option>
           <option value="months">Meses</option>
           <option value="years">Anos</option>
@@ -377,20 +395,23 @@
     </div>
 
     <div class="form-row">
-      <label>Limite de dispositivos</label>
-      <input id="c-limit" type="number" min="1" max="100" value="3" />
+      <label>Código do token <span class="copy-hint">(opcional - auto-gera se vazio)</span></label>
+      <div class="row">
+        <input id="c-code" placeholder="Auto-gerado (ex: TC-A1B2-C3D4)" style="font-family: monospace; flex: 3;" />
+        <button class="btn btn-ghost" id="c-gen-btn" type="button" style="flex: 1; min-width: 110px;">⚡ Gerar</button>
+      </div>
     </div>
 
     <div class="form-row">
-      <label>Observações <span class="copy-hint">(opcional)</span></label>
-      <input id="c-notes" placeholder="ex: assinatura mensal cliente premium" />
+      <label>Observações internas <span class="copy-hint">(opcional)</span></label>
+      <textarea id="c-notes" placeholder="ex: Cliente indicado pelo João, pago via PIX" rows="2"></textarea>
     </div>
 
     <div id="c-error" style="color: var(--red); font-size: 12px; display: none; margin-top: 4px;"></div>
 
     <div class="modal-footer">
       <button class="btn btn-ghost" data-close="create">Cancelar</button>
-      <button class="btn btn-primary" id="c-save">Criar Token</button>
+      <button class="btn btn-primary" id="c-save">✓ Criar Token</button>
     </div>
   </div>
 </div>
@@ -398,10 +419,10 @@
 <!-- Result Modal (after creation) -->
 <div id="result-modal" class="modal-bg">
   <div class="modal">
-    <h2 style="color: var(--green);">✓ Token criado</h2>
-    <p style="color: var(--text2); font-size: 13px; margin: 0 0 6px;">Compartilhe este código com o usuário:</p>
+    <h2 style="color: var(--green);">✓ Acesso criado com sucesso!</h2>
+    <p style="color: var(--text2); font-size: 13px; margin: 0 0 6px;">Compartilhe este código de acesso com o cliente:</p>
     <div class="result-key" id="r-code" title="Clique para copiar">—</div>
-    <div id="r-info" style="color: var(--text2); font-size: 13px; line-height: 1.6;"></div>
+    <div id="r-info" style="color: var(--text2); font-size: 13px; line-height: 1.8;"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" id="r-copy">📋 Copiar código</button>
       <button class="btn btn-primary" data-close="result">Fechar</button>
@@ -412,18 +433,27 @@
 <!-- Edit Modal -->
 <div id="edit-modal" class="modal-bg">
   <div class="modal">
-    <h2>Editar token</h2>
+    <h2>✎ Editar token</h2>
     <div class="form-row">
       <label>Nome</label>
       <input id="e-name" />
     </div>
     <div class="form-row">
-      <label>Limite de dispositivos</label>
-      <input id="e-limit" type="number" min="1" max="100" />
+      <label>Contato (WhatsApp/Email)</label>
+      <input id="e-contact" />
+    </div>
+    <label>Plano</label>
+    <div class="plan-selector" id="e-plan-selector">
+      <div class="plan-option essential" data-plan="essential">
+        <div class="name">🔵 Essencial</div>
+      </div>
+      <div class="plan-option professional" data-plan="professional">
+        <div class="name">🟣 Profissional</div>
+      </div>
     </div>
     <div class="form-row">
       <label>Observações</label>
-      <input id="e-notes" />
+      <textarea id="e-notes" rows="2"></textarea>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" data-close="edit">Cancelar</button>
@@ -436,9 +466,11 @@
 
 <script>
 const BASE = '/api';
-let ADMIN_TOKEN = '';   // JWT do login
-let ADMIN_USER = '';    // username do admin logado
+let ADMIN_TOKEN = '';
+let ADMIN_USER = '';
 let TOKENS = [];
+let selectedPlan = 'essential';
+let selectedDuration = 30;
 
 const $ = (id) => document.getElementById(id);
 const showToast = (msg, type = '') => {
@@ -460,10 +492,7 @@ async function api(path, opts = {}) {
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json() : await res.text();
   if (!res.ok) {
-    // Sessão expirada → força logout
-    if (res.status === 401 && ADMIN_TOKEN) {
-      doLogout(true);
-    }
+    if (res.status === 401 && ADMIN_TOKEN) doLogout(true);
     const detail = (data && (data.detail || data.message)) || res.statusText || 'Erro';
     throw new Error(detail);
   }
@@ -494,8 +523,6 @@ async function doLogin() {
     ADMIN_USER = data.username;
     localStorage.setItem('tc_admin_jwt', ADMIN_TOKEN);
     localStorage.setItem('tc_admin_user', ADMIN_USER);
-    // limpa chaves antigas (legacy)
-    localStorage.removeItem('tc_admin_key');
     $('admin-pass').value = '';
     $('login-view').style.display = 'none';
     $('app-view').style.display = 'block';
@@ -512,7 +539,6 @@ $('login-btn').addEventListener('click', doLogin);
 $('admin-user').addEventListener('keydown', e => { if (e.key === 'Enter') $('admin-pass').focus(); });
 $('admin-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
-// Auto-login com JWT salvo
 window.addEventListener('DOMContentLoaded', async () => {
   const saved = localStorage.getItem('tc_admin_jwt');
   const savedUser = localStorage.getItem('tc_admin_user');
@@ -525,7 +551,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       $('app-view').style.display = 'block';
       await refresh();
     } catch {
-      // JWT expirado/inválido — limpa e mostra login
       ADMIN_TOKEN = '';
       ADMIN_USER = '';
       localStorage.removeItem('tc_admin_jwt');
@@ -537,7 +562,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 function doLogout(silent) {
   localStorage.removeItem('tc_admin_jwt');
   localStorage.removeItem('tc_admin_user');
-  localStorage.removeItem('tc_admin_key');
   ADMIN_TOKEN = '';
   ADMIN_USER = '';
   $('app-view').style.display = 'none';
@@ -559,7 +583,6 @@ async function refresh() {
     const [stats, tokens] = await Promise.all([api('/admin/stats'), api('/admin/tokens')]);
     TOKENS = tokens.tokens || [];
     
-    // Calcular stats localmente para incluir novos campos
     const now = new Date();
     let active = 0, expired = 0, cancelled = 0;
     
@@ -567,13 +590,9 @@ async function refresh() {
       const tokenStatus = t.status || (t.active ? 'ativo' : 'cancelado');
       const isExp = t.expires_at && new Date(t.expires_at) < now;
       
-      if (tokenStatus === 'cancelado' || !t.active) {
-        cancelled++;
-      } else if (isExp) {
-        expired++;
-      } else {
-        active++;
-      }
+      if (tokenStatus === 'cancelado' || !t.active) cancelled++;
+      else if (isExp) expired++;
+      else active++;
     }
     
     $('stat-total').textContent = TOKENS.length;
@@ -585,12 +604,10 @@ async function refresh() {
     $('conn-pill').textContent = 'CONECTADO';
     $('conn-pill').style.background = 'var(--green-soft)';
     $('conn-pill').style.color = 'var(--green)';
-    $('conn-pill').style.borderColor = 'rgba(34,197,94,0.4)';
   } catch (e) {
     $('conn-pill').textContent = 'DESCONECTADO';
     $('conn-pill').style.background = 'var(--red-soft)';
     $('conn-pill').style.color = 'var(--red)';
-    $('conn-pill').style.borderColor = 'rgba(239,68,68,0.4)';
     showToast('Erro: ' + e.message, 'error');
   }
 }
@@ -633,18 +650,17 @@ function render() {
   const planFilter = $('filter-plan').value;
   
   const filtered = TOKENS.filter(t => {
-    // Filtro de texto
     if (q) {
       const matchText = (t.code || '').toLowerCase().includes(q) ||
              (t.token || '').toLowerCase().includes(q) ||
              (t.customer_name || '').toLowerCase().includes(q) ||
              (t.nome_usuario || '').toLowerCase().includes(q) ||
+             (t.customer_contact || '').toLowerCase().includes(q) ||
              (t.email_compra || '').toLowerCase().includes(q) ||
              (t.notes || '').toLowerCase().includes(q);
       if (!matchText) return false;
     }
     
-    // Filtro de status
     if (statusFilter) {
       const tokenStatus = t.status || (t.active ? 'ativo' : 'cancelado');
       const expired = isExpired(t);
@@ -653,8 +669,10 @@ function render() {
       if (statusFilter === 'cancelado' && tokenStatus !== 'cancelado') return false;
     }
     
-    // Filtro de plano
-    if (planFilter && t.plano !== planFilter) return false;
+    if (planFilter) {
+      const tPlan = t.plan_type || (t.plano === 'profissional' ? 'professional' : 'essential');
+      if (tPlan !== planFilter) return false;
+    }
     
     return true;
   });
@@ -664,11 +682,12 @@ function render() {
   if (filtered.length === 0) {
     $('empty').style.display = 'block';
     $('empty').textContent = TOKENS.length === 0
-      ? 'Nenhum token criado ainda. Clique em "+ Novo Token" para começar.'
+      ? 'Nenhum token criado ainda. Clique em "+ Adicionar Acesso" para começar.'
       : 'Nenhum token corresponde aos filtros.';
     return;
   }
   $('empty').style.display = 'none';
+  
   for (const t of filtered) {
     const expired = isExpired(t);
     const tokenStatus = t.status || (t.active ? 'ativo' : 'cancelado');
@@ -683,20 +702,20 @@ function render() {
           ? '<span class="badge badge-forever">SEM EXPIRAÇÃO</span>'
           : '<span class="badge badge-active">ATIVO</span>';
 
-    // Badge do plano
-    const planBadges = {
-      'mensal': '<span class="badge" style="background:rgba(96,165,250,0.14);color:var(--blue);">MENSAL</span>',
-      'trimestral': '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">TRIMESTRAL</span>',
-      'semestral': '<span class="badge" style="background:var(--green-soft);color:var(--green);">SEMESTRAL</span>',
-    };
-    const planBadge = t.plano ? planBadges[t.plano] || '' : '';
+    const planType = t.plan_type || (t.plano === 'profissional' ? 'professional' : 'essential');
+    const planBadge = planType === 'professional'
+      ? '<span class="badge badge-professional">PROFISSIONAL</span>'
+      : '<span class="badge badge-essential">ESSENCIAL</span>';
 
     const expRel = t.expires_at ? fmtRelative(t.expires_at) : null;
-    const devCount = (t.active_devices || []).length;
-    const devLimit = t.device_limit || t.max_devices || 1;
     const tokenCode = t.token || t.code;
     const customerName = t.nome_usuario || t.customer_name;
-    const customerEmail = t.email_compra;
+    const customerContact = t.customer_contact || t.email_compra;
+    
+    // Device info
+    const deviceId = t.device_id;
+    const resetCount = t.reset_count || 0;
+    const maxResets = t.max_auto_resets || 2;
 
     const card = document.createElement('div');
     card.className = 'token-card' + (isCancelled ? ' revoked' : '') + (expired ? ' expired' : '');
@@ -709,21 +728,34 @@ function render() {
         </div>
         <div class="tok-row1" style="margin-top: 6px;">
           <span class="${customerName ? 'tok-name' : 'tok-name empty'}">${customerName || 'Sem nome'}</span>
-          ${customerEmail ? `<span style="color:var(--text2);font-size:12px;">📧 ${customerEmail}</span>` : ''}
+          ${customerContact ? `<span style="color:var(--text2);font-size:12px;">📞 ${customerContact}</span>` : ''}
         </div>
         <div class="tok-meta">
-          <span>📱 <strong>${devCount}</strong>/${devLimit} dispositivo${devLimit > 1 ? 's' : ''}</span>
           ${expRel ? `<span>⏱ ${expRel}</span>` : ''}
           <span>📅 criado ${fmtCreated(t.created_at)}</span>
           ${t.notes ? `<span>📝 ${t.notes}</span>` : ''}
         </div>
+        ${deviceId ? `
+          <div class="device-info">
+            <div class="label">📱 Dispositivo vinculado</div>
+            <div class="row">
+              <span class="value">${deviceId.slice(0, 16)}...</span>
+              <span style="color: var(--text3);">Trocas: ${resetCount}/${maxResets}</span>
+            </div>
+            ${t.device_linked_at ? `<div style="color: var(--text3); font-size: 11px; margin-top: 4px;">Vinculado em ${fmtCreated(t.device_linked_at)}</div>` : ''}
+          </div>
+        ` : `
+          <div class="device-info" style="border-style: dashed; opacity: 0.6;">
+            <div style="color: var(--text3);">📱 Aguardando primeiro acesso...</div>
+          </div>
+        `}
       </div>
       <div class="tok-actions">
-        <button class="btn btn-sm btn-amber" data-action="copy" data-code="${tokenCode}">📋 Copiar</button>
-        <button class="btn btn-sm btn-blue" data-action="edit" data-id="${t._id}">✎ Editar</button>
-        ${devCount > 0 ? `<button class="btn btn-sm btn-amber" data-action="clear" data-id="${t._id}">📱 Liberar</button>` : ''}
+        <button class="btn btn-sm btn-amber" data-action="copy" data-code="${tokenCode}">📋</button>
+        <button class="btn btn-sm btn-blue" data-action="edit" data-id="${t._id}">✎</button>
+        ${deviceId ? `<button class="btn btn-sm btn-purple" data-action="reset-device" data-id="${t._id}" title="Resetar dispositivo">📱↻</button>` : ''}
         <button class="btn btn-sm ${!isCancelled ? 'btn-danger' : 'btn-success'}" data-action="toggle" data-id="${t._id}" data-active="${!isCancelled}">
-          ${!isCancelled ? '✕ Cancelar' : '✓ Reativar'}
+          ${!isCancelled ? '✕' : '✓'}
         </button>
         <button class="btn btn-sm btn-danger" data-action="delete" data-id="${t._id}">🗑</button>
       </div>
@@ -753,8 +785,9 @@ $('token-list').addEventListener('click', async (e) => {
       catch (err) { showToast('Erro: ' + err.message, 'error'); }
       return;
     }
-    if (action === 'clear') {
-      try { await api('/admin/tokens/' + id + '/clear-devices', { method: 'POST' }); showToast('Dispositivos liberados', 'success'); await refresh(); }
+    if (action === 'reset-device') {
+      if (!confirm('Deseja resetar o dispositivo vinculado a este token?\n\nO cliente poderá vincular um novo dispositivo.')) return;
+      try { await api('/admin/tokens/' + id + '/reset-device', { method: 'POST' }); showToast('Dispositivo desvinculado', 'success'); await refresh(); }
       catch (err) { showToast('Erro: ' + err.message, 'error'); }
       return;
     }
@@ -771,7 +804,6 @@ $('token-list').addEventListener('click', async (e) => {
       return;
     }
   }
-  // Click no código copia
   const codeEl = e.target.closest('[data-copy]');
   if (codeEl) {
     try { await navigator.clipboard.writeText(codeEl.dataset.copy); showToast('Código copiado', 'success'); } catch {}
@@ -783,49 +815,98 @@ function openModal(id) { $(id + '-modal').classList.add('open'); }
 function closeModal(id) { $(id + '-modal').classList.remove('open'); }
 document.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => closeModal(el.dataset.close)));
 
+// Plan selector
+document.querySelectorAll('.plan-selector .plan-option').forEach(el => {
+  el.addEventListener('click', () => {
+    el.parentElement.querySelectorAll('.plan-option').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+    if (el.closest('#create-modal')) selectedPlan = el.dataset.plan;
+  });
+});
+
+// Duration presets
+document.querySelectorAll('.duration-preset').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.duration-preset').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+    if (el.dataset.days === 'custom') {
+      $('custom-duration-row').style.display = 'block';
+      selectedDuration = 'custom';
+    } else {
+      $('custom-duration-row').style.display = 'none';
+      selectedDuration = parseInt(el.dataset.days);
+    }
+  });
+});
+
 // Create
 $('new-btn').addEventListener('click', () => {
   $('c-name').value = '';
+  $('c-contact').value = '';
   $('c-code').value = '';
+  $('c-notes').value = '';
   $('c-duration-value').value = '';
   $('c-duration-unit').value = 'days';
-  $('c-limit').value = '3';
-  $('c-notes').value = '';
+  $('custom-duration-row').style.display = 'none';
   $('c-error').style.display = 'none';
+  selectedPlan = 'essential';
+  selectedDuration = 30;
+  document.querySelectorAll('#create-modal .plan-option').forEach(p => {
+    p.classList.toggle('selected', p.dataset.plan === 'essential');
+  });
+  document.querySelectorAll('.duration-preset').forEach(p => {
+    p.classList.toggle('selected', p.dataset.days === '30');
+  });
   openModal('create');
   setTimeout(() => $('c-name').focus(), 100);
 });
+
 $('c-gen-btn').addEventListener('click', () => {
-  const r1 = Math.random().toString(16).slice(2, 6).toUpperCase();
-  const r2 = Math.random().toString(16).slice(2, 6).toUpperCase();
-  $('c-code').value = `TC-${r1}-${r2}`;
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code = 'TC-';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  code += '-';
+  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  $('c-code').value = code;
 });
+
 $('c-save').addEventListener('click', async () => {
+  let durationValue, durationUnit;
+  
+  if (selectedDuration === 'custom') {
+    durationValue = parseInt($('c-duration-value').value);
+    durationUnit = $('c-duration-unit').value;
+    if (!durationValue || durationValue <= 0) {
+      $('c-error').textContent = 'Informe um valor de duração válido.';
+      $('c-error').style.display = 'block';
+      return;
+    }
+  } else {
+    durationValue = selectedDuration;
+    durationUnit = 'days';
+  }
+
   const body = {
     code: $('c-code').value.trim() || null,
     customer_name: $('c-name').value.trim() || null,
-    device_limit: parseInt($('c-limit').value) || 3,
-    duration_unit: $('c-duration-unit').value,
-    duration_value: parseInt($('c-duration-value').value) || null,
+    customer_contact: $('c-contact').value.trim() || null,
+    plan_type: selectedPlan,
+    device_limit: 1,
+    duration_unit: durationUnit,
+    duration_value: durationValue,
     notes: $('c-notes').value.trim() || null,
   };
-  if (body.duration_unit !== 'forever' && (!body.duration_value || body.duration_value <= 0)) {
-    $('c-error').textContent = 'Informe um valor de duração válido (ou escolha "Sem expiração").';
-    $('c-error').style.display = 'block';
-    return;
-  }
+
   try {
     const res = await api('/admin/tokens', { method: 'POST', body });
     closeModal('create');
-    // Mostra o resultado
     $('r-code').textContent = res.code;
     const lines = [];
-    if (res.customer_name) lines.push(`Usuário: <strong style="color: var(--text)">${res.customer_name}</strong>`);
+    if (res.customer_name) lines.push(`👤 <strong>${res.customer_name}</strong>`);
+    lines.push(`📦 Plano: <strong style="color: ${res.plan_type === 'professional' ? 'var(--purple)' : 'var(--blue)'};">${res.plan_type === 'professional' ? 'Profissional' : 'Essencial'}</strong>`);
     if (res.expires_at) {
       const exp = new Date(res.expires_at);
-      lines.push(`Expira em: <strong style="color: var(--gold)">${exp.toLocaleString('pt-BR')}</strong>`);
-    } else {
-      lines.push(`<strong style="color: var(--blue)">Sem expiração</strong>`);
+      lines.push(`⏱ Expira em: <strong style="color: var(--gold)">${exp.toLocaleDateString('pt-BR')}</strong>`);
     }
     $('r-info').innerHTML = lines.join('<br>');
     openModal('result');
@@ -847,18 +928,33 @@ $('r-code').addEventListener('click', async () => {
 
 // Edit
 let editingId = null;
+let editingPlan = 'essential';
 function openEdit(t) {
   editingId = t._id;
-  $('e-name').value = t.customer_name || '';
-  $('e-limit').value = t.device_limit || 3;
+  editingPlan = t.plan_type || (t.plano === 'profissional' ? 'professional' : 'essential');
+  $('e-name').value = t.customer_name || t.nome_usuario || '';
+  $('e-contact').value = t.customer_contact || t.email_compra || '';
   $('e-notes').value = t.notes || '';
+  document.querySelectorAll('#e-plan-selector .plan-option').forEach(p => {
+    p.classList.toggle('selected', p.dataset.plan === editingPlan);
+  });
   openModal('edit');
 }
+
+document.querySelectorAll('#e-plan-selector .plan-option').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('#e-plan-selector .plan-option').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+    editingPlan = el.dataset.plan;
+  });
+});
+
 $('e-save').addEventListener('click', async () => {
   if (!editingId) return;
   const body = {
     customer_name: $('e-name').value.trim() || null,
-    device_limit: parseInt($('e-limit').value) || 3,
+    customer_contact: $('e-contact').value.trim() || null,
+    plan_type: editingPlan,
     notes: $('e-notes').value.trim() || null,
   };
   try {
@@ -871,7 +967,6 @@ $('e-save').addEventListener('click', async () => {
   }
 });
 
-// Auto-refresh a cada 30s pra detectar mudanças (devices conectando, etc)
 setInterval(() => {
   if (ADMIN_TOKEN && $('app-view').style.display !== 'none') {
     refresh().catch(() => {});

@@ -13,6 +13,14 @@ export interface PlanFeatures {
   smart_chords: boolean;
 }
 
+// FASE 2: Info de device mismatch
+export interface DeviceMismatchInfo {
+  canSwap: boolean;
+  swapBlockedReason: string | null;
+  resetCount: number;
+  maxAutoResets: number;
+}
+
 export interface SessionInfo {
   session: string;
   token_id: string;
@@ -29,7 +37,10 @@ export interface AuthContextValue {
   errorMessage: string | null;
   lastReason: string | null;
   hasSavedToken: boolean;
+  deviceMismatchInfo: DeviceMismatchInfo | null;
+  pendingTokenForSwap: string | null;
   activate: (code?: string) => Promise<{ ok: boolean; reason?: string | null }>;
+  swapDevice: () => Promise<{ ok: boolean; reason?: string }>;
   logout: () => Promise<void>;
   forgetDevice: () => Promise<void>;
   clearError: () => void;
@@ -85,6 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [lastReason, setLastReason] = useState<string | null>(null);
   const [hasSavedToken, setHasSavedToken] = useState(false);
+  const [deviceMismatchInfo, setDeviceMismatchInfo] = useState<DeviceMismatchInfo | null>(null);
+  const [pendingTokenForSwap, setPendingTokenForSwap] = useState<string | null>(null);
   const boot = useRef(false);
 
   const loadAndRevalidate = async () => {
@@ -252,9 +265,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loadAndRevalidate();
   };
 
+  // FASE 2: Função para trocar dispositivo
+  const swapDevice = async (): Promise<{ ok: boolean; reason?: string }> => {
+    if (!pendingTokenForSwap) {
+      return { ok: false, reason: 'no_pending_token' };
+    }
+
+    const base = getBackendUrl();
+    if (!base) {
+      return { ok: false, reason: 'no_backend' };
+    }
+
+    try {
+      const deviceId = await getDeviceId();
+      const res = await fetch(`${base}/api/auth/swap-device`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: pendingTokenForSwap,
+          new_device_id: deviceId,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data?.ok) {
+        const reason = data?.reason || 'unknown';
+        setErrorMessage(data?.message || reasonToMessage(reason));
+        return { ok: false, reason };
+      }
+
+      // Swap bem sucedido - criar sessão
+      const s: SessionInfo = {
+        session: data.session,
+        token_id: '',
+        expires_at: data.expires_at,
+        customer_name: data.customer_name,
+        plano: data.plano,
+        features: data.features,
+      };
+      await storage.setItem(SESSION_KEY, JSON.stringify(s));
+      await storage.setItem(TOKEN_KEY, pendingTokenForSwap);
+      setSession(s);
+      setStatus('authenticated');
+      setDeviceMismatchInfo(null);
+      setPendingTokenForSwap(null);
+      setErrorMessage(null);
+      setLastReason(null);
+      return { ok: true };
+    } catch (err: any) {
+      const reason = 'network';
+      setErrorMessage(reasonToMessage(reason));
+      return { ok: false, reason };
+    }
+  };
+
   const value: AuthContextValue = {
     status, session, errorMessage, lastReason, hasSavedToken,
-    activate, logout, forgetDevice, clearError, retryRevalidate,
+    deviceMismatchInfo, pendingTokenForSwap,
+    activate, swapDevice, logout, forgetDevice, clearError, retryRevalidate,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

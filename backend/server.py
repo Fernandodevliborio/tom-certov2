@@ -65,7 +65,9 @@ class RevalidateRequest(BaseModel):
 class TokenCreate(BaseModel):
     code: Optional[str] = None        # opcional: se vazio, auto-gera
     customer_name: Optional[str] = None
-    device_limit: int = 3
+    customer_contact: Optional[str] = None  # WhatsApp ou email
+    plan_type: Optional[str] = "essential"  # essential | professional
+    device_limit: int = 1             # FASE 2: 1 dispositivo por token
     duration_minutes: Optional[int] = None   # legado — soma com duration_value abaixo
     duration_value: Optional[int] = None     # novo: 1, 30, 7, etc
     duration_unit: Optional[str] = None      # novo: 'minutes' | 'hours' | 'days' | 'months' | 'forever'
@@ -74,8 +76,19 @@ class TokenCreate(BaseModel):
 class TokenUpdate(BaseModel):
     active: Optional[bool] = None
     customer_name: Optional[str] = None
+    customer_contact: Optional[str] = None
+    plan_type: Optional[str] = None
     device_limit: Optional[int] = None
     notes: Optional[str] = None
+    # FASE 2: campos de reset de dispositivo (admin)
+    device_id: Optional[str] = None
+    reset_count: Optional[int] = None
+
+# FASE 2: Request para troca de dispositivo
+class DeviceSwapRequest(BaseModel):
+    token: str
+    new_device_id: str
+    new_device_name: Optional[str] = None
 
 # ─── Admin Auth (Username + Password + JWT) ─────────────────────────────
 ADMIN_KEY = os.environ.get('ADMIN_KEY', 'tomcerto-admin-2026')  # legacy fallback
@@ -190,17 +203,62 @@ async def validate_token(body: ValidateRequest):
             if datetime.now(timezone.utc) > expires_at.replace(tzinfo=timezone.utc):
                 return JSONResponse({"valid": False, "reason": "expired"}, status_code=200)
 
-    # Verificação de dispositivo
-    active_devices: list = token_doc.get("active_devices", [])
-    device_limit: int = token_doc.get("device_limit", 3)
-
-    if device_id not in active_devices:
-        if len(active_devices) >= device_limit:
-            return JSONResponse({"valid": False, "reason": "device_limit"}, status_code=200)
-        active_devices.append(device_id)
+    # ═══════════════════════════════════════════════════════════════════════
+    # FASE 2: CONTROLE DE DISPOSITIVO ÚNICO
+    # ═══════════════════════════════════════════════════════════════════════
+    stored_device_id = token_doc.get("device_id")
+    reset_count = token_doc.get("reset_count", 0)
+    max_auto_resets = token_doc.get("max_auto_resets", 2)
+    auto_reset_cooldown_days = token_doc.get("auto_reset_cooldown_days", 30)
+    last_device_reset_at = token_doc.get("last_device_reset_at")
+    
+    # Se não tem dispositivo vinculado → vincula o atual (primeiro login)
+    if not stored_device_id:
+        now = datetime.now(timezone.utc)
         await db.tokens.update_one(
             {"_id": token_doc["_id"]},
-            {"$set": {"active_devices": active_devices, "last_used_at": datetime.now(timezone.utc)}}
+            {"$set": {
+                "device_id": device_id,
+                "device_linked_at": now,
+                "first_used_at": token_doc.get("first_used_at") or now,
+                "last_used_at": now,
+                "active_devices": [device_id],
+            }}
+        )
+        logger.info(f"[Auth] Primeiro login - device vinculado: code={code[:4]}*** device={device_id[:8]}...")
+    
+    # Se o dispositivo é diferente do vinculado → BLOQUEAR
+    elif stored_device_id != device_id:
+        # Verifica se pode fazer auto-troca
+        can_swap = False
+        swap_blocked_reason = None
+        
+        if reset_count >= max_auto_resets:
+            swap_blocked_reason = "swap_limit_reached"
+        elif last_device_reset_at:
+            cooldown_end = last_device_reset_at + timedelta(days=auto_reset_cooldown_days)
+            if datetime.now(timezone.utc) < cooldown_end:
+                days_remaining = (cooldown_end - datetime.now(timezone.utc)).days
+                swap_blocked_reason = f"cooldown_active:{days_remaining}"
+            else:
+                can_swap = True
+        else:
+            can_swap = True
+        
+        return JSONResponse({
+            "valid": False,
+            "reason": "device_mismatch",
+            "can_swap": can_swap,
+            "swap_blocked_reason": swap_blocked_reason,
+            "reset_count": reset_count,
+            "max_auto_resets": max_auto_resets,
+        }, status_code=200)
+    
+    # Dispositivo correto → atualiza last_used_at
+    else:
+        await db.tokens.update_one(
+            {"_id": token_doc["_id"]},
+            {"$set": {"last_used_at": datetime.now(timezone.utc)}}
         )
 
     token_id = str(token_doc["_id"])
@@ -268,6 +326,113 @@ async def revalidate_session(body: RevalidateRequest):
         "expires_at": expires_at_str,
         "plano": plano,
         "features": features,
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FASE 2: TROCA DE DISPOSITIVO (Auto-swap pelo usuário)
+# ═══════════════════════════════════════════════════════════════════════════
+@api_router.post("/auth/swap-device")
+async def swap_device(body: DeviceSwapRequest):
+    """
+    Permite ao usuário transferir o acesso para um novo dispositivo.
+    Regras anti-fraude:
+    - Máximo de 2 trocas automáticas durante a validade do token
+    - Mínimo de 30 dias entre trocas
+    """
+    code = body.token.strip().upper()
+    new_device_id = body.new_device_id.strip()
+    new_device_name = body.new_device_name
+    
+    if not code or not new_device_id:
+        return JSONResponse({"ok": False, "reason": "invalid_request"}, status_code=400)
+    
+    # Busca o token
+    token_doc = await db.tokens.find_one({
+        "$or": [{"token": code}, {"code": code}]
+    })
+    
+    if not token_doc:
+        return JSONResponse({"ok": False, "reason": "not_found"}, status_code=200)
+    
+    # Verifica se está ativo
+    if not token_doc.get("active", True):
+        return JSONResponse({"ok": False, "reason": "revoked"}, status_code=200)
+    
+    # Verifica expiração
+    expires_at = token_doc.get("expires_at")
+    if expires_at:
+        exp_dt = expires_at if isinstance(expires_at, datetime) else datetime.fromisoformat(str(expires_at).replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) > exp_dt.replace(tzinfo=timezone.utc):
+            return JSONResponse({"ok": False, "reason": "expired"}, status_code=200)
+    
+    # Verifica limites de troca
+    reset_count = token_doc.get("reset_count", 0)
+    max_auto_resets = token_doc.get("max_auto_resets", 2)
+    auto_reset_cooldown_days = token_doc.get("auto_reset_cooldown_days", 30)
+    last_device_reset_at = token_doc.get("last_device_reset_at")
+    
+    if reset_count >= max_auto_resets:
+        return JSONResponse({
+            "ok": False,
+            "reason": "swap_limit_reached",
+            "message": "Limite de troca atingido. Fale com o suporte para liberar seu acesso.",
+        }, status_code=200)
+    
+    if last_device_reset_at:
+        cooldown_end = last_device_reset_at + timedelta(days=auto_reset_cooldown_days)
+        if datetime.now(timezone.utc) < cooldown_end:
+            days_remaining = (cooldown_end - datetime.now(timezone.utc)).days
+            return JSONResponse({
+                "ok": False,
+                "reason": "cooldown_active",
+                "message": f"Você poderá trocar de dispositivo em {days_remaining} dias.",
+                "days_remaining": days_remaining,
+            }, status_code=200)
+    
+    # Realiza a troca
+    now = datetime.now(timezone.utc)
+    old_device_id = token_doc.get("device_id")
+    
+    await db.tokens.update_one(
+        {"_id": token_doc["_id"]},
+        {"$set": {
+            "device_id": new_device_id,
+            "device_name": new_device_name,
+            "device_linked_at": now,
+            "reset_count": reset_count + 1,
+            "last_device_reset_at": now,
+            "last_used_at": now,
+            "active_devices": [new_device_id],
+            "updated_at": now,
+        }}
+    )
+    
+    logger.info(f"[Auth] Device swap: code={code[:4]}*** old={old_device_id[:8] if old_device_id else 'none'}... new={new_device_id[:8]}... reset_count={reset_count + 1}")
+    
+    # Gera nova sessão para o novo dispositivo
+    token_id = str(token_doc["_id"])
+    customer_name = token_doc.get("customer_name") or token_doc.get("nome_usuario")
+    duration_minutes = token_doc.get("duration_minutes")
+    expires_at_str = expires_at.isoformat() if isinstance(expires_at, datetime) else expires_at
+    
+    session = create_session_token(token_id, new_device_id, customer_name, duration_minutes, expires_at_str)
+    
+    # Obter plano e features
+    plano_raw = token_doc.get("plano", "essencial")
+    plano = normalize_plan(plano_raw)
+    features = get_plan_features(plano)
+    
+    return JSONResponse({
+        "ok": True,
+        "message": "Dispositivo transferido com sucesso!",
+        "session": session,
+        "customer_name": customer_name,
+        "plano": plano,
+        "features": features,
+        "expires_at": expires_at_str,
+        "reset_count": reset_count + 1,
+        "max_auto_resets": max_auto_resets,
     })
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -809,19 +974,46 @@ async def create_token(body: TokenCreate, request: Request):
             raise HTTPException(409, "Token já existe com esse código")
 
     duration_minutes = _compute_duration_minutes(body)
+    
+    # Normalizar plan_type
+    plan_type = (body.plan_type or "essential").lower()
+    if plan_type not in ("essential", "professional"):
+        plan_type = "essential"
+    
+    # Mapear plan_type para plano interno
+    plano = "essencial" if plan_type == "essential" else "profissional"
+    
     doc = {
         "code": code,
+        "token": code,  # compatibilidade
         "customer_name": body.customer_name,
-        "device_limit": body.device_limit,
+        "nome_usuario": body.customer_name,  # compatibilidade
+        "customer_contact": body.customer_contact,
+        "plan_type": plan_type,
+        "plano": plano,
+        "device_limit": body.device_limit or 1,  # FASE 2: 1 dispositivo por padrão
+        "max_devices": body.device_limit or 1,
         "active_devices": [],
         "active": True,
+        "status": "ativo",
         "created_at": datetime.now(timezone.utc),
         "expires_at": None,
         "duration_minutes": duration_minutes,
         "notes": body.notes,
+        # FASE 2: Campos de controle de dispositivo
+        "device_id": None,
+        "device_name": None,
+        "device_linked_at": None,
+        "reset_count": 0,
+        "last_device_reset_at": None,
+        "max_auto_resets": 2,  # Máximo de trocas automáticas durante validade
+        "auto_reset_cooldown_days": 30,  # Mínimo 30 dias entre trocas
+        "last_used_at": None,
+        "first_used_at": None,
     }
     if duration_minutes:
         doc["expires_at"] = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+        doc["duration_days"] = round(duration_minutes / 1440)
 
     result = await db.tokens.insert_one(doc)
     expires_at_iso = doc["expires_at"].isoformat() if doc["expires_at"] else None
@@ -830,6 +1022,9 @@ async def create_token(body: TokenCreate, request: Request):
         "token_id": str(result.inserted_id),
         "code": code,
         "customer_name": body.customer_name,
+        "customer_contact": body.customer_contact,
+        "plan_type": plan_type,
+        "plano": plano,
         "expires_at": expires_at_iso,
         "duration_minutes": duration_minutes,
     })
@@ -857,12 +1052,31 @@ async def update_token(token_id: str, body: TokenUpdate, request: Request):
     update = {}
     if body.active is not None:
         update["active"] = body.active
+        update["status"] = "ativo" if body.active else "cancelado"
     if body.customer_name is not None:
         update["customer_name"] = body.customer_name
+        update["nome_usuario"] = body.customer_name
+    if body.customer_contact is not None:
+        update["customer_contact"] = body.customer_contact
+    if body.plan_type is not None:
+        plan_type = body.plan_type.lower()
+        if plan_type in ("essential", "professional"):
+            update["plan_type"] = plan_type
+            update["plano"] = "essencial" if plan_type == "essential" else "profissional"
     if body.device_limit is not None:
         update["device_limit"] = body.device_limit
+        update["max_devices"] = body.device_limit
     if body.notes is not None:
         update["notes"] = body.notes
+    # FASE 2: Admin pode resetar dispositivo manualmente
+    if body.device_id is not None:
+        update["device_id"] = body.device_id if body.device_id else None
+        if not body.device_id:
+            # Reset completo
+            update["device_name"] = None
+            update["device_linked_at"] = None
+    if body.reset_count is not None:
+        update["reset_count"] = body.reset_count
     if not update:
         raise HTTPException(400, "Nada para atualizar")
     update["updated_at"] = datetime.now(timezone.utc)
@@ -870,6 +1084,33 @@ async def update_token(token_id: str, body: TokenUpdate, request: Request):
     if result.matched_count == 0:
         raise HTTPException(404, "Token não encontrado")
     return JSONResponse({"ok": True})
+
+
+# FASE 2: Reset de dispositivo pelo admin
+@api_router.post("/admin/tokens/{token_id}/reset-device")
+async def admin_reset_device(token_id: str, request: Request):
+    """Admin pode resetar o dispositivo vinculado a qualquer momento."""
+    verify_admin(request)
+    try:
+        oid = ObjectId(token_id)
+    except Exception:
+        raise HTTPException(400, "token_id inválido")
+    
+    result = await db.tokens.update_one(
+        {"_id": oid},
+        {"$set": {
+            "device_id": None,
+            "device_name": None,
+            "device_linked_at": None,
+            "active_devices": [],
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(404, "Token não encontrado")
+    
+    logger.info(f"[Admin] Device reset para token_id={token_id}")
+    return JSONResponse({"ok": True, "message": "Dispositivo desvinculado com sucesso"})
 
 @api_router.post("/admin/tokens/{token_id}/clear-devices")
 async def clear_devices(token_id: str, request: Request):
