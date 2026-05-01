@@ -60,8 +60,8 @@ HOP_LENGTH = int(SAMPLE_RATE * HOP_MS / 1000)
 MODEL_CAPACITY = 'tiny'
 F0_MIN = 65.0
 F0_MAX = 1000.0
-CONFIDENCE_THRESHOLD = 0.50
-MIN_NOTE_DUR_MS = 80  # REDUZIDO de 100 para captar mais notas
+CONFIDENCE_THRESHOLD = 0.35  # REDUZIDO de 0.50 para captar mais frames
+MIN_NOTE_DUR_MS = 50  # REDUZIDO de 80 para captar notas mais curtas
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -124,8 +124,9 @@ def extract_f0_with_crepe(audio: np.ndarray, sr: int = SAMPLE_RATE) -> Tuple[np.
         audio_t, sr, HOP_LENGTH, F0_MIN, F0_MAX, MODEL_CAPACITY,
         batch_size=512, device=DEVICE, return_periodicity=True,
     )
-    confidence = torchcrepe.filter.median(confidence, 3)
-    pitch = torchcrepe.filter.mean(pitch, 3)
+    # Filtros de suavização mais fortes
+    confidence = torchcrepe.filter.median(confidence, 5)  # Aumentado de 3 para 5
+    pitch = torchcrepe.filter.mean(pitch, 5)  # Aumentado de 3 para 5
     pitch_np = pitch[0].cpu().numpy()
     conf_np = confidence[0].cpu().numpy()
     pitch_np = np.where(conf_np >= CONFIDENCE_THRESHOLD, pitch_np, np.nan)
@@ -139,15 +140,18 @@ def f0_to_midi(f0: np.ndarray) -> np.ndarray:
 
 
 def segment_notes(midi: np.ndarray, conf: np.ndarray, hop_ms: float = HOP_MS) -> List[Note]:
+    """Segmenta MIDI em notas, com tolerância para gaps curtos."""
     notes: List[Note] = []
     current_pc: Optional[int] = None
     current_midi_sum = 0.0
     current_conf_sum = 0.0
     current_frames = 0
     start_frame = 0
+    gap_frames = 0  # Contador de gaps
+    MAX_GAP_FRAMES = 3  # Tolerância de 30ms de gap
 
     def flush(end_frame: int):
-        nonlocal current_pc, current_midi_sum, current_conf_sum, current_frames
+        nonlocal current_pc, current_midi_sum, current_conf_sum, current_frames, gap_frames
         if current_pc is None or current_frames == 0:
             return
         dur_ms = current_frames * hop_ms
@@ -163,29 +167,42 @@ def segment_notes(midi: np.ndarray, conf: np.ndarray, hop_ms: float = HOP_MS) ->
         current_midi_sum = 0.0
         current_conf_sum = 0.0
         current_frames = 0
+        gap_frames = 0
 
     for i, m in enumerate(midi):
         if np.isnan(m):
-            flush(i)
+            gap_frames += 1
+            # Se gap for muito longo, flush a nota atual
+            if gap_frames > MAX_GAP_FRAMES:
+                flush(i)
             continue
+        
         pc = int(round(m)) % 12
+        
         if current_pc is None:
+            # Início de nova nota
             current_pc = pc
             start_frame = i
             current_midi_sum = float(m)
             current_conf_sum = float(conf[i])
             current_frames = 1
+            gap_frames = 0
         elif pc == current_pc:
+            # Mesma nota - incluir os frames de gap se houver
             current_midi_sum += float(m)
             current_conf_sum += float(conf[i])
-            current_frames += 1
+            current_frames += 1 + gap_frames  # Incluir gap como parte da nota
+            gap_frames = 0
         else:
+            # Nova nota diferente
             flush(i)
             current_pc = pc
             start_frame = i
             current_midi_sum = float(m)
             current_conf_sum = float(conf[i])
             current_frames = 1
+            gap_frames = 0
+    
     flush(len(midi))
     return notes
 
