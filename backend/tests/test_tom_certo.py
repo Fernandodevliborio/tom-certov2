@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://credentials-deploy-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('EXPO_PUBLIC_BACKEND_URL', 'https://backend-verify-16.preview.emergentagent.com')
 TEST_TOKEN = "TEST-DEV2026"
 TEST_DEVICE = "test-device-pytest-001"
 
