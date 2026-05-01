@@ -627,6 +627,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
 
   return (
     <View testID="active-screen" style={ss.activeRoot}>
+      {/* ═══ HEADER: Logo, Nome, Status ═══ */}
       <View style={ss.activeHeader}>
         <View style={ss.brandRow}>
           <Image
@@ -637,7 +638,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           <View style={ss.brandTextWrap}>
             <Text style={ss.headerBrand} numberOfLines={1}>Tom Certo</Text>
             <Text style={ss.headerVersion} numberOfLines={1}>
-              v3.5.0 · {(Updates.updateId ?? 'embedded').slice(0, 8)}
+              v3.6.0
             </Text>
           </View>
         </View>
@@ -652,66 +653,9 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ss.scrollPad}>
-        <View style={ss.noteHero}>
-          <View style={ss.noteHeroTopRow}>
-            <Text style={ss.noteHeroLabel}>NOTA EM TEMPO REAL</Text>
-            <AudioVisualizer level={audioLevel} active={isRunning} height={24} bars={5} />
-          </View>
-          <Animated.View style={[ss.noteHeroBox, { opacity: noteOpacity }]}>
-            {currentNote !== null ? (
-              <>
-                <Text
-                  testID="current-note"
-                  style={ss.noteHeroTxt}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.55}
-                >
-                  {NOTES_BR[currentNote]}
-                </Text>
-                <Text style={ss.noteHeroIntl}>{NOTES_INTL[currentNote]}</Text>
-              </>
-            ) : (
-              <View style={ss.listeningHero}>
-                <Text style={ss.listeningTitle}>
-                  {stableState.internalStage === 'listening' ? 'Ouvindo' : 'Analisando'}
-                </Text>
-                <Text style={ss.listeningSub}>
-                  {stableState.internalStage === 'listening' 
-                    ? 'Cante ou toque — o app está captando'
-                    : 'Verificando estabilidade do tom…'}
-                </Text>
-              </View>
-            )}
-          </Animated.View>
-        </View>
-
-        <View style={ss.section}>
-          <Text style={ss.sectionLabel}>HISTÓRICO</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={ss.historyRow}
-            style={ss.historyScroll}
-          >
-            {recentNotes.length === 0
-              ? <Text style={ss.historyEmpty}>— aguardando primeiras notas —</Text>
-              : recentNotes.map((pc, i) => {
-                  const latest = i === recentNotes.length - 1;
-                  return (
-                    <View key={i} style={[ss.historyChip, latest && ss.historyChipActive]}>
-                      <Text style={[ss.historyChipTxt, latest && ss.historyChipTxtActive]}>
-                        {NOTES_BR[pc]}
-                      </Text>
-                    </View>
-                  );
-                })
-            }
-          </ScrollView>
-        </View>
-
+        
+        {/* ═══ ÁREA PRINCIPAL: Tom Detectado + Confiança ═══ */}
         <View style={ss.keyCardSlot}>
-          {/* Só mostra tom quando TRAVADO (nunca mostra hipóteses fracas) */}
           {showKey && displayKey ? (
             <View testID="key-card" style={[ss.keyCard, ss.keyCardConfirmed]}>
               <View style={ss.keyCardHeader}>
@@ -731,7 +675,6 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               <ConfidenceBar pct={confPct} color={confColor} />
             </View>
           ) : isRunning ? (
-            // Card de "ouvindo/analisando" - SEM mostrar hipóteses fracas
             <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
               <View style={ss.keyCardHeader}>
                 <View style={[ss.keyCardBadge, { borderColor: C.amberBorder }]}>
@@ -747,7 +690,6 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   ? 'Identificando padrão tonal…'
                   : 'Confirmando detecção…'}
               </Text>
-              {/* Indicador de progresso discreto */}
               {(stableState.internalStage === 'candidate' || stableState.internalStage === 'stableCandidate') && (
                 <View style={ss.analysisProgress}>
                   <View style={ss.analysisProgressBar}>
@@ -762,85 +704,128 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           ) : null}
         </View>
 
-        {/* ═══ BOTÃO NOVA DETECÇÃO ═══ */}
-        {showKey && displayKey && (
-          <TouchableOpacity
-            testID="new-detection-btn"
-            style={ss.newDetectionBtn}
-            onPress={resetDetectionSession}
-            activeOpacity={0.7}
-            disabled={isResetting}
-          >
-            {isResetting ? (
-              <>
-                <ActivityIndicator size="small" color={C.amber} style={{ marginRight: 8 }} />
-                <Text style={ss.newDetectionTxt}>Reiniciando análise…</Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="refresh" size={16} color={C.text2} style={{ marginRight: 6 }} />
-                <Text style={ss.newDetectionTxt}>Nova Detecção</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
+        {/* ═══ BOTÃO NOVA DETECÇÃO — SEMPRE VISÍVEL ═══ */}
+        <TouchableOpacity
+          testID="new-detection-btn"
+          style={ss.newDetectionBtn}
+          onPress={resetDetectionSession}
+          activeOpacity={0.7}
+          disabled={isResetting}
+        >
+          {isResetting ? (
+            <>
+              <ActivityIndicator size="small" color={C.amber} style={{ marginRight: 8 }} />
+              <Text style={ss.newDetectionTxt}>Reiniciando análise…</Text>
+            </>
+          ) : (
+            <>
+              <Ionicons name="refresh" size={16} color={C.amber} style={{ marginRight: 6 }} />
+              <Text style={[ss.newDetectionTxt, { color: C.amber }]}>Nova Detecção</Text>
+            </>
+          )}
+        </TouchableOpacity>
 
-        {/* NÃO mostra "possível mudança" - análise é silenciosa */}
-
-        {/* CAMPO HARMÔNICO — Versão compacta ou expandida */}
+        {/* ═══ FAIXA COMPACTA: Campo Harmônico ═══ */}
         {showKey && displayKey && harmonicField.length > 0 && (
-          <>
-            {/* Botão para expandir/retrair */}
-            <TouchableOpacity 
-              style={ss.smartChordsToggle}
-              onPress={() => setShowSmartChords(!showSmartChords)}
-              activeOpacity={0.7}
+          <View style={ss.harmonicStrip}>
+            <View style={ss.harmonicStripHeader}>
+              <Text style={ss.harmonicStripTitle}>CAMPO HARMÔNICO</Text>
+              <TouchableOpacity 
+                style={ss.diagramsBtn}
+                onPress={() => setShowSmartChords(!showSmartChords)}
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name={showSmartChords ? 'chevron-up' : 'apps-outline'} 
+                  size={14} 
+                  color={C.amber} 
+                />
+                <Text style={ss.diagramsBtnTxt}>
+                  {showSmartChords ? 'Ocultar' : 'Diagramas'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={ss.harmonicChipsRow}
             >
-              <View style={ss.smartChordsToggleLeft}>
-                <Ionicons 
-                  name={showSmartChords ? 'musical-notes' : 'musical-notes-outline'} 
-                  size={18} 
-                  color={showSmartChords ? C.amber : C.text2} 
-                />
-                <Text style={[ss.smartChordsToggleText, showSmartChords && ss.smartChordsToggleTextActive]}>
-                  {showSmartChords ? 'ACORDES INTELIGENTES' : 'CAMPO HARMÔNICO'}
-                </Text>
-              </View>
-              <View style={ss.smartChordsToggleRight}>
-                <Text style={ss.smartChordsToggleHint}>
-                  {showSmartChords ? 'Retrair' : 'Ver diagramas'}
-                </Text>
-                <Ionicons 
-                  name={showSmartChords ? 'chevron-up' : 'chevron-down'} 
-                  size={16} 
-                  color={C.text3} 
-                />
-              </View>
-            </TouchableOpacity>
-
-            {showSmartChords ? (
-              /* MODO EXPANDIDO: Acordes Inteligentes */
-              <SmartChordsMode
-                tonic={displayKey.tonic}
-                quality={displayKey.quality}
-                currentNote={currentNote}
-              />
-            ) : (
-              /* MODO COMPACTO: Grid simples */
-              <View style={ss.section}>
-                <View style={ss.chordGrid}>
-                  {harmonicField.map((chord, i) => (
-                    <View key={i} style={[ss.chordCard, chord.isTonic && ss.chordCardTonic]}>
-                      <Text style={ss.chordDegree}>{degreeLabel(i, displayKey.quality)}</Text>
-                      <Text style={[ss.chordName, chord.isTonic && ss.chordNameTonic]}>{chord.label}</Text>
-                      <Text style={ss.chordIntl}>{chordIntlLabel(chord.root, chord.quality)}</Text>
-                    </View>
-                  ))}
+              {harmonicField.map((chord, i) => (
+                <View 
+                  key={i} 
+                  style={[
+                    ss.harmonicChip, 
+                    chord.isTonic && ss.harmonicChipTonic,
+                    currentNote !== null && chord.root === currentNote && ss.harmonicChipActive,
+                  ]}
+                >
+                  <Text style={ss.harmonicChipDegree}>{degreeLabel(i, displayKey.quality)}</Text>
+                  <Text style={[
+                    ss.harmonicChipName, 
+                    chord.isTonic && ss.harmonicChipNameTonic,
+                    currentNote !== null && chord.root === currentNote && ss.harmonicChipNameActive,
+                  ]}>
+                    {chord.label}
+                  </Text>
                 </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ═══ ACORDES INTELIGENTES (Expandido) ═══ */}
+        {showSmartChords && showKey && displayKey && (
+          <SmartChordsMode
+            tonic={displayKey.tonic}
+            quality={displayKey.quality}
+            currentNote={currentNote}
+          />
+        )}
+
+        {/* ═══ NOTAS INTELIGENTES EM TEMPO REAL ═══ */}
+        <View style={ss.liveNotesSection}>
+          <View style={ss.liveNotesHeader}>
+            <Text style={ss.liveNotesTitle}>NOTAS EM TEMPO REAL</Text>
+            <AudioVisualizer level={audioLevel} active={isRunning} height={20} bars={4} />
+          </View>
+          
+          <Animated.View style={[ss.liveNoteDisplay, { opacity: noteOpacity }]}>
+            {currentNote !== null ? (
+              <View style={ss.liveNoteActive}>
+                <Text style={ss.liveNoteMain}>{NOTES_BR[currentNote]}</Text>
+                <Text style={ss.liveNoteIntl}>{NOTES_INTL[currentNote]}</Text>
+              </View>
+            ) : (
+              <View style={ss.liveNoteEmpty}>
+                <Ionicons name="mic-outline" size={24} color={C.text3} />
+                <Text style={ss.liveNoteEmptyTxt}>
+                  {isRunning ? 'Ouvindo…' : 'Aguardando'}
+                </Text>
               </View>
             )}
-          </>
-        )}
+          </Animated.View>
+
+          {/* Últimas notas captadas (mini-histórico) */}
+          {recentNotes.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={ss.recentNotesRow}
+            >
+              {recentNotes.slice(-8).map((pc, i) => {
+                const latest = i === recentNotes.slice(-8).length - 1;
+                return (
+                  <View key={i} style={[ss.recentNoteChip, latest && ss.recentNoteChipLatest]}>
+                    <Text style={[ss.recentNoteTxt, latest && ss.recentNoteTxtLatest]}>
+                      {NOTES_BR[pc]}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+
       </ScrollView>
     </View>
   );
@@ -1387,18 +1372,173 @@ const ss = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: C.surface,
+    backgroundColor: 'rgba(255,176,32,0.08)',
     borderRadius: 10,
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginTop: 12,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: C.border,
+    borderColor: 'rgba(255,176,32,0.25)',
   },
   newDetectionTxt: {
-    fontFamily: 'Manrope_500Medium',
+    fontFamily: 'Manrope_600SemiBold',
     fontSize: 13,
     color: C.text2,
     letterSpacing: 0.3,
+  },
+
+  // ═══ FAIXA COMPACTA: Campo Harmônico ═══
+  harmonicStrip: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  harmonicStripHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  harmonicStripTitle: {
+    fontFamily: 'Outfit_600SemiBold',
+    fontSize: 11,
+    color: C.text3,
+    letterSpacing: 1,
+  },
+  diagramsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,176,32,0.1)',
+  },
+  diagramsBtnTxt: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 11,
+    color: C.amber,
+  },
+  harmonicChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  harmonicChip: {
+    backgroundColor: C.bg,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: C.border,
+    minWidth: 48,
+  },
+  harmonicChipTonic: {
+    backgroundColor: C.amberMuted,
+    borderColor: C.amberBorder,
+  },
+  harmonicChipActive: {
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderColor: 'rgba(16,185,129,0.4)',
+  },
+  harmonicChipDegree: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 9,
+    color: C.text3,
+    letterSpacing: 0.5,
+  },
+  harmonicChipName: {
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 14,
+    color: C.white,
+    marginTop: 2,
+  },
+  harmonicChipNameTonic: {
+    color: C.amber,
+  },
+  harmonicChipNameActive: {
+    color: C.green,
+  },
+
+  // ═══ NOTAS INTELIGENTES EM TEMPO REAL ═══
+  liveNotesSection: {
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  liveNotesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  liveNotesTitle: {
+    fontFamily: 'Outfit_600SemiBold',
+    fontSize: 11,
+    color: C.text3,
+    letterSpacing: 1,
+  },
+  liveNoteDisplay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 80,
+  },
+  liveNoteActive: {
+    alignItems: 'center',
+  },
+  liveNoteMain: {
+    fontFamily: 'Outfit_700Bold',
+    fontSize: 48,
+    color: C.white,
+    letterSpacing: -1,
+  },
+  liveNoteIntl: {
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 14,
+    color: C.text2,
+    marginTop: 2,
+  },
+  liveNoteEmpty: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  liveNoteEmptyTxt: {
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 13,
+    color: C.text3,
+  },
+  recentNotesRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+  },
+  recentNoteChip: {
+    backgroundColor: C.bg,
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  recentNoteChipLatest: {
+    backgroundColor: 'rgba(255,176,32,0.12)',
+    borderColor: 'rgba(255,176,32,0.3)',
+  },
+  recentNoteTxt: {
+    fontFamily: 'Outfit_600SemiBold',
+    fontSize: 12,
+    color: C.text3,
+  },
+  recentNoteTxtLatest: {
+    color: C.amber,
   },
 });
