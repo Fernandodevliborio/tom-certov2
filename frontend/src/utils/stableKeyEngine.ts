@@ -108,48 +108,48 @@ export interface StableKeyState {
 
 const CONFIG = {
   // Mínimo de análises consecutivas antes de considerar candidato
-  MIN_HITS_FOR_CANDIDATE: 2,
+  MIN_HITS_FOR_CANDIDATE: 1,  // REDUZIDO de 2 para 1
   
   // Mínimo de análises consecutivas para candidato estável
-  MIN_HITS_FOR_STABLE: 2,  // Reduzido de 3 para detectar mais rápido
+  MIN_HITS_FOR_STABLE: 1,  // REDUZIDO de 2 para 1
   
   // Mínimo de análises consecutivas para travar tom
-  MIN_HITS_FOR_LOCK: 3,    // Reduzido de 4 para detectar mais rápido
+  MIN_HITS_FOR_LOCK: 2,    // REDUZIDO de 3 para 2
   
   // Confiança mínima para considerar análise válida
-  MIN_CONFIDENCE_THRESHOLD: 0.20,  // Reduzido de 0.25
+  MIN_CONFIDENCE_THRESHOLD: 0.15,  // REDUZIDO de 0.20 para 0.15
   
   // Confiança mínima para lock rápido (alta confiança)
-  FAST_LOCK_CONFIDENCE: 0.45,  // Reduzido de 0.55
+  FAST_LOCK_CONFIDENCE: 0.35,  // REDUZIDO de 0.45 para 0.35
   
   // Tempo mínimo (ms) que candidato deve existir antes de travar
-  MIN_CANDIDATE_DURATION_MS: 1800,  // Reduzido de 2500 para detectar mais rápido
+  MIN_CANDIDATE_DURATION_MS: 1000,  // REDUZIDO de 1800 para 1000
   
   // Tempo mínimo (ms) antes de permitir mudança de tom travado
-  MIN_LOCK_DURATION_MS: 4000,  // Reduzido de 5000
+  MIN_LOCK_DURATION_MS: 3000,  // REDUZIDO de 4000 para 3000
   
   // Margem de confiança para trocar tom travado
-  CHANGE_CONFIDENCE_MARGIN: 0.12,  // Reduzido de 0.15 para detectar correções mais rápido
+  CHANGE_CONFIDENCE_MARGIN: 0.10,  // REDUZIDO de 0.12 para 0.10
   
   // Mínimo de hits consecutivos do novo tom para considerar mudança
-  MIN_HITS_FOR_CHANGE: 4,  // Reduzido de 5
+  MIN_HITS_FOR_CHANGE: 3,  // REDUZIDO de 4 para 3
   
   // Tempo máximo (ms) entre análises para manter candidato
-  MAX_GAP_BETWEEN_ANALYSES_MS: 3000,
+  MAX_GAP_BETWEEN_ANALYSES_MS: 4000,  // AUMENTADO de 3000 para 4000
   
   // Multiplicadores de estabilidade por tempo de lock
   STABILITY_MULTIPLIERS: {
     UNDER_30S: 1.0,
-    UNDER_60S: 1.3,  // Reduzido de 1.5
-    UNDER_90S: 1.6,  // Reduzido de 2.0
-    OVER_90S: 2.0,   // Reduzido de 2.5
+    UNDER_60S: 1.2,
+    UNDER_90S: 1.4,
+    OVER_90S: 1.6,
   },
   
   // Confiança visual inicial após lock
-  INITIAL_VISUAL_CONFIDENCE: 62,  // Aumentado de 60
+  INITIAL_VISUAL_CONFIDENCE: 65,  // AUMENTADO de 62 para 65
   
   // Incremento de confiança visual por análise confirmada
-  VISUAL_CONFIDENCE_INCREMENT: 6,  // Aumentado de 5
+  VISUAL_CONFIDENCE_INCREMENT: 8,  // AUMENTADO de 6 para 8
   
   // Confiança visual máxima
   MAX_VISUAL_CONFIDENCE: 98,
