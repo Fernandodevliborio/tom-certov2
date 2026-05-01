@@ -268,9 +268,9 @@ async def revalidate_session(body: RevalidateRequest):
 # usando a presença/ausência da 3ª.
 # ═══════════════════════════════════════════════════════════════════════════
 
-from key_detection_v8 import (
-    analyze_audio_bytes_v8,
-    reset_session as reset_v8_session,
+from key_detection_v9 import (
+    analyze_audio_bytes_v9,
+    reset_session_v9,
     NOTE_NAMES_BR,
 )
 
@@ -279,31 +279,26 @@ from key_detection_v8 import (
 async def reset_session(request: Request):
     """Zera o acumulador de sessão — chamado quando usuário inicia nova análise."""
     device_id = request.headers.get('X-Device-Id', 'anon')
-    reset_v8_session(device_id)
-    logger.info(f"[AnalyzeKey v8] sessão resetada dev={device_id[:8]}")
-    return {'reset': True, 'device': device_id[:8], 'version': 'tribunal-v8'}
+    reset_session_v9(device_id)
+    logger.info(f"[AnalyzeKey v9] sessão resetada dev={device_id[:8]}")
+    return {'reset': True, 'device': device_id[:8], 'version': 'tribunal-v9'}
 
 
 @api_router.post("/analyze-key")
 async def analyze_key(request: Request):
     """
-    TRIBUNAL DE EVIDÊNCIAS TONAL v8
+    TRIBUNAL DE EVIDÊNCIAS TONAL v9 — CORREÇÃO CRÍTICA
     
-    Pipeline:
-    1. CREPE extrai F0 com confidence
-    2. Segmenta notas e frases
-    3. 3 jurados votam independentemente:
-       - Krumhansl-Aarden (30%): correlação com perfis tonais
-       - Cadências (35%): detecta V→I, IV→I, II→V→I
-       - Gravidade (35%): notas longas, fins de frase, repetição
-    4. Combina votos e elege tônica
-    5. Decide modo (maior/menor) baseado na 3ª
-    6. Acumula evidência na sessão (memória de longo prazo)
-    7. Aplica histerese forte antes de mudar tom travado
+    Mudanças v9:
+    - Correção do bug V↔I (G# detectado como C#)
+    - Penalização anti-dominante
+    - Lock mais rápido (10-30s)
+    - Decay mais rápido no acumulador
+    - Maior peso para fins de frase
     """
     audio_bytes = await request.body()
     device_id = request.headers.get('X-Device-Id', 'anon')
-    logger.info(f"[AnalyzeKey v8] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
+    logger.info(f"[AnalyzeKey v9] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
     
     if not audio_bytes or len(audio_bytes) < 500:
         return JSONResponse({
@@ -312,48 +307,38 @@ async def analyze_key(request: Request):
         }, status_code=400)
 
     try:
-        result = analyze_audio_bytes_v8(
+        result = analyze_audio_bytes_v9(
             audio_bytes=audio_bytes,
             device_id=device_id,
             use_accumulator=True,
         )
         
-        # Logging detalhado do Tribunal v8
+        # Logging v9
         if result.get('success'):
             cadences = result.get('cadences_found', [])
-            cadence_str = ', '.join(
-                f"{c['type']}→{c['resolved_to']}" for c in cadences
-            ) if cadences else 'nenhuma'
+            cadence_str = ', '.join(f"{c['type']}→{c['to']}" for c in cadences) if cadences else 'nenhuma'
             
             tops = result.get('top_candidates', [])[:3]
-            tops_str = ' | '.join(
-                f"{t['tonic_name']}(ks={t.get('ks', 0):.2f} cad={t.get('cad', 0):.2f} grav={t.get('grav', 0):.2f})"
-                for t in tops
-            )
-            
-            third_ev = result.get('third_evidence', {})
-            third_str = f"3ªM={third_ev.get('major_3rd_weight', 0):.0f} 3ªm={third_ev.get('minor_3rd_weight', 0):.0f}"
+            tops_str = ' | '.join(f"{t['name']}({t.get('score', 0):.3f})" for t in tops)
             
             locked_str = '🔒TRAVADO' if result.get('locked') else '⏳pendente'
             
             logger.info(
-                f"[AnalyzeKey v8] ✓ {locked_str} key={result.get('key_name', '?')} "
+                f"[AnalyzeKey v9] ✓ {locked_str} key={result.get('key_name', '?')} "
                 f"conf={result.get('confidence', 0):.2f} "
-                f"notes={result.get('notes_count', 0)} phrases={result.get('phrases_count', 0)}"
+                f"analyses={result.get('analyses', 0)}"
             )
-            logger.info(f"[AnalyzeKey v8]   cadências: {cadence_str}")
-            logger.info(f"[AnalyzeKey v8]   top3: {tops_str}")
-            logger.info(f"[AnalyzeKey v8]   terça: {third_str} ({third_ev.get('decision_reason', '?')})")
-            logger.info(f"[AnalyzeKey v8]   flags: {result.get('flags', [])}")
+            logger.info(f"[AnalyzeKey v9]   cadências: {cadence_str}")
+            logger.info(f"[AnalyzeKey v9]   top3: {tops_str}")
         else:
             logger.warning(
-                f"[AnalyzeKey v8] ✗ error={result.get('error')} msg={result.get('message')}"
+                f"[AnalyzeKey v9] ✗ error={result.get('error')}"
             )
 
         return JSONResponse(result)
         
     except Exception as e:
-        logger.error(f"[AnalyzeKey v8] Erro: {e}", exc_info=True)
+        logger.error(f"[AnalyzeKey v9] Erro: {e}", exc_info=True)
         return JSONResponse({
             "success": False,
             "error": "internal_error",

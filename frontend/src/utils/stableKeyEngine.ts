@@ -107,49 +107,51 @@ export interface StableKeyState {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
+  // ═══ v9: THRESHOLDS MAIS AGRESSIVOS PARA LOCK RÁPIDO ═══
+  
   // Mínimo de análises consecutivas antes de considerar candidato
-  MIN_HITS_FOR_CANDIDATE: 1,  // REDUZIDO de 2 para 1
+  MIN_HITS_FOR_CANDIDATE: 1,
   
   // Mínimo de análises consecutivas para candidato estável
-  MIN_HITS_FOR_STABLE: 1,  // REDUZIDO de 2 para 1
+  MIN_HITS_FOR_STABLE: 1,
   
   // Mínimo de análises consecutivas para travar tom
-  MIN_HITS_FOR_LOCK: 2,    // REDUZIDO de 3 para 2
+  MIN_HITS_FOR_LOCK: 1,    // REDUZIDO de 2 para 1 (confia mais no backend v9)
   
   // Confiança mínima para considerar análise válida
-  MIN_CONFIDENCE_THRESHOLD: 0.15,  // REDUZIDO de 0.20 para 0.15
+  MIN_CONFIDENCE_THRESHOLD: 0.12,  // REDUZIDO de 0.15 para 0.12
   
   // Confiança mínima para lock rápido (alta confiança)
-  FAST_LOCK_CONFIDENCE: 0.35,  // REDUZIDO de 0.45 para 0.35
+  FAST_LOCK_CONFIDENCE: 0.25,  // REDUZIDO de 0.35 para 0.25
   
   // Tempo mínimo (ms) que candidato deve existir antes de travar
-  MIN_CANDIDATE_DURATION_MS: 1000,  // REDUZIDO de 1800 para 1000
+  MIN_CANDIDATE_DURATION_MS: 500,  // REDUZIDO de 1000 para 500
   
   // Tempo mínimo (ms) antes de permitir mudança de tom travado
-  MIN_LOCK_DURATION_MS: 3000,  // REDUZIDO de 4000 para 3000
+  MIN_LOCK_DURATION_MS: 2000,  // REDUZIDO de 3000 para 2000
   
   // Margem de confiança para trocar tom travado
-  CHANGE_CONFIDENCE_MARGIN: 0.10,  // REDUZIDO de 0.12 para 0.10
+  CHANGE_CONFIDENCE_MARGIN: 0.08,  // REDUZIDO de 0.10 para 0.08
   
   // Mínimo de hits consecutivos do novo tom para considerar mudança
-  MIN_HITS_FOR_CHANGE: 3,  // REDUZIDO de 4 para 3
+  MIN_HITS_FOR_CHANGE: 2,  // REDUZIDO de 3 para 2
   
   // Tempo máximo (ms) entre análises para manter candidato
-  MAX_GAP_BETWEEN_ANALYSES_MS: 4000,  // AUMENTADO de 3000 para 4000
+  MAX_GAP_BETWEEN_ANALYSES_MS: 5000,  // AUMENTADO de 4000 para 5000
   
   // Multiplicadores de estabilidade por tempo de lock
   STABILITY_MULTIPLIERS: {
     UNDER_30S: 1.0,
-    UNDER_60S: 1.2,
-    UNDER_90S: 1.4,
-    OVER_90S: 1.6,
+    UNDER_60S: 1.1,  // REDUZIDO de 1.2
+    UNDER_90S: 1.2,  // REDUZIDO de 1.4
+    OVER_90S: 1.3,   // REDUZIDO de 1.6
   },
   
   // Confiança visual inicial após lock
-  INITIAL_VISUAL_CONFIDENCE: 65,  // AUMENTADO de 62 para 65
+  INITIAL_VISUAL_CONFIDENCE: 70,  // AUMENTADO de 65 para 70
   
   // Incremento de confiança visual por análise confirmada
-  VISUAL_CONFIDENCE_INCREMENT: 8,  // AUMENTADO de 6 para 8
+  VISUAL_CONFIDENCE_INCREMENT: 10,  // AUMENTADO de 8 para 10
   
   // Confiança visual máxima
   MAX_VISUAL_CONFIDENCE: 98,
