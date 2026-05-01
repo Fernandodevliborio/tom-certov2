@@ -958,6 +958,45 @@ async def admin_me(request: Request, _=Depends(verify_admin)):
 async def health():
     return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
 
+
+# ─── Planos e Checkout URLs ─────────────────────────────────────────────
+@api_router.get("/planos")
+async def get_planos():
+    """Retorna as URLs de checkout dos planos disponíveis."""
+    return {
+        "planos": [
+            {
+                "id": "mensal",
+                "nome": "Mensal",
+                "preco": "R$ 19,90",
+                "preco_cents": 1990,
+                "duracao_dias": 30,
+                "checkout_url": "https://checkout.ticto.app/ODBC8F242",
+                "destaque": False,
+            },
+            {
+                "id": "trimestral",
+                "nome": "Trimestral",
+                "preco": "R$ 49,90",
+                "preco_cents": 4990,
+                "duracao_dias": 90,
+                "checkout_url": "https://checkout.ticto.app/OF743CFCB",
+                "destaque": True,
+                "economia": "17%",
+            },
+            {
+                "id": "semestral",
+                "nome": "Semestral",
+                "preco": "R$ 89,90",
+                "preco_cents": 8990,
+                "duracao_dias": 180,
+                "checkout_url": "https://checkout.ticto.app/OC368DF22",
+                "destaque": False,
+                "economia": "25%",
+            },
+        ]
+    }
+
 # ─── Admin UI (HTML Panel) ──────────────────────────────────────────────
 ADMIN_HTML_PATH = ROOT_DIR / "admin_ui.html"
 LOGO_PATH = ROOT_DIR.parent / "frontend" / "assets" / "images" / "logo.png"
@@ -1058,7 +1097,7 @@ async def root_page():
 # ─── Download do APK ────────────────────────────────────────────────────
 @app.get("/download", response_class=HTMLResponse)
 async def download_page():
-    """Página de download do APK com credenciais"""
+    """Página de download do APK com planos de assinatura"""
     return HTMLResponse("""
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -1066,9 +1105,10 @@ async def download_page():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tom Certo - Download</title>
-    <link rel="stylesheet" href="/tom-certo.css">
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
             min-height: 100vh;
             display: flex;
@@ -1076,121 +1116,205 @@ async def download_page():
             justify-content: center;
             padding: 20px;
         }
-        .download-card {
-            background: rgba(20,20,20,0.95);
-            border: 1px solid rgba(255,176,32,0.2);
-            border-radius: 24px;
-            padding: 40px;
-            max-width: 420px;
+        .container {
+            max-width: 800px;
             width: 100%;
+        }
+        .header {
             text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            margin-bottom: 40px;
         }
         .logo-img {
-            width: 100px;
-            height: 100px;
-            margin-bottom: 20px;
+            width: 80px;
+            height: 80px;
+            margin-bottom: 16px;
         }
         h1 {
             color: #fff;
-            font-size: 28px;
+            font-size: 32px;
             margin-bottom: 8px;
         }
-        .version {
+        .subtitle {
             color: #FFB020;
+            font-size: 16px;
+        }
+        
+        /* Cards de Planos */
+        .plans {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .plan-card {
+            background: rgba(20,20,20,0.95);
+            border: 1px solid rgba(255,176,32,0.15);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .plan-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(255,176,32,0.4);
+        }
+        .plan-card.destaque {
+            border-color: #FFB020;
+            position: relative;
+        }
+        .plan-card.destaque::before {
+            content: 'MAIS POPULAR';
+            position: absolute;
+            top: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #FFB020;
+            color: #000;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+        .plan-name {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .plan-price {
+            color: #FFB020;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .plan-duration {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .plan-economia {
+            color: #10B981;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+        .plan-btn {
+            display: block;
+            background: linear-gradient(135deg, #FFB020 0%, #FF9500 100%);
+            color: #000;
+            font-weight: 700;
             font-size: 14px;
-            margin-bottom: 24px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .plan-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px rgba(255,176,32,0.3);
+        }
+        
+        /* Seção Download */
+        .download-section {
+            background: rgba(20,20,20,0.95);
+            border: 1px solid rgba(255,176,32,0.15);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+        }
+        .download-section h2 {
+            color: #fff;
+            font-size: 20px;
+            margin-bottom: 8px;
+        }
+        .download-section p {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 20px;
         }
         .download-btn {
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            background: linear-gradient(135deg, #FFB020 0%, #FF9500 100%);
-            color: #000;
-            font-weight: 700;
-            font-size: 16px;
-            padding: 16px 32px;
-            border-radius: 12px;
+            background: rgba(255,176,32,0.1);
+            border: 1px solid #FFB020;
+            color: #FFB020;
+            font-weight: 600;
+            font-size: 15px;
+            padding: 14px 28px;
+            border-radius: 10px;
             text-decoration: none;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-bottom: 32px;
+            transition: all 0.2s;
         }
         .download-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(255,176,32,0.3);
+            background: #FFB020;
+            color: #000;
         }
         .download-btn svg {
             width: 20px;
             height: 20px;
         }
-        .credentials {
-            background: rgba(255,176,32,0.08);
-            border: 1px solid rgba(255,176,32,0.2);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: left;
-        }
-        .credentials h3 {
-            color: #FFB020;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-bottom: 16px;
-        }
-        .cred-item {
-            margin-bottom: 12px;
-        }
-        .cred-item:last-child {
-            margin-bottom: 0;
-        }
-        .cred-label {
-            color: #888;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 4px;
-        }
-        .cred-value {
-            color: #fff;
-            font-family: monospace;
-            font-size: 15px;
-            background: rgba(0,0,0,0.3);
-            padding: 8px 12px;
-            border-radius: 6px;
-            user-select: all;
-        }
+        
         .info {
             color: #666;
             font-size: 12px;
             margin-top: 24px;
             line-height: 1.6;
+            text-align: center;
+        }
+        
+        @media (max-width: 600px) {
+            .plans { grid-template-columns: 1fr; }
+            h1 { font-size: 24px; }
         }
     </style>
 </head>
 <body>
-    <div class="download-card">
-        <img src="/tom-certo-logo-clean.png" alt="Tom Certo" class="logo-img">
-        <h1>Tom Certo</h1>
-        <p class="version">v3.6.3 • Detecção Inteligente de Tom</p>
+    <div class="container">
+        <div class="header">
+            <img src="/tom-certo-logo-clean.png" alt="Tom Certo" class="logo-img">
+            <h1>Tom Certo</h1>
+            <p class="subtitle">Detecção Inteligente de Tom Musical</p>
+        </div>
         
-        <a href="/TomCerto.apk" class="download-btn" download>
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-            </svg>
-            Baixar APK (Android)
-        </a>
-        
-        <div class="credentials">
-            <h3>🔑 Credenciais de Acesso</h3>
-            <div class="cred-item">
-                <div class="cred-label">Código de Ativação</div>
-                <div class="cred-value">TC-DDA7-FB9E</div>
+        <div class="plans">
+            <div class="plan-card">
+                <div class="plan-name">Mensal</div>
+                <div class="plan-price">R$ 19,90</div>
+                <div class="plan-duration">por mês</div>
+                <a href="https://checkout.ticto.app/ODBC8F242" class="plan-btn" target="_blank">Assinar Agora</a>
+            </div>
+            
+            <div class="plan-card destaque">
+                <div class="plan-name">Trimestral</div>
+                <div class="plan-price">R$ 49,90</div>
+                <div class="plan-duration">a cada 3 meses</div>
+                <div class="plan-economia">Economia de 17%</div>
+                <a href="https://checkout.ticto.app/OF743CFCB" class="plan-btn" target="_blank">Assinar Agora</a>
+            </div>
+            
+            <div class="plan-card">
+                <div class="plan-name">Semestral</div>
+                <div class="plan-price">R$ 89,90</div>
+                <div class="plan-duration">a cada 6 meses</div>
+                <div class="plan-economia">Economia de 25%</div>
+                <a href="https://checkout.ticto.app/OC368DF22" class="plan-btn" target="_blank">Assinar Agora</a>
             </div>
         </div>
         
+        <div class="download-section">
+            <h2>Já tem acesso?</h2>
+            <p>Baixe o aplicativo e ative com seu código de acesso</p>
+            <a href="/TomCerto.apk" class="download-btn" download>
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+                Baixar APK (Android)
+            </a>
+        </div>
+        
         <p class="info">
-            Após instalar, abra o app e insira o código acima para ativar.<br>
-            O código permite até 3 dispositivos simultâneos.
+            Após a compra, você receberá um email com o código de ativação.<br>
+            Instale o app, abra e insira o código para ativar seu acesso.
         </p>
     </div>
 </body>
