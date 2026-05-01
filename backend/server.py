@@ -859,6 +859,160 @@ async def root_page():
     </html>
     """)
 
+# ─── Download do APK ────────────────────────────────────────────────────
+@app.get("/download", response_class=HTMLResponse)
+async def download_page():
+    """Página de download do APK com credenciais"""
+    return HTMLResponse("""
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tom Certo - Download</title>
+    <link rel="stylesheet" href="/tom-certo.css">
+    <style>
+        body {
+            background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .download-card {
+            background: rgba(20,20,20,0.95);
+            border: 1px solid rgba(255,176,32,0.2);
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 420px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .logo-img {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #fff;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .version {
+            color: #FFB020;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #FFB020 0%, #FF9500 100%);
+            color: #000;
+            font-weight: 700;
+            font-size: 16px;
+            padding: 16px 32px;
+            border-radius: 12px;
+            text-decoration: none;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-bottom: 32px;
+        }
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(255,176,32,0.3);
+        }
+        .download-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        .credentials {
+            background: rgba(255,176,32,0.08);
+            border: 1px solid rgba(255,176,32,0.2);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: left;
+        }
+        .credentials h3 {
+            color: #FFB020;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 16px;
+        }
+        .cred-item {
+            margin-bottom: 12px;
+        }
+        .cred-item:last-child {
+            margin-bottom: 0;
+        }
+        .cred-label {
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        .cred-value {
+            color: #fff;
+            font-family: monospace;
+            font-size: 15px;
+            background: rgba(0,0,0,0.3);
+            padding: 8px 12px;
+            border-radius: 6px;
+            user-select: all;
+        }
+        .info {
+            color: #666;
+            font-size: 12px;
+            margin-top: 24px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="download-card">
+        <img src="/tom-certo-logo-clean.png" alt="Tom Certo" class="logo-img">
+        <h1>Tom Certo</h1>
+        <p class="version">v3.6.3 • Detecção Inteligente de Tom</p>
+        
+        <a href="/TomCerto.apk" class="download-btn" download>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            </svg>
+            Baixar APK (Android)
+        </a>
+        
+        <div class="credentials">
+            <h3>🔑 Credenciais de Acesso</h3>
+            <div class="cred-item">
+                <div class="cred-label">Código de Ativação</div>
+                <div class="cred-value">TC-DDA7-FB9E</div>
+            </div>
+        </div>
+        
+        <p class="info">
+            Após instalar, abra o app e insira o código acima para ativar.<br>
+            O código permite até 3 dispositivos simultâneos.
+        </p>
+    </div>
+</body>
+</html>
+    """)
+
+@app.get("/TomCerto.apk")
+async def download_apk():
+    """Download direto do APK"""
+    apk_path = ROOT_DIR / "static" / "TomCerto.apk"
+    if not apk_path.exists():
+        raise HTTPException(status_code=404, detail="APK não encontrado")
+    return FileResponse(
+        path=apk_path,
+        filename="TomCerto.apk",
+        media_type="application/vnd.android.package-archive"
+    )
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()

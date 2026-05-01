@@ -1,23 +1,21 @@
-# Tom Certo · Test Credentials
+# Tom Certo - Credenciais de Teste
 
-## 🔐 Admin Panel (PRODUÇÃO)
-URL: https://tom-certov2-production.up.railway.app/admin
-User: Admin01
-Password: adminfernando
+## Código de Ativação do App
+- **Token**: `TC-DDA7-FB9E`
+- **Dispositivos permitidos**: 3
 
-## 🎟️ Tokens de Teste
-| Token | Status | Max Devices |
-|-------|--------|-------------|
-| TC-DDA7-FB9E | Ativo | 10 |
-| TESTE | Limite atingido | 3 |
-| TEST-DEV2026 | Limite atingido | 3 |
+## Painel Administrativo
+- **URL**: `/api/admin`
+- **Usuário**: `Admin01`
+- **Senha**: `adminfernando`
 
-## 📱 Para Testar
-Use o token `TC-DDA7-FB9E` para acessar o app.
+## Links de Download
+- **Página de Download**: `https://tom-certov2-production.up.railway.app/download`
+- **Download Direto APK**: `https://tom-certov2-production.up.railway.app/TomCerto.apk`
 
-## 🔧 Backend Local
-URL: http://localhost:8001
+## Versão Atual
+- **App**: v3.6.3
+- **OTA Update ID**: `ea3e1f11-4fb9-490c-aa09-1394c32d2467`
 
-## 🌐 Railway (Produção)
-URL: https://tom-certov2-production.up.railway.app
-Build: Dockerfile
+---
+*Atualizado em: 01/05/2026*
