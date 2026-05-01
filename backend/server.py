@@ -268,37 +268,40 @@ async def revalidate_session(body: RevalidateRequest):
 # usando a presença/ausência da 3ª.
 # ═══════════════════════════════════════════════════════════════════════════
 
-from key_detection_v9 import (
-    analyze_audio_bytes_v9,
-    reset_session_v9,
+from key_detection_v10 import (
+    analyze_audio_bytes_v10,
+    reset_session,
     NOTE_NAMES_BR,
 )
 
 
 @api_router.post("/analyze-key/reset")
-async def reset_session(request: Request):
+async def reset_key_session(request: Request):
     """Zera o acumulador de sessão — chamado quando usuário inicia nova análise."""
     device_id = request.headers.get('X-Device-Id', 'anon')
-    reset_session_v9(device_id)
-    logger.info(f"[AnalyzeKey v9] sessão resetada dev={device_id[:8]}")
-    return {'reset': True, 'device': device_id[:8], 'version': 'tribunal-v9'}
+    reset_session(device_id)
+    logger.info(f"[AnalyzeKey v10] sessão resetada dev={device_id[:8]}")
+    return {'reset': True, 'device': device_id[:8], 'version': 'v10-definitivo'}
 
 
 @api_router.post("/analyze-key")
 async def analyze_key(request: Request):
     """
-    TRIBUNAL DE EVIDÊNCIAS TONAL v9 — CORREÇÃO CRÍTICA
+    DETECÇÃO DE TONALIDADE v10 — VERSÃO DEFINITIVA
     
-    Mudanças v9:
-    - Correção do bug V↔I (G# detectado como C#)
-    - Penalização anti-dominante
-    - Lock mais rápido (10-30s)
-    - Decay mais rápido no acumulador
-    - Maior peso para fins de frase
+    Princípios:
+    1. A TÔNICA é onde as frases TERMINAM (60% do peso)
+    2. A TÔNICA é a nota mais LONGA (25% do peso)
+    3. Correlação Krumhansl (15% do peso)
+    
+    Critérios para lock:
+    - Mínimo 3 análises
+    - Confiança >= 55%
+    - Pelo menos 2 votos consecutivos no mesmo tom
     """
     audio_bytes = await request.body()
     device_id = request.headers.get('X-Device-Id', 'anon')
-    logger.info(f"[AnalyzeKey v9] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
+    logger.info(f"[AnalyzeKey v10] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
     
     if not audio_bytes or len(audio_bytes) < 500:
         return JSONResponse({
@@ -307,38 +310,26 @@ async def analyze_key(request: Request):
         }, status_code=400)
 
     try:
-        result = analyze_audio_bytes_v9(
+        result = analyze_audio_bytes_v10(
             audio_bytes=audio_bytes,
             device_id=device_id,
-            use_accumulator=True,
         )
         
-        # Logging v9
         if result.get('success'):
-            cadences = result.get('cadences_found', [])
-            cadence_str = ', '.join(f"{c['type']}→{c['to']}" for c in cadences) if cadences else 'nenhuma'
-            
-            tops = result.get('top_candidates', [])[:3]
-            tops_str = ' | '.join(f"{t['name']}({t.get('score', 0):.3f})" for t in tops)
-            
-            locked_str = '🔒TRAVADO' if result.get('locked') else '⏳pendente'
-            
+            locked_str = '🔒TRAVADO' if result.get('locked') else '⏳analisando'
             logger.info(
-                f"[AnalyzeKey v9] ✓ {locked_str} key={result.get('key_name', '?')} "
+                f"[AnalyzeKey v10] ✓ {locked_str} key={result.get('key_name', '?')} "
                 f"conf={result.get('confidence', 0):.2f} "
-                f"analyses={result.get('analyses', 0)}"
+                f"analyses={result.get('analyses', 0)} "
+                f"notes={result.get('clip_notes', 0)}"
             )
-            logger.info(f"[AnalyzeKey v9]   cadências: {cadence_str}")
-            logger.info(f"[AnalyzeKey v9]   top3: {tops_str}")
         else:
-            logger.warning(
-                f"[AnalyzeKey v9] ✗ error={result.get('error')}"
-            )
+            logger.warning(f"[AnalyzeKey v10] ✗ error={result.get('error')}")
 
         return JSONResponse(result)
         
     except Exception as e:
-        logger.error(f"[AnalyzeKey v9] Erro: {e}", exc_info=True)
+        logger.error(f"[AnalyzeKey v10] Erro: {e}", exc_info=True)
         return JSONResponse({
             "success": False,
             "error": "internal_error",
