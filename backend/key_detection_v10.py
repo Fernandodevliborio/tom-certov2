@@ -224,7 +224,8 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     - Mesmo cantando escalas, a nota de repouso é a tônica
     - Krumhansl é bom mas genérico - fins de frase são específicos
     """
-    if len(notes) < 3:
+    # MUDANÇA: Aceita com apenas 2 notas para não travar
+    if len(notes) < 2:
         return AnalysisResult(success=False, debug={'error': 'insufficient_notes', 'count': len(notes)})
     
     # ═══ 1. ANÁLISE DE FINS DE FRASE (60%) ═══
@@ -382,23 +383,40 @@ class SessionAccumulator:
         self.locked_quality: Optional[str] = None
         self.locked_confidence: float = 0.0
         self.locked_at: Optional[float] = None
+        self.last_activity_time: float = time.time()  # NOVO: Rastrear atividade
     
     def add_analysis(self, notes: List[Note]):
         """Adiciona notas de uma análise."""
-        # CORREÇÃO: Não duplicar notas, substituir por novas
-        # Manter apenas as notas mais recentes (janela deslizante)
-        self.all_notes = notes[-25:]  # Apenas as últimas 25 notas de cada análise
+        self.last_activity_time = time.time()  # Atualiza atividade
+        # Acumular notas (janela deslizante de no máximo 50 notas)
+        self.all_notes.extend(notes)
+        if len(self.all_notes) > 50:
+            self.all_notes = self.all_notes[-50:]
         self.analysis_count += 1
     
     def get_result(self) -> Dict[str, Any]:
         """Retorna resultado baseado em todas as notas acumuladas."""
-        if len(self.all_notes) < 5:
-            return {'success': False, 'error': 'insufficient_data', 'notes': len(self.all_notes)}
+        # MUDANÇA CRÍTICA: Retornar resultado mesmo com poucas notas
+        # Isso evita ficar travado em "analisando"
+        if len(self.all_notes) < 3:
+            # Ainda sem notas suficientes, mas retorna status claro
+            return {
+                'success': False, 
+                'error': 'insufficient_data', 
+                'notes': len(self.all_notes),
+                'analyses': self.analysis_count,
+                'message': f'Coletando notas... ({len(self.all_notes)}/3)'
+            }
         
         result = analyze_tonality(self.all_notes)
         
         if not result.success:
-            return {'success': False, 'error': 'analysis_failed'}
+            return {
+                'success': False, 
+                'error': 'analysis_failed',
+                'notes': len(self.all_notes),
+                'analyses': self.analysis_count,
+            }
         
         # Adicionar voto ao histórico
         self.vote_history.append(result.tonic)
@@ -426,6 +444,7 @@ class SessionAccumulator:
             }
         
         # Ainda não travado - retornar resultado provisório
+        # MUDANÇA: Sempre retorna success=True quando temos um candidato
         return {
             'success': True,
             'tonic': result.tonic,
@@ -446,25 +465,26 @@ class SessionAccumulator:
             # Já está travado - verificar se deve mudar
             return self._should_change(result)
         
-        # Critérios para lock inicial:
-        # 1. Mínimo de 3 análises
-        # 2. Confiança >= 0.6
-        # 3. Pelo menos 2 votos consecutivos no mesmo tom
+        # MUDANÇA: Critérios mais relaxados para lock inicial
+        # 1. Mínimo de 2 análises (era 3)
+        # 2. Confiança >= 0.50 (era 0.55)
+        # 3. Pelo menos 2 votos no mesmo tom (não precisa ser consecutivo)
         
-        if self.analysis_count < 3:
+        if self.analysis_count < 2:
             return False
         
-        if result.confidence < 0.55:
+        if result.confidence < 0.50:
             return False
         
-        # Verificar votos consecutivos
+        # Verificar votos no mesmo tom
         if len(self.vote_history) >= 2:
-            last_votes = self.vote_history[-2:]
-            if all(v == result.tonic for v in last_votes):
+            last_votes = self.vote_history[-3:] if len(self.vote_history) >= 3 else self.vote_history
+            votes_for_current = sum(1 for v in last_votes if v == result.tonic)
+            if votes_for_current >= 2:
                 return True
         
         # Confiança muito alta permite lock imediato
-        if result.confidence >= 0.85 and self.analysis_count >= 2:
+        if result.confidence >= 0.80:
             return True
         
         return False
