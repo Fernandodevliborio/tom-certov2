@@ -301,20 +301,31 @@ export function useTuner() {
         try {
           const { pitch } = data;
           
-          console.log('[useTuner] Pitch detected:', pitch);
-          
           // Only process if pitch is valid (positive and in musical range)
-          if (pitch && pitch > 30 && pitch < 1000) {
+          // CORREÇÃO: Só considerar pitch se estiver em faixa válida E tiver volume mínimo
+          if (pitch && pitch > 50 && pitch < 900) {
+            // Verificar se o pitch é estável (não muda muito entre leituras)
+            const history = frequencyHistoryRef.current;
+            const lastPitch = history.length > 0 ? history[history.length - 1] : pitch;
+            const pitchDiff = Math.abs(pitch - lastPitch);
+            
+            // Ignorar se a diferença for muito grande (provavelmente ruído)
+            if (pitchDiff > 100 && history.length > 0) {
+              console.log('[useTuner] Ignorando pitch instável:', pitch, 'diff:', pitchDiff);
+              return;
+            }
+            
             const smoothed = smoothFrequency(pitch);
             safeSetState({
               frequency: smoothed,
               smoothedFrequency: smoothed,
-              noiseLevel: 0.5, // Indicate sound is being detected
+              noiseLevel: 0.5, // Indica que som está sendo detectado
             });
-          } else if (pitch === 0 || !pitch) {
-            // No clear pitch detected
+          } else {
+            // Pitch inválido ou fora de faixa = silêncio
             safeSetState({ 
-              noiseLevel: 0.1, 
+              frequency: null,
+              noiseLevel: 0.05, // Nível baixo = silêncio
             });
           }
         } catch (err) {

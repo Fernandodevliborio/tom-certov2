@@ -182,11 +182,13 @@ function TunerScreen() {
   // CORREÇÃO CRÍTICA: Sistema de detecção estável com debounce e hysteresis
   // ═══════════════════════════════════════════════════════════════════════════
   
-  // Limites de detecção - MUITO mais rigorosos
-  const MIN_NOISE_LEVEL = 0.20;           // Volume mínimo para considerar som (aumentado de 0.08)
-  const MIN_FREQ_STABILITY_MS = 150;       // Tempo mínimo para confirmar nota (ms)
-  const SILENCE_COOLDOWN_MS = 600;         // Tempo para voltar ao estado neutro após silêncio
-  const FREQ_TOLERANCE_HZ = 8;             // Tolerância para considerar mesma nota (Hz)
+  // Limites de detecção - RIGOROSOS para evitar falsos positivos
+  const MIN_NOISE_LEVEL = 0.25;           // Volume mínimo para considerar som (AUMENTADO)
+  const MIN_FREQ_STABILITY_MS = 200;       // Tempo mínimo para confirmar nota (ms) - AUMENTADO
+  const SILENCE_COOLDOWN_MS = 400;         // Tempo para voltar ao estado neutro após silêncio
+  const FREQ_TOLERANCE_HZ = 6;             // Tolerância para considerar mesma nota (Hz) - REDUZIDO
+  const MIN_VALID_FREQ = 60;               // Frequência mínima válida (Hz)
+  const MAX_VALID_FREQ = 900;              // Frequência máxima válida (Hz)
   
   // Estados de detecção
   const [confirmedFrequency, setConfirmedFrequency] = useState<number | null>(null);
@@ -221,7 +223,7 @@ function TunerScreen() {
       // ════════════════════════════════════════════════════════════════════
       // CASO 1: Sem som suficiente → Transição para silêncio
       // ════════════════════════════════════════════════════════════════════
-      if (!hasSound || currentFreq === null || currentFreq < 50 || currentFreq > 1000) {
+      if (!hasSound || currentFreq === null || currentFreq < MIN_VALID_FREQ || currentFreq > MAX_VALID_FREQ) {
         // Marcar início do silêncio se ainda não marcou
         if (silenceStartRef.current === null) {
           silenceStartRef.current = now;
