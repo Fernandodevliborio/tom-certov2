@@ -11,10 +11,11 @@ import { useKeepAwake, activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-
 
 import { useKeyDetection } from '../src/hooks/useKeyDetection';
 import { NOTES_BR, NOTES_INTL, formatKeyDisplay, getHarmonicField } from '../src/utils/noteUtils';
-import { useAuth } from '../src/auth/AuthContext';
+import { useAuth, PlanFeatures } from '../src/auth/AuthContext';
 import { APP_VERSION_LABEL } from '../src/constants/version';
 import AudioVisualizer from '../src/components/AudioVisualizer';
 import SmartChordsMode from '../src/components/SmartChordsMode';
+import UpgradeModal from '../src/components/UpgradeModal';
 import {
   StableKeyState,
   createStableKeyState,
@@ -389,6 +390,22 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   } = det;
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // FEATURES DO PLANO — Controle de acesso
+  // ═══════════════════════════════════════════════════════════════════════════
+  const { session } = useAuth();
+  const features = session?.features || { 
+    key_detection: true, 
+    harmonic_field: true, 
+    real_time_chord: false, // Bloqueado por padrão
+    smart_chords: false 
+  };
+  const canShowRealTimeChord = features.real_time_chord;
+  const canShowSmartChords = features.smart_chords;
+  
+  // Modal de upgrade
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // KEEP AWAKE — Manter tela ligada durante detecção
   // ═══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
@@ -654,14 +671,31 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={ss.scrollPad}>
         
-        {/* ═══ 1. ACORDE EM TEMPO REAL (não mais nota isolada) ═══ */}
+        {/* ═══ 1. ACORDE EM TEMPO REAL (com bloqueio estratégico) ═══ */}
         <View style={ss.chordHero}>
           <View style={ss.chordHeroTopRow}>
             <Text style={ss.chordHeroLabel}>ACORDE EM TEMPO REAL</Text>
             <AudioVisualizer level={audioLevel} active={isRunning} height={20} bars={4} />
           </View>
           <Animated.View style={[ss.chordHeroBox, { opacity: noteOpacity }]}>
-            {showKey && displayKey && currentNote !== null ? (
+            {/* ═══ BLOQUEIO ESTRATÉGICO: Mostra cadeado se plano não tem acesso ═══ */}
+            {!canShowRealTimeChord ? (
+              <TouchableOpacity 
+                style={ss.lockedChordBox} 
+                onPress={() => setShowUpgradeModal(true)}
+                activeOpacity={0.8}
+              >
+                <View style={ss.lockedIconWrap}>
+                  <Ionicons name="lock-closed" size={32} color={C.amber} />
+                </View>
+                <Text style={ss.lockedChordLabel}>🎸 Acorde atual:</Text>
+                <Text style={ss.lockedChordValue}>🔒</Text>
+                <View style={ss.lockedCta}>
+                  <Text style={ss.lockedCtaTxt}>Desbloqueie os acordes em tempo real</Text>
+                  <Ionicons name="chevron-forward" size={14} color={C.amber} />
+                </View>
+              </TouchableOpacity>
+            ) : showKey && displayKey && currentNote !== null ? (
               (() => {
                 // Encontrar o acorde do campo harmônico que corresponde à nota
                 const chordMatch = harmonicField.find(c => c.root === currentNote);
@@ -846,18 +880,38 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           </View>
         )}
 
-        {/* ═══ 5. ACORDES INTELIGENTES (COMPACTO) ═══ */}
+        {/* ═══ 5. ACORDES INTELIGENTES (COMPACTO) — com bloqueio se necessário ═══ */}
         {showKey && displayKey && showSmartChords && (
-          <SmartChordsMode
-            tonic={displayKey.tonic}
-            quality={displayKey.quality}
-            currentNote={currentNote}
-            expanded={showSmartChords}
-            compact={true}
-          />
+          canShowSmartChords ? (
+            <SmartChordsMode
+              tonic={displayKey.tonic}
+              quality={displayKey.quality}
+              currentNote={currentNote}
+              expanded={showSmartChords}
+              compact={true}
+            />
+          ) : (
+            <TouchableOpacity 
+              style={ss.lockedSmartChordsBox}
+              onPress={() => setShowUpgradeModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="lock-closed" size={20} color={C.amber} />
+              <Text style={ss.lockedSmartChordsTxt}>Diagramas de acordes</Text>
+              <View style={ss.lockedSmartChordsCta}>
+                <Text style={ss.lockedSmartChordsCtaTxt}>🔒 PRO</Text>
+              </View>
+            </TouchableOpacity>
+          )
         )}
 
       </ScrollView>
+      
+      {/* ═══ MODAL DE UPGRADE ═══ */}
+      <UpgradeModal 
+        visible={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)} 
+      />
     </View>
   );
 }
@@ -1687,5 +1741,78 @@ const ss = StyleSheet.create({
   },
   harmonicNameActive: {
     color: C.green,
+  },
+  
+  // ═══ ESTILOS PARA BLOQUEIO ESTRATÉGICO ═══
+  lockedChordBox: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  lockedIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,176,32,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  lockedChordLabel: {
+    fontFamily: 'Manrope_500Medium',
+    fontSize: 14,
+    color: C.text2,
+    marginBottom: 4,
+  },
+  lockedChordValue: {
+    fontFamily: 'Outfit_800ExtraBold',
+    fontSize: 48,
+    color: C.amber,
+    letterSpacing: -1,
+    marginBottom: 8,
+  },
+  lockedCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,176,32,0.12)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,176,32,0.3)',
+    gap: 6,
+  },
+  lockedCtaTxt: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 12,
+    color: C.amber,
+  },
+  lockedSmartChordsBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  lockedSmartChordsTxt: {
+    fontFamily: 'Manrope_600SemiBold',
+    fontSize: 14,
+    color: C.text2,
+    flex: 1,
+  },
+  lockedSmartChordsCta: {
+    backgroundColor: 'rgba(255,176,32,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  lockedSmartChordsCtaTxt: {
+    fontFamily: 'Manrope_700Bold',
+    fontSize: 11,
+    color: C.amber,
   },
 });

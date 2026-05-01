@@ -6,12 +6,21 @@ import { getDeviceId } from './deviceId';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
+export interface PlanFeatures {
+  key_detection: boolean;
+  harmonic_field: boolean;
+  real_time_chord: boolean;
+  smart_chords: boolean;
+}
+
 export interface SessionInfo {
   session: string;
   token_id: string;
   expires_at?: string | null;
   customer_name?: string | null;
   duration_minutes?: number | null;
+  plano?: string | null;
+  features?: PlanFeatures | null;
 }
 
 export interface AuthContextValue {
@@ -113,6 +122,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           expires_at: data.expires_at ?? parsed.expires_at,
           customer_name: data.customer_name ?? parsed.customer_name,
           duration_minutes: data.duration_minutes ?? parsed.duration_minutes,
+          plano: data.plano ?? parsed.plano,
+          features: data.features ?? parsed.features,
         });
         setStatus('authenticated');
       } else {
@@ -194,6 +205,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         expires_at: data.expires_at,
         customer_name: data.customer_name,
         duration_minutes: data.duration_minutes,
+        plano: data.plano,
+        features: data.features,
       };
       await storage.setItem(SESSION_KEY, JSON.stringify(s));
       await storage.setItem(TOKEN_KEY, clean);

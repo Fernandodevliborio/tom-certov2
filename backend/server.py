@@ -21,7 +21,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # Imports dos serviços de token e email
-from models import PlanType, TokenStatus, PLAN_DURATIONS, PLAN_PRICES, WebhookCaktoPayload
+from models import PlanType, TokenStatus, PLAN_DURATIONS, PLAN_PRICES, WebhookCaktoPayload, normalize_plan, get_plan_features
 from token_service import create_token as create_new_token, cancel_token, validate_token as validate_token_service, expire_old_tokens
 from email_service import send_welcome_email, send_cancellation_email
 
@@ -204,13 +204,18 @@ async def validate_token(body: ValidateRequest):
         )
 
     token_id = str(token_doc["_id"])
-    customer_name = token_doc.get("customer_name")
+    customer_name = token_doc.get("customer_name") or token_doc.get("nome_usuario")
     duration_minutes = token_doc.get("duration_minutes")
     expires_at_str = expires_at.isoformat() if isinstance(expires_at, datetime) else expires_at
+    
+    # Obter plano e features
+    plano_raw = token_doc.get("plano", "essencial")
+    plano = normalize_plan(plano_raw)
+    features = get_plan_features(plano)
 
     session = create_session_token(token_id, device_id, customer_name, duration_minutes, expires_at_str)
 
-    logger.info(f"[Auth] Token validado: code={code[:4]}*** device={device_id[:8]}...")
+    logger.info(f"[Auth] Token validado: code={code[:4]}*** device={device_id[:8]}... plano={plano}")
     return JSONResponse({
         "valid": True,
         "session": session,
@@ -218,6 +223,8 @@ async def validate_token(body: ValidateRequest):
         "customer_name": customer_name,
         "duration_minutes": duration_minutes,
         "expires_at": expires_at_str,
+        "plano": plano,
+        "features": features,
     })
 
 # ─── Auth: Revalidate Session ───────────────────────────────────────────
@@ -244,16 +251,23 @@ async def revalidate_session(body: RevalidateRequest):
     if not token_doc.get("active", True):
         return JSONResponse({"valid": False, "reason": "revoked"}, status_code=200)
 
-    customer_name = token_doc.get("customer_name")
+    customer_name = token_doc.get("customer_name") or token_doc.get("nome_usuario")
     duration_minutes = token_doc.get("duration_minutes")
     expires_at = token_doc.get("expires_at")
     expires_at_str = expires_at.isoformat() if isinstance(expires_at, datetime) else expires_at
+    
+    # Obter plano e features
+    plano_raw = token_doc.get("plano", "essencial")
+    plano = normalize_plan(plano_raw)
+    features = get_plan_features(plano)
 
     return JSONResponse({
         "valid": True,
         "customer_name": customer_name,
         "duration_minutes": duration_minutes,
         "expires_at": expires_at_str,
+        "plano": plano,
+        "features": features,
     })
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -957,33 +971,46 @@ async def get_planos():
     return {
         "planos": [
             {
-                "id": "mensal",
-                "nome": "Mensal",
-                "preco": "R$ 19,90",
-                "preco_cents": 1990,
+                "id": "essencial",
+                "nome": "Essencial",
+                "preco": "R$ 9,90",
+                "preco_cents": 990,
                 "duracao_dias": 30,
                 "checkout_url": "https://checkout.ticto.app/ODBC8F242",
                 "destaque": False,
+                "features": {
+                    "key_detection": True,
+                    "harmonic_field": True,
+                    "real_time_chord": False,
+                    "smart_chords": False,
+                },
+                "features_list": [
+                    "✔ Detecção de tom",
+                    "✔ Campo harmônico completo",
+                    "❌ Acordes em tempo real",
+                ],
             },
             {
-                "id": "trimestral",
-                "nome": "Trimestral",
-                "preco": "R$ 49,90",
-                "preco_cents": 4990,
-                "duracao_dias": 90,
+                "id": "profissional",
+                "nome": "Profissional",
+                "preco": "R$ 19,90",
+                "preco_cents": 1990,
+                "duracao_dias": 30,
                 "checkout_url": "https://checkout.ticto.app/OF743CFCB",
                 "destaque": True,
-                "economia": "17%",
-            },
-            {
-                "id": "semestral",
-                "nome": "Semestral",
-                "preco": "R$ 89,90",
-                "preco_cents": 8990,
-                "duracao_dias": 180,
-                "checkout_url": "https://checkout.ticto.app/OC368DF22",
-                "destaque": False,
-                "economia": "25%",
+                "badge": "🔥 MAIS ESCOLHIDO",
+                "features": {
+                    "key_detection": True,
+                    "harmonic_field": True,
+                    "real_time_chord": True,
+                    "smart_chords": True,
+                },
+                "features_list": [
+                    "✔ Detecção de tom",
+                    "✔ Campo harmônico completo",
+                    "✔ Acordes em tempo real",
+                    "✔ Diagramas de acordes",
+                ],
             },
         ]
     }
