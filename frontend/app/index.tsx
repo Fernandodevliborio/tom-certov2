@@ -638,7 +638,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           <View style={ss.brandTextWrap}>
             <Text style={ss.headerBrand} numberOfLines={1}>Tom Certo</Text>
             <Text style={ss.headerVersion} numberOfLines={1}>
-              v3.6.0
+              {APP_VERSION_LABEL}
             </Text>
           </View>
         </View>
