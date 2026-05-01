@@ -1,21 +1,27 @@
-# Tom Certo - Credenciais de Teste
+# Test Credentials - Tom Certo
 
-## Código de Ativação do App
-- **Token**: `TC-DDA7-FB9E`
-- **Dispositivos permitidos**: 3
+## Admin Panel
+- **URL:** /api/admin
+- **Username:** Admin01
+- **Password:** adminfernando
 
-## Painel Administrativo
-- **URL**: `/api/admin`
-- **Usuário**: `Admin01`
-- **Senha**: `adminfernando`
+## Tokens de Acesso Ativos (30 dias)
 
-## Links de Download
-- **Página de Download**: `https://tom-certov2-production.up.railway.app/download`
-- **Download Direto APK**: `https://tom-certov2-production.up.railway.app/TomCerto.apk`
+### Cliente 1: Eduardo de Oliveira Santos
+- **Email:** espaco.musical02@gmail.com
+- **Token:** 3EHK-QSY5
+- **Plano:** Mensal (30 dias)
+- **Expira:** 31/05/2026
+- **Dispositivos:** 3
 
-## Versão Atual
-- **App**: v3.6.3
-- **OTA Update ID**: `ea3e1f11-4fb9-490c-aa09-1394c32d2467`
+### Cliente 2: SAMUEL BARBOSA FONSECA
+- **Email:** sanchez080216@gmail.com
+- **Token:** JEKQ-TMG8
+- **Plano:** Mensal (30 dias)
+- **Expira:** 31/05/2026
+- **Dispositivos:** 3
 
----
-*Atualizado em: 01/05/2026*
+## Notas
+- Tokens criados em 01/05/2025
+- Todos os tokens antigos foram excluídos
+- Emails de boas-vindas enviados para ambos os clientes
