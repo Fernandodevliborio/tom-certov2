@@ -327,6 +327,96 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
         0.40 * krumhansl_score
     )
     
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CORREÇÃO ESTRUTURAL v10.3 — DESAMBIGUAÇÃO DE RELATIVOS (BUG CRÍTICO)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PROBLEMA: Krumhansl-Kessler não distingue um tom do seu relativo
+    # (Ex: Ré menor e Sib Maior têm a MESMA escala, perfis correlacionam similar).
+    # Quando o áudio cabe na escala, Krumhansl pode escolher o relativo errado.
+    #
+    # Caso real: hino "A alma abatida" (Vanessa Ferreira, a capela), música em Ré
+    # menor com Sib (6ª menor) muito proeminente — algoritmo reportou Sib Maior.
+    # Phrase ends mostram que a música REPOUSA em Ré (9.450ms total em Ré vs 310ms
+    # em Sib), o que é o critério MUSICAL CORRETO para a tônica.
+    #
+    # SOLUÇÃO MUSICOLÓGICA: a tônica é a nota de REPOUSO, não a mais "comum".
+    # Para cada par de relativos (tom_maior, relativo_menor) que compartilham
+    # a mesma escala, escolhemos o que tem MAIOR phrase_end ponderado por duração.
+    # Aplicado universalmente aos 24 tons via aritmética modular (mod 12).
+    relative_minor_offset = 9   # relativo menor = tônica - 3 semitons (= +9 mod 12)
+    
+    # Rastreio: quais pcs foram selecionados COMO MENOR via desambiguação?
+    forced_minor_pcs: set = set()
+    forced_major_pcs: set = set()
+    
+    top4 = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)[:4]
+    top4_pcs = {pc for pc, _ in top4}
+    
+    relative_pairs_processed = set()
+    for major_pc in range(12):
+        minor_pc = (major_pc + relative_minor_offset) % 12
+        pair_key = tuple(sorted([major_pc, minor_pc]))
+        if pair_key in relative_pairs_processed:
+            continue
+        relative_pairs_processed.add(pair_key)
+        
+        # Ambos do par precisam estar entre os top candidatos
+        if major_pc not in top4_pcs or minor_pc not in top4_pcs:
+            continue
+        
+        ks_major = scores_24_norm.get((major_pc, 'major'), 0.0)
+        ks_minor = scores_24_norm.get((minor_pc, 'minor'), 0.0)
+        
+        # Ambos precisam ter correlação Krumhansl ALTA (estão na mesma escala).
+        # Se um deles é fraco, não é caso de relativos ambíguos.
+        if ks_major < 0.70 or ks_minor < 0.70:
+            continue
+        
+        # Phrase end ponderado por duração — quem é a TÔNICA REAL?
+        pe_major = phrase_end_weight[major_pc]
+        pe_minor = phrase_end_weight[minor_pc]
+        
+        # Duração total — quem está mais presente em notas longas?
+        dur_major = duration_weight[major_pc]
+        dur_minor = duration_weight[minor_pc]
+        
+        # Decisão: combinação 70% phrase_end + 30% duração
+        rest_major = 0.70 * pe_major + 0.30 * dur_major
+        rest_minor = 0.70 * pe_minor + 0.30 * dur_minor
+        
+        if rest_major < 1e-6 and rest_minor < 1e-6:
+            continue
+        
+        rest_total = rest_major + rest_minor
+        ratio_minor = rest_minor / rest_total
+        
+        # Se o relativo MENOR tem >= 60% do peso de repouso, é o vencedor.
+        # Esse threshold é robusto: 50% seria 50/50 (incerto), 60% é evidência clara.
+        if ratio_minor >= 0.60:
+            # Relativo menor é a tônica real
+            # Boost para o pc menor + penalize o pc maior
+            final_score[minor_pc] = min(1.0, final_score[minor_pc] + 0.20)
+            final_score[major_pc] = max(0.0, final_score[major_pc] - 0.15)
+            forced_minor_pcs.add(minor_pc)
+            logger.info(
+                f"[v10.3] DESAMBIGUAÇÃO RELATIVOS: {NOTE_NAMES_BR[major_pc]} maior vs "
+                f"{NOTE_NAMES_BR[minor_pc]} menor → repouso favorece "
+                f"{NOTE_NAMES_BR[minor_pc]} menor "
+                f"(ratio_minor={ratio_minor:.2%}, pe_min={pe_minor:.0f} pe_maj={pe_major:.0f})"
+            )
+        elif ratio_minor <= 0.40:
+            # Tom maior é a tônica real
+            final_score[major_pc] = min(1.0, final_score[major_pc] + 0.20)
+            final_score[minor_pc] = max(0.0, final_score[minor_pc] - 0.15)
+            forced_major_pcs.add(major_pc)
+            logger.info(
+                f"[v10.3] DESAMBIGUAÇÃO RELATIVOS: {NOTE_NAMES_BR[major_pc]} maior vs "
+                f"{NOTE_NAMES_BR[minor_pc]} menor → repouso favorece "
+                f"{NOTE_NAMES_BR[major_pc]} maior "
+                f"(ratio_minor={ratio_minor:.2%})"
+            )
+        # Se 40% < ratio_minor < 60%, é genuinamente ambíguo — não força decisão
+    
     # ═══ PENALIZAÇÕES ANTI-CONFUSÃO ═══
     # Aplicadas em duas etapas para serem aplicáveis universalmente aos 24 tons:
     #
@@ -444,15 +534,23 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     combined_major = 0.60 * ks_major_winner + 0.40 * degree_major
     combined_minor = 0.60 * ks_minor_winner + 0.40 * degree_minor
     
-    # Leve bias para maior (em música popular, a maioria dos tons é maior)
-    # Necessário para casos ambíguos sem 3ª definida
-    MAJOR_BIAS = 1.04
-    if combined_major * MAJOR_BIAS > combined_minor * 1.10:
-        quality = 'major'
-    elif combined_minor > combined_major * MAJOR_BIAS * 1.10:
+    # ─── OVERRIDE v10.3: respeitar desambiguação de relativos ───
+    # Se a desambiguação por phrase end já escolheu maior/menor para esse pc,
+    # honramos essa decisão (é musicalmente mais robusta que graus).
+    if winner_pc in forced_minor_pcs:
         quality = 'minor'
+    elif winner_pc in forced_major_pcs:
+        quality = 'major'
     else:
-        quality = 'major'  # Default maior quando ambíguo
+        # Leve bias para maior (em música popular, a maioria dos tons é maior)
+        # Necessário para casos ambíguos sem 3ª definida
+        MAJOR_BIAS = 1.04
+        if combined_major * MAJOR_BIAS > combined_minor * 1.10:
+            quality = 'major'
+        elif combined_minor > combined_major * MAJOR_BIAS * 1.10:
+            quality = 'minor'
+        else:
+            quality = 'major'  # Default maior quando ambíguo
     
     # ═══ CALCULAR CONFIANÇA ═══
     margin = winner_score - runner_up_score
