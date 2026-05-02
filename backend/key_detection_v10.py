@@ -1,29 +1,34 @@
 """
-key_detection_v10.py — VERSÃO DEFINITIVA
+key_detection_v10.py — VERSÃO CORRIGIDA v10.1
 ═══════════════════════════════════════════════════════════════════════════════
 
-PROBLEMAS RESOLVIDOS:
-1. Detecção errada com áudio ruidoso → Filtro de ruído agressivo
-2. Confusão entre tons relativos → Peso MUITO maior para fins de frase
-3. Lock prematuro em tom errado → Requer mais evidência antes de travar
-4. Instabilidade → Histerese forte para mudanças
+CORREÇÕES DEFINITIVAS (v10.1):
 
-PRINCÍPIO FUNDAMENTAL:
-- A TÔNICA é onde as frases TERMINAM
-- A TÔNICA é a nota mais LONGA
-- A TÔNICA é a nota que RETORNA
-- Dominante (V) é FREQUENTE mas NÃO é a tônica
+BUG 1 RESOLVIDO: MAX_GAP era 3 frames (30ms) → qualquer vibrato virava "fim de frase"
+  → MAX_GAP = 15 frames (150ms) — pausa real mínima para fim de frase musical
 
-ABORDAGEM:
-- Priorizar QUALIDADE sobre VELOCIDADE
-- Só travar quando tiver CERTEZA
-- Usar múltiplas análises para confirmar
+BUG 2 RESOLVIDO: 60% peso em fins de frase amplificava fins falsos
+  → Redistribuição: 35% fins de frase + 40% Krumhansl + 25% duração
+  → Krumhansl é o mais robusto e agora tem peso adequado
+
+BUG 3 RESOLVIDO: Maior/menor determinado só pela 3ª
+  → Agora usa 3ª (primário) + 7ª sensível (secundário) + 6ª (terciário)
+  → Diferencia corretamente Sol maior (Si natural = sensível) de Mi menor
+
+BUG 4 RESOLVIDO: Notas curtas/ruidosas contaminando análise
+  → CONFIDENCE_THRESHOLD = 0.45 (era 0.35)
+  → MIN_NOTE_DUR_MS = 100ms (era 60ms)
+
+PRINCÍPIO MUSICAL CORRETO:
+- A TÔNICA é a nota de REPOUSO — onde as frases TERMINAM de forma longa
+- A TÔNICA tem a MAIOR presença total na música
+- A DOMINANTE é frequente mas resolve PARA a tônica (não é a tônica)
+- Maior vs Menor: decidido pela 3ª + 7ª + 6ª combinados
 """
 
 from __future__ import annotations
 
 import tempfile
-from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from collections import Counter
@@ -44,7 +49,7 @@ logger = logging.getLogger(__name__)
 NOTE_NAMES_BR = ['Dó', 'Dó#', 'Ré', 'Ré#', 'Mi', 'Fá', 'Fá#', 'Sol', 'Sol#', 'Lá', 'Lá#', 'Si']
 NOTE_NAMES_EN = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
 
-# Perfis Krumhansl-Kessler (mais precisos que Aarden)
+# Perfis Krumhansl-Kessler
 KK_MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
 KK_MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 
@@ -52,13 +57,13 @@ SAMPLE_RATE = 16000
 HOP_MS = 10
 HOP_LENGTH = int(SAMPLE_RATE * HOP_MS / 1000)
 MODEL_CAPACITY = 'tiny'
-F0_MIN = 65.0   # REDUZIDO para captar vozes graves
-F0_MAX = 1000.0 # AUMENTADO para captar vozes agudas
+F0_MIN = 65.0
+F0_MAX = 1000.0
 
-# THRESHOLDS MAIS PERMISSIVOS para não perder notas
-CONFIDENCE_THRESHOLD = 0.35  # REDUZIDO de 0.45 - aceita mais notas
-MIN_NOTE_DUR_MS = 60         # REDUZIDO de 80 - notas mais curtas
-MIN_RMS_THRESHOLD = 0.008    # REDUZIDO de 0.02 - mais sensível
+# FIX BUG 4: Thresholds mais rígidos para não aceitar pitches ruidosos
+CONFIDENCE_THRESHOLD = 0.45  # era 0.35 — filtrar mais ruído
+MIN_NOTE_DUR_MS = 100        # era 60 — notas muito curtas são ornamentos/ruído
+MIN_RMS_THRESHOLD = 0.010    # era 0.008
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -134,7 +139,13 @@ def extract_pitch(audio: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def pitch_to_notes(f0: np.ndarray, conf: np.ndarray) -> List[Note]:
-    """Converte F0 em lista de notas com detecção de fins de frase."""
+    """Converte F0 em lista de notas com detecção de fins de frase.
+    
+    FIX BUG 1: MAX_GAP aumentado de 3 (30ms) para 15 (150ms).
+    Justificativa musical: uma pausa real entre frases é no mínimo 150-200ms.
+    Com 30ms, qualquer vibrato, consoante ou micro-flutuação virava "fim de frase",
+    inflando notas aleatórias com 60% do peso de detecção.
+    """
     notes: List[Note] = []
     
     # Converter para MIDI
@@ -148,7 +159,7 @@ def pitch_to_notes(f0: np.ndarray, conf: np.ndarray) -> List[Note]:
     current_frames = 0
     start_frame = 0
     gap_frames = 0
-    MAX_GAP = 3  # 30ms de tolerância
+    MAX_GAP = 15  # FIX: 150ms (era 3 = 30ms) — pausa real mínima para fim de frase
     
     def flush_note(end_frame: int, is_end: bool = False):
         nonlocal current_pc, current_midi_sum, current_conf_sum, current_frames
@@ -173,7 +184,6 @@ def pitch_to_notes(f0: np.ndarray, conf: np.ndarray) -> List[Note]:
         if np.isnan(m):
             gap_frames += 1
             if gap_frames > MAX_GAP:
-                # Gap longo = fim de frase
                 flush_note(i, is_end=True)
             continue
         
@@ -212,51 +222,51 @@ def pitch_to_notes(f0: np.ndarray, conf: np.ndarray) -> List[Note]:
 
 def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     """
-    MÉTODO DEFINITIVO DE DETECÇÃO DE TONALIDADE
+    DETECÇÃO DE TONALIDADE — v10.1 CORRIGIDA
     
-    Princípios:
-    1. A TÔNICA é onde as frases terminam (60% do peso)
-    2. A TÔNICA é a nota mais longa/frequente (25% do peso)
-    3. Correlação com perfil Krumhansl (15% do peso)
+    FIX BUG 2: Redistribuição de pesos musicalmente correta:
+      - Antes: 60% fins de frase + 25% duração + 15% Krumhansl
+      - Agora:  35% fins de frase + 25% duração + 40% Krumhansl
+      Justificativa: Krumhansl correlaciona o conjunto INTEIRO de notas com
+      perfis tonais validados psicoacusticamente. É o mais robusto. Fins de
+      frase são importantes mas sensíveis a falsos positivos.
     
-    Por que esse peso?
-    - Um cantor SEMPRE termina frases na tônica ou em nota do acorde tônico
-    - Mesmo cantando escalas, a nota de repouso é a tônica
-    - Krumhansl é bom mas genérico - fins de frase são específicos
+    FIX BUG 3: Decisão maior/menor usa 3ª + 7ª + 6ª:
+      - 3ª: terça maior (4st) vs terça menor (3st) — evidência primária
+      - 7ª: sensível (11st, ex: F# em Sol maior) vs 7ª menor (10st) — forte evidência
+      - 6ª: 6ª maior (9st, ex: Mi em Sol maior) vs 6ª menor (8st)
+      Combinados, distinguem corretamente Sol maior de Mi menor.
     """
-    # MUDANÇA: Aceita com apenas 2 notas para não travar
     if len(notes) < 2:
         return AnalysisResult(success=False, debug={'error': 'insufficient_notes', 'count': len(notes)})
     
-    # ═══ 1. ANÁLISE DE FINS DE FRASE (60%) ═══
+    # ═══ 1. ANÁLISE DE FINS DE FRASE (35%) ═══
     phrase_end_weight = np.zeros(12, dtype=np.float64)
     phrase_end_count = Counter()
     
     for n in notes:
         if n.is_phrase_end:
-            # Peso exponencial pela duração (notas longas no fim = MUITO importantes)
-            weight = (n.dur_ms / 200.0) ** 1.5 * n.confidence
+            # FIX: Peso linear (não exponencial) pela duração
+            # Antes: (n.dur_ms / 200.0) ** 1.5 — amplificava demais notas longas falsas
+            # Agora: peso proporcional, mínimo 0.5, máximo 2.0
+            weight = min(2.0, max(0.5, n.dur_ms / 300.0)) * n.confidence
             phrase_end_weight[n.pitch_class] += weight
             phrase_end_count[n.pitch_class] += 1
     
-    # Log para debug
     logger.info(f"[v10] Fins de frase: {dict(phrase_end_count)}")
     
-    # Normalizar
     max_end = phrase_end_weight.max()
     if max_end > 0:
         phrase_end_score = phrase_end_weight / max_end
     else:
         phrase_end_score = np.zeros(12)
     
-    # ═══ 2. ANÁLISE DE DURAÇÃO/FREQUÊNCIA (25%) ═══
+    # ═══ 2. ANÁLISE DE DURAÇÃO (25%) ═══
     duration_weight = np.zeros(12, dtype=np.float64)
     for n in notes:
-        # Notas longas têm mais peso
         weight = n.dur_ms * n.confidence
-        # Bonus para notas muito longas (repouso)
-        if n.dur_ms > 400:
-            weight *= 1.5
+        if n.dur_ms > 500:
+            weight *= 1.3  # Bonus moderado para notas muito longas (repouso)
         duration_weight[n.pitch_class] += weight
     
     max_dur = duration_weight.max()
@@ -265,24 +275,27 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     else:
         duration_score = np.zeros(12)
     
-    # ═══ 3. CORRELAÇÃO KRUMHANSL (15%) ═══
+    # ═══ 3. CORRELAÇÃO KRUMHANSL (40%) ═══
     pcp = np.zeros(12, dtype=np.float64)
     for n in notes:
         pcp[n.pitch_class] += n.dur_ms * n.confidence
     
     krumhansl_score = np.zeros(12, dtype=np.float64)
+    krumhansl_major = np.zeros(12, dtype=np.float64)
+    krumhansl_minor = np.zeros(12, dtype=np.float64)
+    
     for root in range(12):
-        # Testar como maior
         rotated_major = np.roll(KK_MAJOR, root)
         corr_major = np.corrcoef(pcp, rotated_major)[0, 1] if pcp.sum() > 0 else 0
         
-        # Testar como menor
         rotated_minor = np.roll(KK_MINOR, root)
         corr_minor = np.corrcoef(pcp, rotated_minor)[0, 1] if pcp.sum() > 0 else 0
         
-        krumhansl_score[root] = max(corr_major, corr_minor)
+        krumhansl_major[root] = max(0.0, float(corr_major))
+        krumhansl_minor[root] = max(0.0, float(corr_minor))
+        krumhansl_score[root] = max(krumhansl_major[root], krumhansl_minor[root])
     
-    # Normalizar
+    # Normalizar Krumhansl
     min_k = krumhansl_score.min()
     max_k = krumhansl_score.max()
     if max_k > min_k:
@@ -290,42 +303,78 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     else:
         krumhansl_score = np.zeros(12)
     
-    # ═══ COMBINAÇÃO FINAL ═══
-    # 60% fins de frase + 25% duração + 15% Krumhansl
+    # ═══ COMBINAÇÃO FINAL (pesos corrigidos) ═══
     final_score = (
-        0.60 * phrase_end_score +
+        0.35 * phrase_end_score +
         0.25 * duration_score +
-        0.15 * krumhansl_score
+        0.40 * krumhansl_score
     )
     
     # ═══ PENALIZAÇÃO ANTI-DOMINANTE ═══
-    # Se uma nota X é candidata forte, penalizar X+7 (a 5ª de X)
-    # Porque a dominante é frequente mas não é a tônica
+    # Penalizar a dominante (V = +7st) para evitar confundir tônica com dominante
     for pc in range(12):
-        if final_score[pc] > 0.5:
-            fifth_of_pc = (pc + 7) % 12
-            penalty = final_score[pc] * 0.15
-            final_score[fifth_of_pc] = max(0, final_score[fifth_of_pc] - penalty)
+        if final_score[pc] > 0.6:
+            dominant_of_pc = (pc + 7) % 12
+            penalty = final_score[pc] * 0.12
+            final_score[dominant_of_pc] = max(0, final_score[dominant_of_pc] - penalty)
     
-    # Encontrar vencedor
     ranked = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)
     winner_pc = ranked[0][0]
     winner_score = ranked[0][1]
     runner_up_score = ranked[1][1] if len(ranked) > 1 else 0
     
-    # ═══ DETERMINAR MODO (MAIOR/MENOR) ═══
-    major_3rd_pc = (winner_pc + 4) % 12
-    minor_3rd_pc = (winner_pc + 3) % 12
+    # ═══ DETERMINAR MODO: MAIOR vs MENOR (FIX BUG 3) ═══
+    #
+    # Para tom com tônica em winner_pc:
+    #   Terça Maior = winner_pc + 4 semitoms
+    #   Terça Menor = winner_pc + 3 semitoms
+    #   Sétima Sensível (maior) = winner_pc + 11 semitoms
+    #   Sétima Menor = winner_pc + 10 semitoms
+    #   Sexta Maior  = winner_pc + 9 semitoms
+    #   Sexta Menor  = winner_pc + 8 semitoms
+    #
+    # Exemplo: Sol Maior vs Mi Menor
+    #   Sol Maior: terça=Si(11), sensível=Fá#(6), 6ªM=Mi(4)
+    #   Mi Menor:  terça=Sol(7), 7ª_menor=Ré(2), 6ªm=Dó(0)
+    #   A presença de Fá# (sensível de Sol) distingue fortemente Sol Maior de Mi Menor.
     
-    major_3rd_weight = duration_weight[major_3rd_pc]
-    minor_3rd_weight = duration_weight[minor_3rd_pc]
+    major_3rd   = (winner_pc + 4) % 12
+    minor_3rd   = (winner_pc + 3) % 12
+    major_7th   = (winner_pc + 11) % 12  # sensível (leading tone)
+    minor_7th   = (winner_pc + 10) % 12  # sétima menor
+    major_6th   = (winner_pc + 9) % 12   # 6ª maior
+    minor_6th   = (winner_pc + 8) % 12   # 6ª menor
     
-    if major_3rd_weight > minor_3rd_weight * 1.2:
+    dw = duration_weight  # atalho
+    
+    # Score para modo maior (0..1 cada)
+    major_evidence = (
+        0.50 * (dw[major_3rd] / (dw[major_3rd] + dw[minor_3rd] + 1e-6)) +
+        0.30 * (dw[major_7th] / (dw[major_7th] + dw[minor_7th] + 1e-6)) +
+        0.20 * (dw[major_6th] / (dw[major_6th] + dw[minor_6th] + 1e-6))
+    )
+    
+    # Score para modo menor (espelho)
+    minor_evidence = (
+        0.50 * (dw[minor_3rd] / (dw[major_3rd] + dw[minor_3rd] + 1e-6)) +
+        0.30 * (dw[minor_7th] / (dw[major_7th] + dw[minor_7th] + 1e-6)) +
+        0.20 * (dw[minor_6th] / (dw[major_6th] + dw[minor_6th] + 1e-6))
+    )
+    
+    # Desambiguação adicional via Krumhansl (usar correlação direta maior/menor)
+    ks_major_winner = krumhansl_major[winner_pc]
+    ks_minor_winner = krumhansl_minor[winner_pc]
+    
+    # Combinar evidência de graus + Krumhansl para decisão final
+    combined_major = 0.65 * major_evidence + 0.35 * ks_major_winner
+    combined_minor = 0.65 * minor_evidence + 0.35 * ks_minor_winner
+    
+    if combined_major > combined_minor * 1.15:
         quality = 'major'
-    elif minor_3rd_weight > major_3rd_weight * 1.5:
+    elif combined_minor > combined_major * 1.15:
         quality = 'minor'
     else:
-        quality = 'major'  # Default para maior se ambíguo
+        quality = 'major'  # Default: maior quando ambíguo (maioria dos casos em música popular)
     
     # ═══ CALCULAR CONFIANÇA ═══
     margin = winner_score - runner_up_score
@@ -333,13 +382,13 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     
     confidence = (
         0.40 * winner_score +
-        0.30 * min(1.0, margin / 0.15) +
-        0.30 * phrase_end_confidence
+        0.35 * min(1.0, margin / 0.12) +
+        0.25 * phrase_end_confidence
     )
     confidence = max(0.0, min(1.0, confidence))
     
-    # Log detalhado
     logger.info(f"[v10] Top 3: {[(NOTE_NAMES_BR[pc], f'{s:.3f}') for pc, s in ranked[:3]]}")
+    logger.info(f"[v10] Maior evidence={combined_major:.3f} vs Menor evidence={combined_minor:.3f}")
     logger.info(f"[v10] Vencedor: {NOTE_NAMES_BR[winner_pc]} {quality} (conf={confidence:.2f})")
     
     return AnalysisResult(
@@ -352,15 +401,15 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
         debug={
             'phrase_ends': dict(phrase_end_count),
             'top_candidates': [(NOTE_NAMES_BR[pc], round(s, 3)) for pc, s in ranked[:5]],
+            'mode_evidence': {
+                'major': round(combined_major, 3),
+                'minor': round(combined_minor, 3),
+            },
             'scores': {
                 'phrase_end': {NOTE_NAMES_BR[i]: round(phrase_end_score[i], 3) for i in range(12) if phrase_end_score[i] > 0.1},
                 'duration': {NOTE_NAMES_BR[i]: round(duration_score[i], 3) for i in range(12) if duration_score[i] > 0.1},
                 'krumhansl': {NOTE_NAMES_BR[i]: round(krumhansl_score[i], 3) for i in range(12) if krumhansl_score[i] > 0.1},
             },
-            'third_evidence': {
-                'major_3rd': round(major_3rd_weight, 1),
-                'minor_3rd': round(minor_3rd_weight, 1),
-            }
         }
     )
 
