@@ -570,6 +570,16 @@ class SessionAccumulator:
         if should_lock:
             self._lock(result.tonic, result.quality, result.confidence)
         
+        # ─── WARMUP TARGET (UX) ───
+        # Número de análises necessárias antes que o backend libere lock.
+        # Usado pelo frontend para mostrar barra de progresso "Analisando 1/4 → 4/4".
+        WARMUP_TARGET = 4
+        warmup_progress = {
+            'current': min(self.analysis_count, WARMUP_TARGET),
+            'target': WARMUP_TARGET,
+            'is_warming_up': self.analysis_count < WARMUP_TARGET and self.locked_tonic is None,
+        }
+        
         # Se já está travado, retornar tom travado
         if self.locked_tonic is not None:
             return {
@@ -582,6 +592,7 @@ class SessionAccumulator:
                 'locked': True,
                 'locked_for': round(time.time() - self.locked_at, 1) if self.locked_at else 0,
                 'analyses': self.analysis_count,
+                'warmup_progress': warmup_progress,
                 'method': 'v10-locked',
             }
         
@@ -664,6 +675,7 @@ class SessionAccumulator:
             'confidence': provisional_confidence,
             'locked': False,
             'analyses': self.analysis_count,
+            'warmup_progress': warmup_progress,
             'notes_count': result.notes_count,
             'debug': result.debug,
             'method': provisional_method,

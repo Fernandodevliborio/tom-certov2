@@ -69,6 +69,10 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - **Lock criteria endurecido** (`_should_lock`): mínimo 4 análises (20s de áudio) para qualquer lock + gate anti-dominante/anti-mediant que rejeita lock se runner-up é 3ª/5ª do top com margem <25%
   - **Lock criteria descongela** (`_should_change`): cap em 0.92 + fast-path anti-dominante/mediant retroativo para descongelar quando descobre raiz tonal real
   - **Proteção anti-lock-prematuro do FRONTEND (universal, sem viés)**: nas primeiras 4 análises (≈20s), o backend retorna confidence=0.30 (abaixo do MIN_CONFIDENCE_THRESHOLD=0.35 do `stableKeyEngine.ts`) quando há ambiguidade — definida por: confidence < 0.75 OU margem top-vs-runner-up < 35% OU top é 3ª/5ª de outro candidato com score ≥ 70% do top. Isso faz o frontend mostrar "analisando..." sem travar em nenhum tom errado. Funciona universalmente para qualquer tom (não confia em Krumhansl winner). Solução cirúrgica que NÃO requer regerar APK.
+- ✅ **UX Warmup Progress (Feb 2026)** — barra de progresso "Analisando 1/4 → 4/4" durante warmup:
+  - Backend: novo campo `warmup_progress: { current, target: 4, is_warming_up }` em todas as respostas
+  - Frontend: contador "X/4" no badge, barra âmbar progressiva (25% → 100%), texto "Coletando contexto musical · X/4"
+  - Some automaticamente quando trava no tom correto. testIDs: `warmup-progress-counter`, `warmup-progress-bar`
   - **Prova de globalidade (33 testes pytest)**: novos testes `test_padrao_hino_funciona_em_todos_12_tons_maiores` e `_menores` aplicam o exato padrão musical do hino problemático aos 24 tons — todos passam, provando que a correção é puramente baseada em aritmética modular (mod 12) sem hardcode
 - ✅ **Landing Page** — refatorada de 3 → 2 planos (Essencial e Profissional) em `/app/backend/tom-certo-emergent-ready/standalone-html/index.html`
 - ✅ **Railway + MongoDB Setup** — variáveis de ambiente configuradas (ver `/app/RAILWAY_SETUP_GUIDE.md`)

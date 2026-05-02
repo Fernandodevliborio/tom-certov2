@@ -772,6 +772,20 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   <Ionicons name={statusInfo.icon as any} size={11} color={C.amber} />
                   <Text style={[ss.keyCardBadgeTxt, { color: C.amber }]}>{statusInfo.label}</Text>
                 </View>
+                {(() => {
+                  const wp = (mlResult as any)?.warmup_progress;
+                  if (wp && wp.is_warming_up) {
+                    return (
+                      <Text
+                        testID="warmup-progress-counter"
+                        style={[ss.keyCardConfPct, { color: C.amber }]}
+                      >
+                        {wp.current}/{wp.target}
+                      </Text>
+                    );
+                  }
+                  return null;
+                })()}
               </View>
               <Text style={ss.analyzingTitle}>{statusInfo.sub}</Text>
               <Text style={ss.analyzingSub}>
@@ -779,6 +793,37 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   ? 'Cante ou toque por alguns segundos.'
                   : 'Confirmando detecção…'}
               </Text>
+              {(() => {
+                const wp = (mlResult as any)?.warmup_progress;
+                if (wp && wp.is_warming_up) {
+                  const pct = Math.min(100, (wp.current / Math.max(1, wp.target)) * 100);
+                  return (
+                    <View testID="warmup-progress-bar" style={ss.analysisProgress}>
+                      <View style={ss.analysisProgressBar}>
+                        <View
+                          style={[
+                            ss.analysisProgressFill,
+                            { width: `${pct}%` as any },
+                          ]}
+                        />
+                      </View>
+                      <Text
+                        style={{
+                          fontFamily: 'Manrope_500Medium',
+                          fontSize: 11,
+                          color: C.text3,
+                          letterSpacing: 0.4,
+                          marginTop: 6,
+                          textAlign: 'center',
+                        }}
+                      >
+                        Coletando contexto musical · {wp.current}/{wp.target}
+                      </Text>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
             </View>
           ) : null}
         </View>

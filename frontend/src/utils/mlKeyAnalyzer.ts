@@ -76,6 +76,13 @@ export interface MLAnalysisResult {
   locked_for_seconds?: number;
   accumulated_analyses?: number;
   
+  // v10.2 — Progresso de warmup para UX (barra "1/4 → 4/4")
+  warmup_progress?: {
+    current: number;       // análises feitas (cap em target)
+    target: number;        // total necessário antes de liberar lock (geralmente 4)
+    is_warming_up: boolean; // true enquanto current < target e ainda não travou
+  };
+  
   // Breakdown de confiança v8
   confidence_breakdown?: {
     combined_score?: number;
