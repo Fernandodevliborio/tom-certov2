@@ -1,49 +1,23 @@
-# Test Credentials - Tom Certo
+# Test Credentials — Tom Certo v2
 
-## Admin Panel
-- **URL:** /api/admin
-- **Username:** Admin01
-- **Password:** adminfernando
+## Backend API
+- **Preview (local):** `https://backend-verify-16.preview.emergentagent.com`
+- **Production (Railway):** `https://tomcerto.online`
 
-## Planos Disponíveis
+## Expo
+- **Account:** `apptomcertoapk`
+- **Email:** `adsfernandoliborioo@gmail.com`
+- **EXPO_TOKEN:** `d9YL956Vc3ItW2GqboE1xzXr7Gzg6_kciRMyZwls`
+  - Usage: `EXPO_TOKEN=... eas update --branch production --message "..."`
 
-### ESSENCIAL - R$ 9,90/mês
-- ✅ Detecção de tom
-- ✅ Campo harmônico completo
-- ✅ Afinador profissional
-- ❌ Acordes em tempo real (BLOQUEADO)
+## Test Token for activation
+- **TEST-DEV2026** (used for dev testing)
 
-### PROFISSIONAL - R$ 19,90/mês
-- ✅ Detecção de tom
-- ✅ Campo harmônico completo
-- ✅ Afinador profissional
-- ✅ Acordes em tempo real (DESBLOQUEADO)
+## Admin UI
+- **URL:** `/api/admin-ui` or `/api/admin`
+- **Header:** `X-Admin-Key: <ADMIN_KEY>` (set in backend env)
 
-## Tokens de Acesso Ativos
-
-### Cliente 1: Eduardo de Oliveira Santos
-- **Email:** espaco.musical02@gmail.com
-- **Token:** 3EHK-QSY5
-- **Plano:** ESSENCIAL
-- **Expira:** 31/05/2026
-- **Dispositivos:** 1 (único por token)
-
-### Cliente 2: SAMUEL BARBOSA FONSECA
-- **Email:** sanchez080216@gmail.com
-- **Token:** JEKQ-TMG8
-- **Plano:** ESSENCIAL
-- **Expira:** 31/05/2026
-- **Dispositivos:** 1 (único por token)
-
-## Regras de Dispositivo (FASE 2)
-- Cada token funciona em apenas 1 dispositivo por vez
-- Primeiro login vincula o dispositivo automaticamente
-- Limite de 2 trocas automáticas durante a validade
-- Mínimo de 30 dias entre trocas
-- Admin pode resetar dispositivo manualmente
-
-## Notas
-- Sistema de planos implementado (FASE 1)
-- Sistema de controle de dispositivo implementado (FASE 2)
-- Painel admin atualizado com criação manual de tokens
-- Backend preparado para troca de dispositivo pelo usuário
+## MongoDB
+- Connection via `MONGO_URL` env var (see backend/.env)
+- DB Name: see `DB_NAME` env var
+- Collection used for wrong-key feedback: `key_feedback`
