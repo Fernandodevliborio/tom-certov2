@@ -473,6 +473,14 @@ from feedback_service import (
     parse_key_name,
     NOTE_NAMES_BR as FB_NOTE_NAMES,
 )
+from admin_push import (
+    upsert_admin_token,
+    list_admin_tokens,
+    deactivate_token as deactivate_push_token,
+    notify_admins,
+    format_feedback_notification,
+    is_valid_expo_token,
+)
 
 
 class KeyFeedbackRequest(BaseModel):
@@ -536,6 +544,26 @@ async def submit_key_feedback(payload: KeyFeedbackRequest, request: Request):
         f"→ type={doc['error_classification']['type']} causes={len(doc['possible_causes'])}"
     )
     
+    # Disparar push notification para admin(s) — fire-and-forget, não bloqueia resposta.
+    # Remove _id (ObjectId) antes para não impactar sua serialização.
+    doc_for_notif = {k: v for k, v in doc.items() if k != '_id'}
+    try:
+        msg = format_feedback_notification(doc_for_notif)
+        asyncio.create_task(notify_admins(
+            db,
+            title=msg['title'],
+            body=msg['body'],
+            data={
+                'type': 'wrong_key_feedback',
+                'error_type': doc['error_classification']['type'],
+                'detected': doc['detected']['key_name'],
+                'correct': doc['correct']['key_name'],
+                'diff': doc['error_classification'].get('diff_semitones'),
+            },
+        ))
+    except Exception as exc:
+        logger.warning(f"[key-feedback] erro agendando push notification: {exc}")
+    
     return {
         'success': True,
         'message': 'Obrigado! Vou analisar esse caso para melhorar a detecção.',
@@ -568,6 +596,64 @@ async def key_feedback_stats(request: Request):
     stats = aggregate_error_stats(docs)
     stats['recent_samples'] = docs[:20]  # 20 amostras mais recentes
     return stats
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ADMIN PUSH TOKENS — notificações para o dev quando eventos importantes ocorrem
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class AdminPushTokenPayload(BaseModel):
+    token: str
+    device_id: str
+    label: Optional[str] = None
+
+
+@api_router.post("/admin/push-token")
+async def register_admin_push_token(payload: AdminPushTokenPayload, request: Request):
+    """Registra o Expo Push Token de um dispositivo admin.
+    Protegido por X-Admin-Key (ADMIN_KEY env var).
+    """
+    verify_admin(request)
+    if not is_valid_expo_token(payload.token):
+        raise HTTPException(400, "Expo push token inválido (esperado formato 'ExponentPushToken[...]')")
+    try:
+        result = await upsert_admin_token(db, payload.token, payload.device_id, payload.label)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return {'ok': True, **result}
+
+
+@api_router.get("/admin/push-token")
+async def list_admin_push_tokens(request: Request):
+    verify_admin(request)
+    tokens = await list_admin_tokens(db)
+    # Serializar datetimes
+    for t in tokens:
+        for k in ('created_at', 'updated_at'):
+            v = t.get(k)
+            if hasattr(v, 'isoformat'):
+                t[k] = v.isoformat()
+    return {'tokens': tokens, 'count': len(tokens)}
+
+
+@api_router.delete("/admin/push-token")
+async def revoke_admin_push_token(request: Request, token: str):
+    verify_admin(request)
+    ok = await deactivate_push_token(db, token)
+    return {'ok': ok}
+
+
+@api_router.post("/admin/push-token/test")
+async def test_admin_push(request: Request):
+    """Dispara um push de teste para todos os tokens ativos."""
+    verify_admin(request)
+    result = await notify_admins(
+        db,
+        title="Tom Certo — teste de notificação",
+        body="Se você recebeu isso, o push admin está funcionando! 🎵",
+        data={'type': 'test'},
+    )
+    return result
 
 
 @api_router.post("/analyze-key/diagnostic")
