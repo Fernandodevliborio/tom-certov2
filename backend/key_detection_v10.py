@@ -585,15 +585,48 @@ class SessionAccumulator:
                 'method': 'v10-locked',
             }
         
+        # ─── PROTEÇÃO ANTI-LOCK-PREMATURO-FRONTEND ───
+        # O cliente Expo (stableKeyEngine.ts) trava com apenas 2 análises consecutivas
+        # e confiança ≥ 0.55. Para evitar que ele trave em uma 3ª/5ª do tom real durante
+        # os primeiros chunks (quando o backend ainda não tem contexto musical suficiente),
+        # fazemos o backend retornar o Krumhansl winner como provisional NESSE caso.
+        # Krumhansl olha o conjunto INTEIRO de notas — é a referência mais robusta.
+        provisional_tonic = result.tonic
+        provisional_quality = result.quality
+        provisional_confidence = result.confidence
+        
+        if self.analysis_count < 4:
+            ks_winner_str = result.debug.get('krumhansl_24_winner', '')
+            try:
+                # Parse "Mi major" / "Lá# minor" / etc.
+                parts = ks_winner_str.rsplit(' ', 1)
+                if len(parts) == 2:
+                    ks_pc = NOTE_NAMES_BR.index(parts[0])
+                    ks_quality = parts[1]  # 'major' or 'minor'
+                    diff = (result.tonic - ks_pc) % 12
+                    # Se candidato é 3ª maior/menor ou 5ª justa do KS winner,
+                    # sobrescreve para evitar lock prematuro do frontend em armadilha.
+                    if diff in (3, 4, 7) and ks_pc != result.tonic:
+                        logger.info(
+                            f"[v10.2] Provisional override (anti-lock-prematuro): "
+                            f"{NOTE_NAMES_BR[result.tonic]} {result.quality} é offset+{diff} "
+                            f"de Krumhansl winner {parts[0]} {ks_quality} → retornando KS winner"
+                        )
+                        provisional_tonic = ks_pc
+                        provisional_quality = ks_quality
+                        # Reduz a confiança levemente para sinalizar incerteza
+                        provisional_confidence = min(result.confidence * 0.85, 0.50)
+            except (ValueError, IndexError):
+                pass
+        
         # Ainda não travado - retornar resultado provisório
-        # MUDANÇA: Sempre retorna success=True quando temos um candidato
         return {
             'success': True,
-            'tonic': result.tonic,
-            'tonic_name': NOTE_NAMES_BR[result.tonic],
-            'quality': result.quality,
-            'key_name': f"{NOTE_NAMES_BR[result.tonic]} {'Maior' if result.quality == 'major' else 'menor'}",
-            'confidence': result.confidence,
+            'tonic': provisional_tonic,
+            'tonic_name': NOTE_NAMES_BR[provisional_tonic],
+            'quality': provisional_quality,
+            'key_name': f"{NOTE_NAMES_BR[provisional_tonic]} {'Maior' if provisional_quality == 'major' else 'menor'}",
+            'confidence': provisional_confidence,
             'locked': False,
             'analyses': self.analysis_count,
             'notes_count': result.notes_count,
@@ -671,10 +704,16 @@ class SessionAccumulator:
         
         Mudança de tom é rara — exige evidência forte e consistente.
         A histerese protege contra oscilação entre tons próximos.
+        
+        FAST PATH: se o novo candidato indica que o tom locked era 3ª/5ª
+        (dominante/mediant), permite mudança rápida — é o caso clássico de
+        "descobri a raiz tonal real depois de mais contexto musical".
         """
         if result.tonic == self.locked_tonic:
-            # Mesmo tom — reforçar confiança gradualmente
-            self.locked_confidence = min(0.99, self.locked_confidence * 0.9 + result.confidence * 0.1)
+            # Mesmo tom — reforçar confiança, mas CAPAR em 0.92 para sempre
+            # deixar margem matemática para uma mudança ser possível.
+            # (Bug anterior: cap em 0.99 + threshold de +0.15 → impossível mudar.)
+            self.locked_confidence = min(0.92, self.locked_confidence * 0.92 + result.confidence * 0.08)
             return False
         
         time_since_lock = time.time() - (self.locked_at or time.time())
@@ -683,13 +722,40 @@ class SessionAccumulator:
         if time_since_lock < 4.0:
             return False
         
-        # Precisa de 3 votos nos últimos 5 no novo tom
+        # ─── FAST PATH: anti-dominante/anti-mediant retroativo ───
+        # Se o tom locked é 3ª maior (+4), 3ª menor (+3) ou 5ª justa (+7) do novo
+        # candidato, e Krumhansl puro (que olha o conjunto INTEIRO de notas) também
+        # confirma o novo candidato como raiz, é sinal de que o lock anterior era
+        # uma "armadilha" de início (pouco contexto) e descobrimos a raiz real.
+        # Caso real: hino em Mi maior travou em Si Maior aos 20s; aos 60-90s o
+        # contexto musical clarifica e o algoritmo deve corrigir rapidamente.
+        diff_locked_from_new = (self.locked_tonic - result.tonic) % 12
+        ks_winner_str = result.debug.get('krumhansl_24_winner', '')
+        ks_confirms_new = (
+            ks_winner_str.startswith(NOTE_NAMES_BR[result.tonic] + ' ')
+            or ks_winner_str.startswith(NOTE_NAMES_BR[result.tonic] + '\t')
+        )
+        if (
+            diff_locked_from_new in (3, 4, 7)
+            and result.confidence >= 0.65
+            and ks_confirms_new
+            and time_since_lock >= 8.0
+        ):
+            offset_name = {3: 'mediant_minor', 4: 'mediant_major', 7: 'dominant'}[diff_locked_from_new]
+            logger.info(
+                f"[v10.2] Mudança RÁPIDA (anti-{offset_name} retroativo): "
+                f"{NOTE_NAMES_BR[self.locked_tonic]} → {NOTE_NAMES_BR[result.tonic]} "
+                f"(locked era +{diff_locked_from_new} do tom real, KS confirma {ks_winner_str})"
+            )
+            return True
+        
+        # ─── CAMINHO GERAL: consenso + confidence superior ───
+        # Margem reduzida de +0.15 para +0.05 (com cap em 0.92 a margem é viável)
         if len(self.vote_history) >= 5:
             last_votes = self.vote_history[-5:]
             votes_for_new = sum(1 for v in last_votes if v == result.tonic)
             if votes_for_new >= 3:
-                # E confiança claramente superior (margem de 15%)
-                if result.confidence > self.locked_confidence + 0.15:
+                if result.confidence > self.locked_confidence + 0.05:
                     logger.info(
                         f"[v10] Mudando {NOTE_NAMES_BR[self.locked_tonic]} → "
                         f"{NOTE_NAMES_BR[result.tonic]} ({self.locked_confidence:.2f} → {result.confidence:.2f})"
