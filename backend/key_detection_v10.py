@@ -587,51 +587,86 @@ class SessionAccumulator:
         
         # ─── PROTEÇÃO ANTI-LOCK-PREMATURO-FRONTEND ───
         # O cliente Expo (stableKeyEngine.ts) trava com apenas 2 análises consecutivas
-        # e confiança ≥ 0.55. Para evitar que ele trave em uma 3ª/5ª do tom real durante
-        # os primeiros chunks (quando o backend ainda não tem contexto musical suficiente),
-        # fazemos o backend retornar o Krumhansl winner como provisional NESSE caso.
-        # Krumhansl olha o conjunto INTEIRO de notas — é a referência mais robusta.
-        provisional_tonic = result.tonic
-        provisional_quality = result.quality
+        # acima de MIN_CONFIDENCE_THRESHOLD (0.35). Para evitar lock prematuro em
+        # armadilha tonal, sinalizamos baixa confiança quando a evidência ainda é
+        # insuficiente, fazendo o frontend mostrar "analisando" sem travar.
+        #
+        # Estratégia universal (independente de Krumhansl, funciona em qualquer tom):
+        #   1) Nas primeiras 3 análises (≈15s), exigimos critérios FORTES para
+        #      passar confidence acima do threshold do frontend.
+        #   2) Critérios fortes:
+        #      - Confidence absoluta ≥ 0.70 (alta convicção do algoritmo principal)
+        #      - Margem clara entre top e runner-up (relativa ≥ 35%)
+        #      - Top NÃO é uma 3ª/5ª de candidato secundário forte
+        #   3) Se qualquer critério falha, retorna confidence=0.30 (frontend ignora).
+        #
+        # Após a 3ª análise (15s+), liberamos o resultado normalmente — o algoritmo
+        # principal já tem contexto musical suficiente (250 notas, múltiplas frases).
         provisional_confidence = result.confidence
+        provisional_method = 'v10-provisional'
         
         if self.analysis_count < 4:
-            ks_winner_str = result.debug.get('krumhansl_24_winner', '')
-            try:
-                # Parse "Mi major" / "Lá# minor" / etc.
-                parts = ks_winner_str.rsplit(' ', 1)
-                if len(parts) == 2:
-                    ks_pc = NOTE_NAMES_BR.index(parts[0])
-                    ks_quality = parts[1]  # 'major' or 'minor'
-                    diff = (result.tonic - ks_pc) % 12
-                    # Se candidato é 3ª maior/menor ou 5ª justa do KS winner,
-                    # sobrescreve para evitar lock prematuro do frontend em armadilha.
-                    if diff in (3, 4, 7) and ks_pc != result.tonic:
-                        logger.info(
-                            f"[v10.2] Provisional override (anti-lock-prematuro): "
-                            f"{NOTE_NAMES_BR[result.tonic]} {result.quality} é offset+{diff} "
-                            f"de Krumhansl winner {parts[0]} {ks_quality} → retornando KS winner"
-                        )
-                        provisional_tonic = ks_pc
-                        provisional_quality = ks_quality
-                        # Reduz a confiança levemente para sinalizar incerteza
-                        provisional_confidence = min(result.confidence * 0.85, 0.50)
-            except (ValueError, IndexError):
-                pass
+            top_candidates = result.debug.get('top_candidates', [])
+            should_signal_uncertain = False
+            uncertain_reason = ''
+            
+            # Critério A: confidence absoluta baixa
+            if result.confidence < 0.75:
+                should_signal_uncertain = True
+                uncertain_reason = f'conf<0.75 ({result.confidence:.2f})'
+            
+            # Critério B: margem entre top e runner-up estreita
+            if not should_signal_uncertain and len(top_candidates) >= 2:
+                try:
+                    top_score = float(top_candidates[0][1])
+                    runner_score = float(top_candidates[1][1])
+                    rel_margin = (top_score - runner_score) / max(top_score, 0.01)
+                    if rel_margin < 0.35:
+                        should_signal_uncertain = True
+                        uncertain_reason = f'margem_estreita ({rel_margin:.2%})'
+                except (ValueError, IndexError, TypeError):
+                    pass
+            
+            # Critério C: top é 3ª/5ª de qualquer um dos top 3 candidatos com score similar
+            if not should_signal_uncertain and len(top_candidates) >= 2:
+                try:
+                    top_name, top_score = top_candidates[0]
+                    top_pc = NOTE_NAMES_BR.index(top_name)
+                    for other_name, other_score in top_candidates[1:3]:
+                        other_pc = NOTE_NAMES_BR.index(other_name)
+                        diff = (top_pc - other_pc) % 12
+                        # Top é 3ª/5ª de outro candidato com score >= 70% do top
+                        if diff in (3, 4, 7) and other_score >= float(top_score) * 0.70:
+                            should_signal_uncertain = True
+                            uncertain_reason = (
+                                f'{top_name} é offset+{diff} de {other_name} '
+                                f'({float(other_score):.2f} ≥ 70% do top)'
+                            )
+                            break
+                except (ValueError, IndexError, TypeError):
+                    pass
+            
+            if should_signal_uncertain:
+                provisional_confidence = 0.30  # abaixo de MIN_CONFIDENCE (0.35) do frontend
+                provisional_method = 'v10-uncertain-waiting-context'
+                logger.info(
+                    f"[v10.2] Provisional incerto (análise {self.analysis_count}/4): "
+                    f"{uncertain_reason} — frontend não vai travar"
+                )
         
         # Ainda não travado - retornar resultado provisório
         return {
             'success': True,
-            'tonic': provisional_tonic,
-            'tonic_name': NOTE_NAMES_BR[provisional_tonic],
-            'quality': provisional_quality,
-            'key_name': f"{NOTE_NAMES_BR[provisional_tonic]} {'Maior' if provisional_quality == 'major' else 'menor'}",
+            'tonic': result.tonic,
+            'tonic_name': NOTE_NAMES_BR[result.tonic],
+            'quality': result.quality,
+            'key_name': f"{NOTE_NAMES_BR[result.tonic]} {'Maior' if result.quality == 'major' else 'menor'}",
             'confidence': provisional_confidence,
             'locked': False,
             'analyses': self.analysis_count,
             'notes_count': result.notes_count,
             'debug': result.debug,
-            'method': 'v10-provisional',
+            'method': provisional_method,
         }
     
     def _should_lock(self, result: AnalysisResult) -> bool:
