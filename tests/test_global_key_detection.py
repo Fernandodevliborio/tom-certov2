@@ -525,12 +525,13 @@ def test_max_gap_150ms():
 
 
 def test_krumhansl_peso_40_porcento():
-    """Confirmar que Krumhansl tem 40% de peso (antes era 15%)."""
+    """OBSOLETO em v11 — pipeline reescrito sem Krumhansl tradicional.
+    Substituído por _score_diatonic_scales + _score_tonic_candidate.
+    Mantemos para garantir que `0.15 * krumhansl_score` (valor problemático antigo)
+    não voltou ao código.
+    """
     with open('/app/backend/key_detection_v10.py', 'r') as f:
         content = f.read()
-    
-    assert '0.40 * krumhansl_score' in content, \
-        "Krumhansl deve ter peso 0.40 (era 0.15)"
     
     assert '0.15 * krumhansl_score' not in content, \
         "CRÍTICO: Peso 0.15 do Krumhansl ainda presente — valor problemático"

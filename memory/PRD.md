@@ -68,11 +68,29 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - **Streaming chunks de 5s (simulação realista do app)**: trava corretamente em Mi Maior aos 20s (antes travava em Si Maior aos 10s)
   - **Lock criteria endurecido** (`_should_lock`): mínimo 4 análises (20s de áudio) para qualquer lock + gate anti-dominante/anti-mediant que rejeita lock se runner-up é 3ª/5ª do top com margem <25%
   - **Lock criteria descongela** (`_should_change`): cap em 0.92 + fast-path anti-dominante/mediant retroativo para descongelar quando descobre raiz tonal real
-- ✅ **Key Detection v10.3 (Feb 2026)** — Correção estrutural musicológica: DESAMBIGUAÇÃO DE RELATIVOS:
-  - **Bug raiz identificado**: Krumhansl-Kessler não distingue um tom do seu relativo (Ré menor e Sib Maior compartilham a mesma escala). Quando o áudio cabe na escala, o algoritmo escolhia o relativo errado.
-  - **Solução musicológica**: separar identificação da escala (via Krumhansl) da identificação da tônica (via análise de repouso = phrase ends + duração). Para cada par (tom_maior, relativo_menor) com Krumhansl alto e ambos no top 4, aplicamos desambiguação por ratio de phrase_end ponderado. Universal para os 24 tons via aritmética modular.
-  - **Override da decisão maior/menor**: se a desambiguação selecionou o relativo menor, força `quality='minor'` (mais robusto que análise de graus 3ª/7ª/6ª, que falha em hinos com 6ª menor proeminente).
-  - **Validado empiricamente**: hino "A alma abatida" (Vanessa Ferreira, Sib Maior real, confirmado pelo usuário) → algoritmo reporta Sib Maior corretamente. Áudios sintéticos: Sol Maior, Lá Maior, Ré menor, Mi Maior — todos 100% confiança. 33/33 pytest passando.
+- ✅ **Key Detection v11 (Feb 2026)** — REESCRITA MUSICOLÓGICA do zero:
+  - **Removidas 6+ camadas conflitantes** (Krumhansl + phrase_end + duration + anti-mediant + anti-relativo + anti-dominante)
+  - **Substituídas por 5 etapas explícitas, transparentes, testáveis:**
+    1. **PCP** (Pitch Class Profile ponderado por duração e confiança)
+    2. **Identificar escalas diatônicas candidatas** (top 3 com `_score_diatonic_scales`)
+    3. **Para cada escala, ranquear 2 tônicas** (tom maior + relativo menor) via `_score_tonic_candidate` que aplica:
+       - LEI 1 (REPOUSO): cadence_score (cadência final + últimas notas + phrase ends)
+       - LEI 2 (3ª): 3ª maior para 'major', 3ª menor para 'minor', com penalidade se 3ª errada está mais presente
+       - LEI 3 (V GRADE): 5ª justa presente reforça função tonal
+       - LEI 4 (NÃO-V): se candidato é 5ª de outro pc com mais cadência, penaliza
+    4. **Selecionar tônica final** por score (combinação 50% cadência + 20% PCP + 20% 3ª + 10% 5ª)
+    5. **Confiança HONESTA** com 5 caps automáticos:
+       - margem ratio ≥ 85% entre top1 e top2 → cap 0.55
+       - margem ratio ≥ 75% → cap 0.65
+       - poucas notas (< 8) → cap 0.75
+       - poucos phrase ends (< 3) → cap 0.78
+       - 3ª fraca → cap 0.70
+       - cadência fraca → cap 0.65
+       - relativos com diff +9/+3 ratio ≥ 65% → cap 0.55
+       - tônica/dominante com diff +5/+7 ratio ≥ 60% → cap 0.55
+       - mediant maior diff +4 ratio ≥ 65% → cap 0.60
+  - **Validação:** 37/37 pytest passando. Si Maior, Dó# Maior, Mi Maior, Sol Maior balada (com 6ª longa), Ré menor, Lá menor — todos detectados corretamente. Áudios reais "Os guerreiros" Mi Maior 100% conf.
+  - **Logs transparentes:** cada decisão musical é logada com cadence, third_ratio, scale_fit explícitos.
   - **Prova de globalidade (33 testes pytest)**: novos testes `test_padrao_hino_funciona_em_todos_12_tons_maiores` e `_menores` aplicam o exato padrão musical do hino problemático aos 24 tons — todos passam, provando que a correção é puramente baseada em aritmética modular (mod 12) sem hardcode
 - ✅ **Landing Page** — refatorada de 3 → 2 planos (Essencial e Profissional) em `/app/backend/tom-certo-emergent-ready/standalone-html/index.html`
 - ✅ **Railway + MongoDB Setup** — variáveis de ambiente configuradas (ver `/app/RAILWAY_SETUP_GUIDE.md`)

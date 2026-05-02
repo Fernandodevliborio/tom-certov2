@@ -220,492 +220,372 @@ def pitch_to_notes(f0: np.ndarray, conf: np.ndarray) -> List[Note]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ANÁLISE DE TONALIDADE — MÉTODO DEFINITIVO
+# ANÁLISE DE TONALIDADE — v11 (REESCRITA MUSICOLÓGICA)
 # ═══════════════════════════════════════════════════════════════════════════════
+#
+# Pipeline em 5 ETAPAS, baseado em LEIS MUSICAIS EXPLÍCITAS:
+#
+#   1. PCP (Pitch Class Profile) — duração ponderada de cada classe
+#   2. Identificar ESCALAS DIATÔNICAS candidatas (top 3)
+#   3. Para cada escala, ranquear 2 TÔNICAS (tom maior e relativo menor)
+#      por CADÊNCIA + REPOUSO + 3ª + função tonal (V grade)
+#   4. Selecionar tônica + qualidade vencedora
+#   5. Calcular CONFIANÇA HONESTA (margem + clareza cadencial + caps)
+#
+# Sem remendos. Cada etapa é uma função pura testável.
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Conjuntos diatônicos: cada escala maior natural tem 7 notas a partir de root.
+# Modo menor natural compartilha as mesmas 7 notas com o relativo maior em (root+9).
+MAJOR_SCALE_INTERVALS = (0, 2, 4, 5, 7, 9, 11)  # T T S T T T S
+
+
+def _compute_pcp(notes: List[Note]) -> np.ndarray:
+    """ETAPA 1: Pitch Class Profile ponderado por duração e confiança.
+    
+    Retorna vetor[12] normalizado pela soma — representa quanto cada classe
+    aparece na música (0 a 1).
+    """
+    pcp = np.zeros(12, dtype=np.float64)
+    for n in notes:
+        pcp[n.pitch_class] += n.dur_ms * n.confidence
+    total = pcp.sum()
+    if total > 0:
+        pcp = pcp / total
+    return pcp
+
+
+def _score_diatonic_scales(pcp: np.ndarray) -> List[Tuple[int, float]]:
+    """ETAPA 2: Ranquear as 12 escalas diatônicas por encaixe com a PCP.
+    
+    Para cada escala (root maior R), o "fit" é:
+      sum(pcp[notas da escala]) - 0.5 * sum(pcp[notas fora da escala])
+    
+    Retorna lista [(scale_root_pc, fit), ...] ordenada decrescente.
+    """
+    scores = []
+    for root in range(12):
+        scale_pcs = {(root + i) % 12 for i in MAJOR_SCALE_INTERVALS}
+        in_scale = sum(pcp[pc] for pc in scale_pcs)
+        out_of_scale = sum(pcp[pc] for pc in range(12) if pc not in scale_pcs)
+        fit = in_scale - 0.5 * out_of_scale
+        scores.append((root, fit))
+    scores.sort(key=lambda x: -x[1])
+    return scores
+
+
+def _compute_cadence_weight(notes: List[Note]) -> np.ndarray:
+    """Calcula peso de CADÊNCIA: onde a música REPOUSA no final.
+    
+    Combina:
+      - últimas 8 notas com peso por recência (mais recente pesa mais)
+      - últimos 3 phrase ends com peso por recência
+      - última nota do áudio (peso especial)
+    """
+    cadence = np.zeros(12, dtype=np.float64)
+    if not notes:
+        return cadence
+    
+    # Últimas 8 notas, peso por recência
+    last_n = min(8, len(notes))
+    for rank, n in enumerate(notes[-last_n:]):
+        # rank 0 = mais antiga; last_n-1 = última
+        recency = (rank + 1) ** 1.3
+        weight = n.dur_ms * n.confidence * recency
+        if n.is_phrase_end:
+            weight *= 2.0
+        cadence[n.pitch_class] += weight
+    
+    # Últimos 3 phrase ends explícitos
+    pe_indices = [i for i, n in enumerate(notes) if n.is_phrase_end]
+    for rank, idx in enumerate(pe_indices[-3:]):
+        n = notes[idx]
+        recency = (len(pe_indices[-3:]) - rank) ** 1.2
+        cadence[n.pitch_class] += n.dur_ms * n.confidence * recency * 1.5
+    
+    # ÚLTIMA NOTA do áudio: peso decisivo (a tônica é onde a música acaba)
+    last_note = notes[-1]
+    cadence[last_note.pitch_class] += last_note.dur_ms * last_note.confidence * 5.0
+    
+    # Normalizar
+    total = cadence.sum()
+    if total > 0:
+        cadence = cadence / total
+    return cadence
+
+
+def _score_tonic_candidate(
+    tonic_pc: int,
+    mode: str,           # 'major' or 'minor'
+    pcp: np.ndarray,
+    cadence: np.ndarray,
+    notes: List[Note],
+) -> Dict[str, float]:
+    """ETAPA 3: Score de tônica para um candidato (tonic_pc, mode).
+    
+    LEIS MUSICAIS aplicadas:
+      LEI 1 (REPOUSO):    cadence[tonic] alto = forte evidência
+      LEI 2 (3ª):         3ª maior presente para 'major', 3ª menor para 'minor'
+      LEI 3 (V GRADE):    5ª justa presente reforça função tonal
+      LEI 4 (NÃO-V):      tônica não pode ser a 5ª de outra raiz com peso maior
+    """
+    # Notas da escala diatônica natural a partir da tônica
+    if mode == 'major':
+        third_pc = (tonic_pc + 4) % 12   # 3ª maior
+        seventh_pc = (tonic_pc + 11) % 12  # 7ª maior (sensível)
+    else:
+        third_pc = (tonic_pc + 3) % 12   # 3ª menor
+        seventh_pc = (tonic_pc + 10) % 12  # 7ª menor (natural)
+    fifth_pc = (tonic_pc + 7) % 12  # 5ª justa (V grau)
+    
+    # ─── LEI 1: REPOUSO ───
+    cadence_score = float(cadence[tonic_pc])  # 0..1, já normalizado
+    
+    # ─── LEI 2: 3ª PRESENTE ───
+    # 3ª da qualidade certa precisa estar presente. Penalize se a 3ª da
+    # qualidade ERRADA está mais presente que a certa.
+    third_correct = float(pcp[third_pc])
+    wrong_third_pc = (tonic_pc + 3) % 12 if mode == 'major' else (tonic_pc + 4) % 12
+    third_wrong = float(pcp[wrong_third_pc])
+    
+    # ratio: 0.5 = ambíguo, 1.0 = só 3ª certa, 0 = só 3ª errada
+    if third_correct + third_wrong > 1e-6:
+        third_ratio = third_correct / (third_correct + third_wrong)
+    else:
+        third_ratio = 0.5  # neutro se nenhuma 3ª presente
+    
+    # third_score em [0..1]: 0.5 = neutro, 1 = 3ª certa dominante
+    third_score = third_ratio
+    
+    # ─── LEI 3: 5ª presente reforça função tonal ───
+    fifth_score = float(pcp[fifth_pc])
+    
+    # ─── LEI 4: NÃO-DOMINANTE ───
+    # Se há um candidato R' tal que tonic = R' + 7 (= ser 5ª de R'), penalize.
+    # I.e., se a "tônica" candidata é 5ª de outro pc com mais cadência,
+    # provavelmente é o V grau e não a tônica.
+    not_dominant_penalty = 0.0
+    candidate_root_below = (tonic_pc - 7) % 12  # quem teria tonic como V grau
+    if cadence[candidate_root_below] > cadence_score * 1.2:
+        not_dominant_penalty = 0.30
+    
+    # ─── COMBINAÇÃO ───
+    # Pesos: cadência (REPOUSO) é o sinal mais forte musicalmente
+    score = (
+        0.50 * cadence_score +
+        0.20 * pcp[tonic_pc] +     # tônica deve estar presente em geral
+        0.20 * third_score +        # 3ª da qualidade certa
+        0.10 * fifth_score          # 5ª presente reforça
+    )
+    score = max(0.0, score - not_dominant_penalty)
+    
+    return {
+        'score': score,
+        'cadence': cadence_score,
+        'third_ratio': third_ratio,
+        'pcp_tonic': float(pcp[tonic_pc]),
+        'fifth_score': fifth_score,
+        'penalty_dominant': not_dominant_penalty,
+    }
+
+
+def _compute_confidence(
+    winner_score: float,
+    runner_up_score: float,
+    winner_details: Dict[str, float],
+    notes: List[Note],
+    winner_tonic_pc: int,
+    runner_up_tonic_pc: int,
+) -> float:
+    """ETAPA 5: Confiança HONESTA.
+    
+    Componentes:
+      - margem entre top1 e top2 (sigmoid)
+      - clareza cadencial (cadence do vencedor)
+      - 3ª presente
+      - quantidade de evidência (notas)
+    
+    CAPS automáticos:
+      - sem 3ª clara → 0.70
+      - cadência < 30% → 0.65
+      - top1 e top2 são relativos com margem pequena → 0.65
+      - top1 e top2 são tônica/dominante (ou inverso) com margem pequena → 0.60
+    """
+    margin = winner_score - runner_up_score
+    margin_clamped = max(0.0, min(1.0, margin / 0.15))  # 0.15 de margem = saturado
+    
+    cadence_clarity = winner_details.get('cadence', 0.0)  # 0..1
+    third_clarity = abs(winner_details.get('third_ratio', 0.5) - 0.5) * 2.0  # 0..1
+    evidence_factor = min(1.0, len(notes) / 15.0)
+    
+    # Confiança base
+    confidence = (
+        0.40 * margin_clamped +
+        0.30 * min(1.0, cadence_clarity * 3.0) +  # *3 porque cadence é normalizada
+        0.20 * third_clarity +
+        0.10 * evidence_factor
+    )
+    
+    # ─── CAPS ───
+    caps = []
+    
+    # Cap por MARGEM PEQUENA (universal)
+    # Se runner-up está muito próximo do top, há ambiguidade real.
+    if runner_up_score > 0:
+        margin_ratio = runner_up_score / max(winner_score, 1e-6)
+        if margin_ratio >= 0.85:
+            caps.append(('tiny_margin', 0.55))
+        elif margin_ratio >= 0.75:
+            caps.append(('small_margin', 0.65))
+    
+    # Cap por poucas notas (evidência fraca)
+    if len(notes) < 8:
+        caps.append(('few_notes', 0.75))
+    
+    # Cap por poucos phrase ends totais (sem cadência demonstrada)
+    pe_count_total = sum(1 for n in notes if n.is_phrase_end)
+    if pe_count_total < 3:
+        caps.append(('few_phrase_ends', 0.78))
+    
+    if third_clarity < 0.20:
+        caps.append(('weak_third', 0.70))
+    
+    if cadence_clarity < 0.15:
+        caps.append(('weak_cadence', 0.65))
+    
+    if winner_tonic_pc != runner_up_tonic_pc and runner_up_score > 0:
+        diff = (winner_tonic_pc - runner_up_tonic_pc) % 12
+        ratio = runner_up_score / max(winner_score, 1e-6)
+        # Relativos (diff +9 ou +3) com margem pequena
+        if diff in (3, 9) and ratio >= 0.65:
+            caps.append(('relative_ambiguous', 0.55))
+        # Tônica/dominante (diff +5 ou +7) com margem pequena
+        if diff in (5, 7) and ratio >= 0.60:
+            caps.append(('dominant_ambiguous', 0.55))
+        # Mediant maior (diff +4)
+        if diff == 4 and ratio >= 0.65:
+            caps.append(('mediant_ambiguous', 0.60))
+    
+    if caps:
+        max_allowed = min(c[1] for c in caps)
+        if confidence > max_allowed:
+            confidence = max_allowed
+    
+    return max(0.0, min(1.0, confidence))
+
 
 def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     """
-    DETECÇÃO DE TONALIDADE — v10.1 CORRIGIDA
+    DETECÇÃO DE TONALIDADE — v11 (musicológica, 5 etapas explícitas).
     
-    FIX BUG 2: Redistribuição de pesos musicalmente correta:
-      - Antes: 60% fins de frase + 25% duração + 15% Krumhansl
-      - Agora:  35% fins de frase + 25% duração + 40% Krumhansl
-      Justificativa: Krumhansl correlaciona o conjunto INTEIRO de notas com
-      perfis tonais validados psicoacusticamente. É o mais robusto. Fins de
-      frase são importantes mas sensíveis a falsos positivos.
-    
-    FIX BUG 3: Decisão maior/menor usa 3ª + 7ª + 6ª:
-      - 3ª: terça maior (4st) vs terça menor (3st) — evidência primária
-      - 7ª: sensível (11st, ex: F# em Sol maior) vs 7ª menor (10st) — forte evidência
-      - 6ª: 6ª maior (9st, ex: Mi em Sol maior) vs 6ª menor (8st)
-      Combinados, distinguem corretamente Sol maior de Mi menor.
+    Substitui o código v10 com uma estrutura clara baseada em leis musicais.
+    Sem remendos. Cada decisão é transparente nos logs.
     """
     if len(notes) < 2:
         return AnalysisResult(success=False, debug={'error': 'insufficient_notes', 'count': len(notes)})
     
-    # ═══ 1. ANÁLISE DE FINS DE FRASE (35%) ═══
-    phrase_end_weight = np.zeros(12, dtype=np.float64)
-    phrase_end_count = Counter()
+    # ETAPA 1: PCP
+    pcp = _compute_pcp(notes)
     
+    # ETAPA 2: escalas diatônicas
+    scale_scores = _score_diatonic_scales(pcp)
+    top_scales = scale_scores[:3]  # top 3 escalas
+    
+    # ETAPA 3: para cada escala, gerar 2 candidatos de tônica (maior + relativo menor)
+    cadence = _compute_cadence_weight(notes)
+    
+    candidates: List[Tuple[int, str, Dict[str, float]]] = []  # (tonic_pc, mode, details)
+    seen = set()
+    for scale_root, scale_fit in top_scales:
+        # tom maior natural
+        candidate_major_pc = scale_root
+        # relativo menor natural
+        candidate_minor_pc = (scale_root + 9) % 12
+        
+        for tonic_pc, mode in [(candidate_major_pc, 'major'), (candidate_minor_pc, 'minor')]:
+            key = (tonic_pc, mode)
+            if key in seen:
+                continue
+            seen.add(key)
+            details = _score_tonic_candidate(tonic_pc, mode, pcp, cadence, notes)
+            # Multiplicar pelo encaixe da escala (escalas que cabem mal não devem
+            # gerar tônicas com score alto)
+            details['score'] *= max(0.3, scale_fit + 0.5)  # scale_fit pode ser negativo
+            details['scale_fit'] = scale_fit
+            candidates.append((tonic_pc, mode, details))
+    
+    # ETAPA 4: ordenar candidatos por score
+    candidates.sort(key=lambda x: -x[2]['score'])
+    
+    if not candidates:
+        return AnalysisResult(success=False, debug={'error': 'no_candidates'})
+    
+    winner_pc, winner_mode, winner_details = candidates[0]
+    runner_pc, runner_mode, runner_details = (
+        candidates[1] if len(candidates) > 1 else (winner_pc, winner_mode, winner_details)
+    )
+    
+    # ETAPA 5: confiança honesta
+    confidence = _compute_confidence(
+        winner_details['score'],
+        runner_details['score'],
+        winner_details,
+        notes,
+        winner_pc,
+        runner_pc,
+    )
+    
+    # phrase_end_count (compatibilidade com debug existente)
+    phrase_end_count = Counter()
     for n in notes:
         if n.is_phrase_end:
-            # FIX: Peso linear (não exponencial) pela duração
-            # Antes: (n.dur_ms / 200.0) ** 1.5 — amplificava demais notas longas falsas
-            # Agora: peso proporcional, mínimo 0.5, máximo 2.0
-            weight = min(2.0, max(0.5, n.dur_ms / 300.0)) * n.confidence
-            phrase_end_weight[n.pitch_class] += weight
             phrase_end_count[n.pitch_class] += 1
     
-    logger.info(f"[v10] Fins de frase: {dict(phrase_end_count)}")
+    # Top candidates para debug (compatibilidade)
+    top_candidates_debug = [
+        (NOTE_NAMES_BR[pc], round(d['score'], 3))
+        for pc, m, d in candidates[:5]
+    ]
     
-    max_end = phrase_end_weight.max()
-    if max_end > 0:
-        phrase_end_score = phrase_end_weight / max_end
-    else:
-        phrase_end_score = np.zeros(12)
+    # Krumhansl winner string (compatibilidade — vamos manter calculando para logs)
+    krumhansl_str = f"{NOTE_NAMES_BR[winner_pc]} {winner_mode}"
     
-    # ═══ 2. ANÁLISE DE DURAÇÃO (25%) ═══
-    duration_weight = np.zeros(12, dtype=np.float64)
-    for n in notes:
-        weight = n.dur_ms * n.confidence
-        if n.dur_ms > 500:
-            weight *= 1.3  # Bonus moderado para notas muito longas (repouso)
-        duration_weight[n.pitch_class] += weight
-    
-    max_dur = duration_weight.max()
-    if max_dur > 0:
-        duration_score = duration_weight / max_dur
-    else:
-        duration_score = np.zeros(12)
-    
-    # ═══ 3. CORRELAÇÃO KRUMHANSL — 24 CHAVES INDEPENDENTES (40%) ═══
-    #
-    # FIX CRÍTICO: Antes calculávamos max(major, minor) por raiz (12 chaves).
-    # Isso confundia Sol maior com Mi menor (relativo) porque ambos têm a mesma
-    # coleção de notas — CREPE escolhia Mi como raiz porque Mi menor correlaciona
-    # alto, depois a decisão major/minor acertava "Mi menor" mas a tônica real era Sol.
-    #
-    # SOLUÇÃO: Ranquear TODAS as 24 chaves (12 maior + 12 menor) independentemente.
-    # Isso permite comparar diretamente "Sol maior" vs "Mi menor" e escolher o melhor.
-    pcp = np.zeros(12, dtype=np.float64)
-    for n in notes:
-        pcp[n.pitch_class] += n.dur_ms * n.confidence
-    
-    scores_24: dict = {}  # (root, quality) → score
-    
-    for root in range(12):
-        rotated_major = np.roll(KK_MAJOR, root)
-        corr_major = float(np.corrcoef(pcp, rotated_major)[0, 1]) if pcp.sum() > 0 else 0.0
-        
-        rotated_minor = np.roll(KK_MINOR, root)
-        corr_minor = float(np.corrcoef(pcp, rotated_minor)[0, 1]) if pcp.sum() > 0 else 0.0
-        
-        scores_24[(root, 'major')] = max(0.0, corr_major)
-        scores_24[(root, 'minor')] = max(0.0, corr_minor)
-    
-    # Normalizar entre 0 e 1
-    max_score = max(scores_24.values()) if scores_24 else 1.0
-    min_score = min(scores_24.values()) if scores_24 else 0.0
-    if max_score > min_score:
-        scores_24_norm = {k: (v - min_score) / (max_score - min_score) for k, v in scores_24.items()}
-    else:
-        scores_24_norm = {k: 0.0 for k in scores_24}
-    
-    # Score por raiz (max entre major e minor) para usar nos outros scores
-    krumhansl_by_root = np.array([max(scores_24_norm.get((r, 'major'), 0), scores_24_norm.get((r, 'minor'), 0)) for r in range(12)])
-    
-    # Melhor chave de acordo com Krumhansl puro
-    best_24_key = max(scores_24_norm, key=scores_24_norm.get)
-    krumhansl_winner_pc = best_24_key[0]
-    krumhansl_winner_quality = best_24_key[1]
-    krumhansl_score = krumhansl_by_root  # array 12 para combinação final
-    
-    # ═══ COMBINAÇÃO FINAL ═══
-    final_score = (
-        0.35 * phrase_end_score +
-        0.25 * duration_score +
-        0.40 * krumhansl_score
+    logger.info(
+        f"[v11] {NOTE_NAMES_BR[winner_pc]} {winner_mode} "
+        f"score={winner_details['score']:.3f} cad={winner_details['cadence']:.2f} "
+        f"third_ratio={winner_details['third_ratio']:.2f} conf={confidence:.2f} "
+        f"runner={NOTE_NAMES_BR[runner_pc]} {runner_mode} ({runner_details['score']:.3f})"
     )
-    
-    # ═══════════════════════════════════════════════════════════════════════════
-    # CORREÇÃO ESTRUTURAL v10.4 — DESAMBIGUAÇÃO DE RELATIVOS POR CADÊNCIA FINAL
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PROBLEMA: Krumhansl-Kessler não distingue um tom do seu relativo
-    # (Ex: Sol Maior e Mi menor têm a mesma escala). Em música real, o problema
-    # piora quando frases internas repousam na 6ª (que é o relativo menor).
-    #
-    # PRINCÍPIO MUSICAL: a TÔNICA é a nota onde a música TERMINA — a CADÊNCIA
-    # FINAL define a tonalidade. Frases internas podem ir e voltar do relativo,
-    # mas a cadência final é definitiva.
-    #
-    # SOLUÇÃO v10.4: dar peso enorme à cadência (últimos 20% das notas em phrase
-    # ends), com fallback para phrase_end ponderado quando não há cadência clara.
-    # Universal para 24 tons (aritmética modular).
-    relative_minor_offset = 9   # relativo menor = tônica - 3 semitons (= +9 mod 12)
-    
-    forced_minor_pcs: set = set()
-    forced_major_pcs: set = set()
-    
-    # ═══ CADÊNCIA: últimas notas + últimos phrase ends ═══
-    # A cadência musical real combina:
-    #   1) As ÚLTIMAS notas reais (independente de phrase_end) — onde a música acaba
-    #   2) Os últimos phrase_ends — pontos de repouso explícitos
-    # Com peso por recência e duração. Funciona universal: sintéticos curtos (10
-    # notas) e hinos longos (440 notas).
-    cadence_weight = np.zeros(12, dtype=np.float64)
-    
-    # 1) ÚLTIMAS 10 NOTAS — peso por recência (mais recentes pesam mais)
-    last_n = min(10, len(notes))
-    last_notes = notes[-last_n:]
-    for rank, n in enumerate(last_notes):
-        # rank 0 = nota mais antiga; rank last_n-1 = última nota
-        recency = (rank + 1) ** 1.5
-        weight = n.dur_ms * n.confidence * recency
-        if n.is_phrase_end:
-            weight *= 2.5
-        cadence_weight[n.pitch_class] += weight
-    
-    # 2) ÚLTIMOS 3 PHRASE ENDS REAIS — independente da posição
-    phrase_end_indices = [i for i, n in enumerate(notes) if n.is_phrase_end]
-    last_3_pe = phrase_end_indices[-3:]
-    for rank, pe_idx in enumerate(last_3_pe):
-        n = notes[pe_idx]
-        recency = (len(last_3_pe) - rank) ** 1.2
-        cadence_weight[n.pitch_class] += n.dur_ms * n.confidence * recency * 1.5
-    
-    # ═══ Iterar pares (R_maior, R+9_menor) ═══
-    top4 = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)[:4]
-    top4_pcs = {pc for pc, _ in top4}
-    
-    relative_pairs_processed = set()
-    for major_pc in range(12):
-        minor_pc = (major_pc + relative_minor_offset) % 12
-        pair_key = tuple(sorted([major_pc, minor_pc]))
-        if pair_key in relative_pairs_processed:
-            continue
-        relative_pairs_processed.add(pair_key)
-        
-        # Ambos do par precisam estar entre os top candidatos
-        if major_pc not in top4_pcs or minor_pc not in top4_pcs:
-            continue
-        
-        ks_major = scores_24_norm.get((major_pc, 'major'), 0.0)
-        ks_minor = scores_24_norm.get((minor_pc, 'minor'), 0.0)
-        
-        # Ambos precisam ter correlação Krumhansl ALTA (estão na mesma escala).
-        if ks_major < 0.70 or ks_minor < 0.70:
-            continue
-        
-        # ═══ DECISÃO HIERÁRQUICA: cadência > phrase end > duração ═══
-        cad_major = cadence_weight[major_pc]
-        cad_minor = cadence_weight[minor_pc]
-        cad_total = cad_major + cad_minor
-        
-        # CRITÉRIO 1 (forte): cadência final tem evidência clara (>= 70/30 split)
-        if cad_total > 0:
-            cad_ratio_minor = cad_minor / cad_total
-            if cad_ratio_minor >= 0.70:
-                final_score[minor_pc] = min(1.0, final_score[minor_pc] + 0.25)
-                final_score[major_pc] = max(0.0, final_score[major_pc] - 0.20)
-                forced_minor_pcs.add(minor_pc)
-                logger.info(
-                    f"[v10.4] CADÊNCIA FINAL → {NOTE_NAMES_BR[minor_pc]} menor "
-                    f"(cad_minor={cad_minor:.0f} cad_major={cad_major:.0f} "
-                    f"ratio={cad_ratio_minor:.2%})"
-                )
-                continue
-            if cad_ratio_minor <= 0.30:
-                final_score[major_pc] = min(1.0, final_score[major_pc] + 0.25)
-                final_score[minor_pc] = max(0.0, final_score[minor_pc] - 0.20)
-                forced_major_pcs.add(major_pc)
-                logger.info(
-                    f"[v10.4] CADÊNCIA FINAL → {NOTE_NAMES_BR[major_pc]} maior "
-                    f"(cad_minor={cad_minor:.0f} cad_major={cad_major:.0f} "
-                    f"ratio_minor={cad_ratio_minor:.2%})"
-                )
-                continue
-        
-        # CRITÉRIO 2 (médio): phrase end ponderado por duração
-        pe_major = phrase_end_weight[major_pc]
-        pe_minor = phrase_end_weight[minor_pc]
-        pe_total = pe_major + pe_minor
-        
-        if pe_total > 0:
-            pe_ratio_minor = pe_minor / pe_total
-            if pe_ratio_minor >= 0.65:
-                final_score[minor_pc] = min(1.0, final_score[minor_pc] + 0.15)
-                final_score[major_pc] = max(0.0, final_score[major_pc] - 0.10)
-                forced_minor_pcs.add(minor_pc)
-                logger.info(
-                    f"[v10.4] phrase_end → {NOTE_NAMES_BR[minor_pc]} menor "
-                    f"(pe_minor={pe_minor:.0f} pe_major={pe_major:.0f} "
-                    f"ratio={pe_ratio_minor:.2%})"
-                )
-            elif pe_ratio_minor <= 0.35:
-                final_score[major_pc] = min(1.0, final_score[major_pc] + 0.15)
-                final_score[minor_pc] = max(0.0, final_score[minor_pc] - 0.10)
-                forced_major_pcs.add(major_pc)
-                logger.info(
-                    f"[v10.4] phrase_end → {NOTE_NAMES_BR[major_pc]} maior "
-                    f"(pe_minor={pe_minor:.0f} pe_major={pe_major:.0f})"
-                )
-        # Se ainda incerto após critério 2, mantém o que Krumhansl decidir
-    
-    # ═══ PENALIZAÇÕES ANTI-CONFUSÃO ═══
-    # Aplicadas em duas etapas para serem aplicáveis universalmente aos 24 tons:
-    #
-    # ETAPA A — KRUMHANSL-ANCHORED (BIDIRECIONAL):
-    #   Krumhansl olha o conjunto INTEIRO de notas (perfil tonal psicoacústico)
-    #   e por isso é menos suscetível a falsos picos de phrase_end. Se o vencedor
-    #   pós-fórmula é uma 3ª/5ª do vencedor de Krumhansl, e Krumhansl tem margem
-    #   clara, transferimos peso de volta à raiz tonal real.
-    #
-    #   Caso real reportado: hino em Mi maior, mas Sol# (= Mi + 4 = mediant_major)
-    #   vencia phrase_end e final_score, gerando "Sol# menor" com 97% de confiança.
-    ranked_raw = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)
-    pre_top_pc = ranked_raw[0][0]
-    
-    if pre_top_pc != krumhansl_winner_pc:
-        diff_to_krumhansl = (pre_top_pc - krumhansl_winner_pc) % 12
-        ks_top_score = scores_24_norm.get(best_24_key, 0.0)
-        ks_pre_top_score = max(
-            scores_24_norm.get((pre_top_pc, 'major'), 0.0),
-            scores_24_norm.get((pre_top_pc, 'minor'), 0.0),
-        )
-        ks_margin = ks_top_score - ks_pre_top_score
-        # PROTEÇÃO v10.4: NÃO sobrescrever decisão da desambiguação de relativos.
-        # Se pre_top_pc foi escolhido pela cadência final (forced_major_pcs ou
-        # forced_minor_pcs), confiamos nessa decisão — é musicologicamente mais
-        # robusta que Krumhansl-anchored quando há ambiguidade tom/relativo.
-        skip_swap = (
-            pre_top_pc in forced_major_pcs or pre_top_pc in forced_minor_pcs
-        )
-        if skip_swap:
-            logger.info(
-                f"[v10.4] Anti-mediant SKIPPED: {NOTE_NAMES_BR[pre_top_pc]} foi "
-                f"escolhido pela cadência final — preservando decisão musical."
-            )
-        elif diff_to_krumhansl in (3, 4, 7) and ks_margin > 0.03:
-            # Garantir que Krumhansl winner fica acima do pre_top com margem clara
-            target_score = final_score[pre_top_pc] + 0.05 + ks_margin * 0.5
-            final_score[krumhansl_winner_pc] = max(
-                final_score[krumhansl_winner_pc],
-                min(1.0, target_score),
-            )
-            # E penaliza o pre_top proporcionalmente
-            penalty = 0.05 + ks_margin * 0.3
-            final_score[pre_top_pc] = max(0.0, final_score[pre_top_pc] - penalty)
-            offset_name = {3: 'mediant_minor (3ªm)', 4: 'mediant_major (3ªM)', 7: 'dominant (5ªJ)'}[diff_to_krumhansl]
-            logger.info(
-                f"[v10.2] Krumhansl-anchored anti-mediant: {NOTE_NAMES_BR[pre_top_pc]} é "
-                f"{offset_name} de {NOTE_NAMES_BR[krumhansl_winner_pc]} (KS_margin={ks_margin:.3f}) "
-                f"→ swap forçado para {NOTE_NAMES_BR[krumhansl_winner_pc]}"
-            )
-    
-    # Re-ranquear após etapa A
-    ranked_raw = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)
-    top_pc = ranked_raw[0][0]
-    
-    # ETAPA B — TOP-ANCHORED:
-    # Penalizar dominante (5ª justa = +7), mediant_major (3ª maior = +4) e
-    # mediant_minor (3ª menor = +3) do top candidato pós-etapa-A. Isso evita
-    # que o runner-up seja uma 3ª/5ª do verdadeiro vencedor.
-    if final_score[top_pc] > 0.50:
-        dominant_offset    = 7   # 5ª justa
-        mediant_major      = 4   # 3ª maior  (anti-mediant_major)
-        mediant_minor      = 3   # 3ª menor  (anti-mediant_minor)
-        for offset, penalty in [
-            (dominant_offset,  0.12),
-            (mediant_major,    0.10),
-            (mediant_minor,    0.07),
-        ]:
-            target = (top_pc + offset) % 12
-            final_score[target] = max(0, final_score[target] - final_score[top_pc] * penalty)
-    
-    # ═══ ÂNCORA DE DURAÇÃO ═══
-    dur_winner_pc = int(np.argmax(duration_weight))
-    if dur_winner_pc != int(np.argmax(final_score)):
-        bonus = min(0.15, duration_score[dur_winner_pc] * 0.20)
-        final_score[dur_winner_pc] = min(1.0, final_score[dur_winner_pc] + bonus)
-        logger.info(f"[v10] Âncora duração: bônus {bonus:.3f} para {NOTE_NAMES_BR[dur_winner_pc]}")
-    
-    ranked = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)
-    winner_pc = ranked[0][0]
-    winner_score = ranked[0][1]
-    runner_up_score = ranked[1][1] if len(ranked) > 1 else 0
-    
-    # ═══ DECISÃO MAIOR/MENOR ═══
-    #
-    # FIX: Usar os 24 scores diretos do Krumhansl como evidência principal,
-    # MAIS a análise de graus (3ª + 7ª + 6ª) como tiebreaker.
-    # Isso resolve diretamente a confusão Sol maior vs Mi menor:
-    # - Krumhansl para Sol maior costuma > Krumhansl para Sol menor
-    # - Graus confirmam: Si natural (3ª maior de Sol) presente → Sol maior
-    
-    ks_major_winner = scores_24_norm.get((winner_pc, 'major'), 0.0)
-    ks_minor_winner = scores_24_norm.get((winner_pc, 'minor'), 0.0)
-    
-    # Análise de graus (3ª + 7ª + 6ª)
-    major_3rd   = (winner_pc + 4) % 12
-    minor_3rd   = (winner_pc + 3) % 12
-    major_7th   = (winner_pc + 11) % 12
-    minor_7th   = (winner_pc + 10) % 12
-    major_6th   = (winner_pc + 9) % 12
-    minor_6th   = (winner_pc + 8) % 12
-    
-    dw = duration_weight
-    total = dw.sum() + 1e-6
-    
-    # Razão "neutra-na-ausência": quando não há evidência (ambas durações ≈ 0),
-    # retorna 0.5 (neutro) em vez de 0 (que enviesava artificialmente para menor).
-    # Isto é vital para letras sem 3ª (cantorias modais, riffs em quintas, etc.).
-    def _neutral_ratio(pos: float, neg: float) -> float:
-        denom = pos + neg
-        if denom < 1e-3:
-            return 0.5
-        return pos / denom
-    
-    degree_major = (
-        0.50 * _neutral_ratio(dw[major_3rd], dw[minor_3rd]) +
-        0.30 * _neutral_ratio(dw[major_7th], dw[minor_7th]) +
-        0.20 * _neutral_ratio(dw[major_6th], dw[minor_6th])
-    )
-    degree_minor = 1.0 - degree_major
-    
-    # Combinar Krumhansl (60%) + graus (40%)
-    combined_major = 0.60 * ks_major_winner + 0.40 * degree_major
-    combined_minor = 0.60 * ks_minor_winner + 0.40 * degree_minor
-    
-    # ─── OVERRIDE v10.3: respeitar desambiguação de relativos ───
-    # Se a desambiguação por phrase end já escolheu maior/menor para esse pc,
-    # honramos essa decisão (é musicalmente mais robusta que graus).
-    if winner_pc in forced_minor_pcs:
-        quality = 'minor'
-    elif winner_pc in forced_major_pcs:
-        quality = 'major'
-    else:
-        # Leve bias para maior (em música popular, a maioria dos tons é maior)
-        # Necessário para casos ambíguos sem 3ª definida
-        MAJOR_BIAS = 1.04
-        if combined_major * MAJOR_BIAS > combined_minor * 1.10:
-            quality = 'major'
-        elif combined_minor > combined_major * MAJOR_BIAS * 1.10:
-            quality = 'minor'
-        else:
-            quality = 'major'  # Default maior quando ambíguo
-    
-    # ═══ CALCULAR CONFIANÇA — v10.5 COM TRAVA ANTI-AMBIGUIDADE ═══
-    margin = winner_score - runner_up_score
-    phrase_end_confidence = 1.0 if phrase_end_count[winner_pc] >= 2 else 0.7
-    
-    # Confiança bruta (mesma fórmula anterior)
-    raw_confidence = (
-        0.40 * winner_score +
-        0.35 * min(1.0, margin / 0.12) +
-        0.25 * phrase_end_confidence
-    )
-    evidence_factor = min(1.0, len(notes) / 10.0)
-    confidence = raw_confidence * (0.60 + 0.40 * evidence_factor)
-    confidence = max(0.0, min(1.0, confidence))
-    
-    # ═════════ TRAVA ANTI-CONFIANÇA-FALSA (v10.5) ═════════
-    # REGRA: se o vencedor é AMBÍGUO com runner-up em qualquer dessas configurações
-    # musicalmente arriscadas, CAPAR a confiança em 65%. Universal para 24 tons.
-    confidence_caps = []
-    runner_up_pc = ranked[1][0] if len(ranked) > 1 else winner_pc
-    
-    if winner_pc != runner_up_pc and runner_up_score > 0:
-        diff_winner_to_runner = (winner_pc - runner_up_pc) % 12
-        score_ratio = runner_up_score / max(winner_score, 0.01)
-        
-        # CASO A: top1 é RELATIVO menor de top2 (ou vice-versa) — diff +9 ou +3
-        # Ex: A# menor (top1) e Dó# maior (top2). A# - Dó# = 9 mod 12 = 9.
-        # Compartilham mesma escala — Krumhansl não distingue bem.
-        if diff_winner_to_runner in (3, 9) and score_ratio >= 0.70:
-            confidence_caps.append(('relative_ambiguous', 0.65))
-            logger.info(
-                f"[v10.5] Ambiguidade RELATIVO: {NOTE_NAMES_BR[winner_pc]} vs "
-                f"{NOTE_NAMES_BR[runner_up_pc]} (diff={diff_winner_to_runner}, ratio={score_ratio:.2%}) "
-                f"→ confidence capada em 65%"
-            )
-        
-        # CASO B: top1 é DOMINANTE (V grau) ou tônica de top2 — diff +7 ou +5 (= -7)
-        # Ex: B maior é tônica, F# é V grau. F# - B = 7 mod 12 = 7.
-        # Se F# vence sem cadência clara em F#, é confusão tônica/dominante.
-        if diff_winner_to_runner in (5, 7) and score_ratio >= 0.65:
-            confidence_caps.append(('dominant_ambiguous', 0.60))
-            logger.info(
-                f"[v10.5] Ambiguidade TÔNICA/DOMINANTE: {NOTE_NAMES_BR[winner_pc]} vs "
-                f"{NOTE_NAMES_BR[runner_up_pc]} (diff={diff_winner_to_runner}, ratio={score_ratio:.2%}) "
-                f"→ confidence capada em 60%"
-            )
-        
-        # CASO C: top1 é mediant (3ª) de top2 — diff +3 ou +4 (já parcial coberto por A)
-        if diff_winner_to_runner == 4 and score_ratio >= 0.70:
-            confidence_caps.append(('mediant_ambiguous', 0.65))
-            logger.info(
-                f"[v10.5] Ambiguidade MEDIANT: {NOTE_NAMES_BR[winner_pc]} vs "
-                f"{NOTE_NAMES_BR[runner_up_pc]} (3ª maior, ratio={score_ratio:.2%}) "
-                f"→ confidence capada em 65%"
-            )
-    
-    # CASO D: cadência final NÃO confirma o vencedor (cadence_weight aponta outro pc)
-    # Esta é a evidência MUSICAL mais forte de ambiguidade.
-    if cadence_weight.sum() > 0:
-        cad_winner = float(cadence_weight[winner_pc])
-        cad_total = float(cadence_weight.sum())
-        cad_ratio = cad_winner / cad_total if cad_total > 0 else 0
-        # Se a cadência tem MENOS de 35% no tom escolhido, há divergência real
-        if cad_ratio < 0.35:
-            confidence_caps.append(('cadence_disagreement', 0.55))
-            logger.info(
-                f"[v10.5] CADÊNCIA NÃO CONFIRMA: cadência aponta {cad_ratio:.1%} para "
-                f"{NOTE_NAMES_BR[winner_pc]} → confidence capada em 55%"
-            )
-    
-    # CASO E: poucas frases (< 3 phrase_ends totais) — não há evidência cadencial robusta
-    total_phrase_ends = sum(phrase_end_count.values())
-    if total_phrase_ends < 3:
-        confidence_caps.append(('few_phrases', 0.70))
-    
-    # Aplicar a trava mais restritiva
-    if confidence_caps:
-        max_allowed = min(cap[1] for cap in confidence_caps)
-        if confidence > max_allowed:
-            logger.info(
-                f"[v10.5] Confiança {confidence:.2f} reduzida para {max_allowed:.2f} "
-                f"(razões: {[c[0] for c in confidence_caps]})"
-            )
-            confidence = max_allowed
-    
-    confidence = max(0.0, min(1.0, confidence))
-    
-    logger.info(f"[v10] Krumhansl 24-key winner: {NOTE_NAMES_BR[krumhansl_winner_pc]} {krumhansl_winner_quality}")
-    logger.info(f"[v10] Final winner: {NOTE_NAMES_BR[winner_pc]} {quality} (conf={confidence:.2f})")
-    logger.info(f"[v10] Mode: major={combined_major:.3f} minor={combined_minor:.3f}")
-    logger.info(f"[v10] Top 3: {[(NOTE_NAMES_BR[pc], f'{s:.3f}') for pc, s in ranked[:3]]}")
     
     return AnalysisResult(
         success=True,
         tonic=winner_pc,
-        quality=quality,
+        quality=winner_mode,
         confidence=confidence,
         notes_count=len(notes),
-        phrases_count=sum(1 for n in notes if n.is_phrase_end),
+        phrases_count=sum(phrase_end_count.values()),
         debug={
+            'engine': 'v11',
             'phrase_ends': dict(phrase_end_count),
-            'top_candidates': [(NOTE_NAMES_BR[pc], round(s, 3)) for pc, s in ranked[:5]],
+            'top_candidates': top_candidates_debug,
             'mode_evidence': {
-                'major': round(combined_major, 3),
-                'minor': round(combined_minor, 3),
+                'major': round(sum(d['score'] for pc, m, d in candidates if m == 'major'), 3),
+                'minor': round(sum(d['score'] for pc, m, d in candidates if m == 'minor'), 3),
             },
-            'krumhansl_24_winner': f"{NOTE_NAMES_BR[krumhansl_winner_pc]} {krumhansl_winner_quality}",
-            'scores': {
-                'phrase_end': {NOTE_NAMES_BR[i]: round(phrase_end_score[i], 3) for i in range(12) if phrase_end_score[i] > 0.1},
-                'duration': {NOTE_NAMES_BR[i]: round(duration_score[i], 3) for i in range(12) if duration_score[i] > 0.1},
+            'krumhansl_24_winner': krumhansl_str,
+            'winner_details': {
+                'cadence': round(winner_details['cadence'], 3),
+                'third_ratio': round(winner_details['third_ratio'], 3),
+                'pcp_tonic': round(winner_details['pcp_tonic'], 3),
+                'fifth_score': round(winner_details['fifth_score'], 3),
+                'penalty_dominant': round(winner_details['penalty_dominant'], 3),
+                'scale_fit': round(winner_details['scale_fit'], 3),
             },
+            'top_scales': [(NOTE_NAMES_BR[r], round(f, 3)) for r, f in top_scales],
         }
     )
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
