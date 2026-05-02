@@ -387,7 +387,12 @@ class SessionAccumulator:
     
     def add_analysis(self, notes: List[Note]):
         """Adiciona notas de uma análise."""
-        self.last_activity_time = time.time()  # Atualiza atividade
+        now = time.time()
+        # Auto-reset se inativo por mais de 8 segundos
+        if now - self.last_activity_time > 8.0 and self.analysis_count > 0:
+            logger.info(f"[v10] Auto-reset por inatividade ({now - self.last_activity_time:.1f}s)")
+            self.reset()
+        self.last_activity_time = now
         # Acumular notas (janela deslizante de no máximo 50 notas)
         self.all_notes.extend(notes)
         if len(self.all_notes) > 50:
@@ -465,15 +470,18 @@ class SessionAccumulator:
             # Já está travado - verificar se deve mudar
             return self._should_change(result)
         
-        # MUDANÇA AGRESSIVA: Lock muito mais rápido
-        # Critério 1: Qualquer confiança >= 0.40 com pelo menos 1 análise
-        if result.confidence >= 0.40:
+        # Critério 1: Alta confiança com pelo menos 2 análises
+        if self.analysis_count >= 2 and result.confidence >= 0.60:
             return True
         
-        # Critério 2: Se já tem 2+ votos no mesmo tom, lock imediato
-        if len(self.vote_history) >= 2:
+        # Critério 2: Confiança muito alta mesmo na 1ª análise
+        if result.confidence >= 0.75:
+            return True
+        
+        # Critério 3: 3 votos consecutivos no mesmo tom com confiança razoável
+        if len(self.vote_history) >= 3 and result.confidence >= 0.50:
             votes_for_current = sum(1 for v in self.vote_history[-3:] if v == result.tonic)
-            if votes_for_current >= 2:
+            if votes_for_current >= 3:
                 return True
         
         return False
@@ -485,19 +493,20 @@ class SessionAccumulator:
             self.locked_confidence = max(self.locked_confidence, result.confidence)
             return False
         
-        # Tom diferente - precisa de evidência forte
+        # Tom diferente - precisa de evidência
         time_since_lock = time.time() - (self.locked_at or time.time())
         
-        # Mínimo 3 segundos antes de considerar mudança
-        if time_since_lock < 3.0:
+        # Mínimo 2 segundos antes de considerar mudança
+        if time_since_lock < 2.0:
             return False
         
-        # Precisa de 3 votos consecutivos no novo tom
-        if len(self.vote_history) >= 3:
+        # Precisa de 2 votos nos últimos 3 no novo tom
+        if len(self.vote_history) >= 2:
             last_votes = self.vote_history[-3:]
-            if all(v == result.tonic for v in last_votes):
-                # E confiança maior que atual
-                if result.confidence > self.locked_confidence + 0.1:
+            votes_for_new = sum(1 for v in last_votes if v == result.tonic)
+            if votes_for_new >= 2:
+                # E confiança claramente superior
+                if result.confidence > self.locked_confidence + 0.05:
                     logger.info(f"[v10] Mudando de {NOTE_NAMES_BR[self.locked_tonic]} para {NOTE_NAMES_BR[result.tonic]}")
                     return True
         
