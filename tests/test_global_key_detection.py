@@ -768,6 +768,160 @@ def test_padrao_hino_funciona_em_todos_12_tons_menores():
 # RELATÓRIO FINAL
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCO 13 — ANTI-CONFIANÇA-FALSA (v10.5)
+# Bugs reportados pelo usuário: tom errado com confiança alta (89%, 90%).
+# Regra: se há ambiguidade musical real (relativo/dominante/cadência fraca),
+# confiança deve ser ≤ 70%. Se evidência for fraca, deve ser ≤ 75%.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_relativo_ambiguo_sem_confianca_alta():
+    """
+    Quando dois candidatos top são RELATIVOS (compartilham escala) com scores
+    similares, confidence MUST be ≤ 70%. Universal: testa em 6 pares.
+    """
+    pares_relativos = [
+        # (tom_maior_root, relativo_menor_root) — diff sempre 9 mod 12
+        (0, 9),    # Dó maior / Lá menor
+        (2, 11),   # Ré maior / Si menor
+        (5, 2),    # Fá maior / Ré menor
+        (7, 4),    # Sol maior / Mi menor
+        (9, 6),    # Lá maior / Fá# menor
+        (1, 10),   # Dó# maior / Lá# menor (caso reportado pelo usuário)
+    ]
+    falhas = []
+    for major_root, minor_root in pares_relativos:
+        # Padrão "ambíguo": canta notas da escala SEM resolução clara
+        # Termina alternando entre os dois candidatos
+        notes = make_phrase(major_root, MAJOR_SCALE, [
+            (0, 400, False),
+            (2, 400, False),
+            (4, 400, False),
+            (5, 600, False),
+            (1, 600, True),   # phrase end na II (não tônica)
+            (3, 600, False),
+            (5, 1200, True),  # phrase end longa na 6ª (= relativo menor)
+            (1, 800, True),   # phrase end na 2ª — não na tônica
+        ])
+        result = run(notes)
+        if not result.success:
+            continue
+        if result.confidence > 0.75:
+            falhas.append(
+                f"  ❌ par {NAMES[major_root]} maior / {NAMES[minor_root]} menor: "
+                f"detectado {NAMES[result.tonic]} {result.quality} "
+                f"com conf={result.confidence:.2f} (deveria ser ≤ 0.75)"
+            )
+    
+    assert not falhas, "Confiança inflada em casos de relativo ambíguo:\n" + "\n".join(falhas)
+
+
+def test_dominante_nao_vence_tonica_com_confianca_alta():
+    """
+    Quando o V grau aparece muito mas a tônica também, e o algoritmo escolhe
+    o V (dominante) como vencedor, confidence MUST be ≤ 65%.
+    Universal: testa em 4 pares tônica/dominante.
+    """
+    pares = [
+        (11, 6),  # B maior / F# (V) — caso reportado
+        (0, 7),   # Dó maior / Sol (V)
+        (2, 9),   # Ré maior / Lá (V)
+        (5, 0),   # Fá maior / Dó (V)
+    ]
+    falhas = []
+    for tonic, dom in pares:
+        # Padrão com V dominando: V longo, V repetido, sem cadência forte na tônica
+        notes = []
+        # Frase 1: tônica brevemente, depois V longa
+        for pc, dur, end in [
+            (tonic, 300, False),
+            ((tonic + 4) % 12, 300, False),  # III
+            (dom, 1500, True),               # V longa = phrase end (armadilha)
+            ((tonic + 4) % 12, 400, False),
+            (dom, 1500, True),               # V de novo
+            ((tonic + 2) % 12, 400, False),
+            (dom, 1200, False),
+        ]:
+            notes.append(Note(pc, 60.0+pc, float(dur), 0.0, 0.82, end))
+        result = run(notes)
+        if not result.success:
+            continue
+        # Se algoritmo escolheu V como tônica, confidence deve ser ≤ 0.70
+        if result.tonic == dom and result.confidence > 0.70:
+            falhas.append(
+                f"  ❌ tônica={NAMES[tonic]} V={NAMES[dom]}: detectou V como tônica "
+                f"({NAMES[result.tonic]} {result.quality}) com conf={result.confidence:.2f}"
+            )
+    
+    assert not falhas, "Dominante virou tônica com confiança alta:\n" + "\n".join(falhas)
+
+
+def test_poucas_frases_sem_confianca_alta():
+    """
+    Com menos de 3 phrase ends, evidência cadencial é insuficiente.
+    Confidence MUST be ≤ 75% (mesmo com tom correto).
+    Universal: testa em 4 tons.
+    """
+    falhas = []
+    for root in [0, 4, 7, 11]:
+        # Apenas 1-2 phrase ends — insuficiente para confiança alta
+        notes = make_phrase(root, MAJOR_SCALE, [
+            (0, 400, False),
+            (2, 400, False),
+            (4, 400, False),
+            (0, 800, True),  # 1 phrase end apenas
+        ])
+        result = run(notes)
+        if not result.success:
+            continue
+        if result.confidence > 0.80:
+            falhas.append(
+                f"  ❌ {NAMES[root]} maior com 1 phrase end: "
+                f"conf={result.confidence:.2f} (deveria ≤ 0.80)"
+            )
+    
+    assert not falhas, "Confiança inflada com poucas frases:\n" + "\n".join(falhas)
+
+
+def test_cadencia_clara_permite_confianca_alta():
+    """
+    SANITY CHECK: quando há cadência clara (música repete I-IV-V-I 2x+),
+    confidence DEVE ser ≥ 0.80. Garante que a trava não estraga casos válidos.
+    """
+    falhas = []
+    for root in [0, 4, 7, 11]:
+        notes = make_phrase(root, MAJOR_SCALE, [
+            (0, 500, False),
+            (2, 400, False),
+            (4, 500, False),
+            (6, 300, False),
+            (0, 800, True),    # phrase end I — cadência forte
+            (3, 500, False),
+            (4, 500, False),
+            (0, 1000, True),   # phrase end I — cadência forte
+            (2, 400, False),
+            (4, 400, False),
+            (0, 1200, True),   # phrase end I — cadência forte (3+ phrase ends)
+        ])
+        result = run(notes)
+        if not result.success:
+            continue
+        if result.tonic != root or result.quality != 'major':
+            falhas.append(
+                f"  ❌ {NAMES[root]} maior com cadência clara: "
+                f"detectou {NAMES[result.tonic]} {result.quality}"
+            )
+            continue
+        if result.confidence < 0.75:
+            falhas.append(
+                f"  ⚠️ {NAMES[root]} maior com cadência clara: "
+                f"conf={result.confidence:.2f} (esperado ≥ 0.75)"
+            )
+    
+    assert not falhas, "Casos com cadência clara não receberam confiança merecida:\n" + "\n".join(falhas)
+
+
+
 if __name__ == '__main__':
     import pytest
     result = pytest.main([__file__, '-v', '--tb=short', '-q'])

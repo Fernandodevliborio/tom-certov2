@@ -594,18 +594,90 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
         else:
             quality = 'major'  # Default maior quando ambíguo
     
-    # ═══ CALCULAR CONFIANÇA ═══
+    # ═══ CALCULAR CONFIANÇA — v10.5 COM TRAVA ANTI-AMBIGUIDADE ═══
     margin = winner_score - runner_up_score
     phrase_end_confidence = 1.0 if phrase_end_count[winner_pc] >= 2 else 0.7
     
+    # Confiança bruta (mesma fórmula anterior)
     raw_confidence = (
         0.40 * winner_score +
         0.35 * min(1.0, margin / 0.12) +
         0.25 * phrase_end_confidence
     )
-    # Escalar pela quantidade de notas (poucas notas = baixa confiança)
     evidence_factor = min(1.0, len(notes) / 10.0)
     confidence = raw_confidence * (0.60 + 0.40 * evidence_factor)
+    confidence = max(0.0, min(1.0, confidence))
+    
+    # ═════════ TRAVA ANTI-CONFIANÇA-FALSA (v10.5) ═════════
+    # REGRA: se o vencedor é AMBÍGUO com runner-up em qualquer dessas configurações
+    # musicalmente arriscadas, CAPAR a confiança em 65%. Universal para 24 tons.
+    confidence_caps = []
+    runner_up_pc = ranked[1][0] if len(ranked) > 1 else winner_pc
+    
+    if winner_pc != runner_up_pc and runner_up_score > 0:
+        diff_winner_to_runner = (winner_pc - runner_up_pc) % 12
+        score_ratio = runner_up_score / max(winner_score, 0.01)
+        
+        # CASO A: top1 é RELATIVO menor de top2 (ou vice-versa) — diff +9 ou +3
+        # Ex: A# menor (top1) e Dó# maior (top2). A# - Dó# = 9 mod 12 = 9.
+        # Compartilham mesma escala — Krumhansl não distingue bem.
+        if diff_winner_to_runner in (3, 9) and score_ratio >= 0.70:
+            confidence_caps.append(('relative_ambiguous', 0.65))
+            logger.info(
+                f"[v10.5] Ambiguidade RELATIVO: {NOTE_NAMES_BR[winner_pc]} vs "
+                f"{NOTE_NAMES_BR[runner_up_pc]} (diff={diff_winner_to_runner}, ratio={score_ratio:.2%}) "
+                f"→ confidence capada em 65%"
+            )
+        
+        # CASO B: top1 é DOMINANTE (V grau) ou tônica de top2 — diff +7 ou +5 (= -7)
+        # Ex: B maior é tônica, F# é V grau. F# - B = 7 mod 12 = 7.
+        # Se F# vence sem cadência clara em F#, é confusão tônica/dominante.
+        if diff_winner_to_runner in (5, 7) and score_ratio >= 0.65:
+            confidence_caps.append(('dominant_ambiguous', 0.60))
+            logger.info(
+                f"[v10.5] Ambiguidade TÔNICA/DOMINANTE: {NOTE_NAMES_BR[winner_pc]} vs "
+                f"{NOTE_NAMES_BR[runner_up_pc]} (diff={diff_winner_to_runner}, ratio={score_ratio:.2%}) "
+                f"→ confidence capada em 60%"
+            )
+        
+        # CASO C: top1 é mediant (3ª) de top2 — diff +3 ou +4 (já parcial coberto por A)
+        if diff_winner_to_runner == 4 and score_ratio >= 0.70:
+            confidence_caps.append(('mediant_ambiguous', 0.65))
+            logger.info(
+                f"[v10.5] Ambiguidade MEDIANT: {NOTE_NAMES_BR[winner_pc]} vs "
+                f"{NOTE_NAMES_BR[runner_up_pc]} (3ª maior, ratio={score_ratio:.2%}) "
+                f"→ confidence capada em 65%"
+            )
+    
+    # CASO D: cadência final NÃO confirma o vencedor (cadence_weight aponta outro pc)
+    # Esta é a evidência MUSICAL mais forte de ambiguidade.
+    if cadence_weight.sum() > 0:
+        cad_winner = float(cadence_weight[winner_pc])
+        cad_total = float(cadence_weight.sum())
+        cad_ratio = cad_winner / cad_total if cad_total > 0 else 0
+        # Se a cadência tem MENOS de 35% no tom escolhido, há divergência real
+        if cad_ratio < 0.35:
+            confidence_caps.append(('cadence_disagreement', 0.55))
+            logger.info(
+                f"[v10.5] CADÊNCIA NÃO CONFIRMA: cadência aponta {cad_ratio:.1%} para "
+                f"{NOTE_NAMES_BR[winner_pc]} → confidence capada em 55%"
+            )
+    
+    # CASO E: poucas frases (< 3 phrase_ends totais) — não há evidência cadencial robusta
+    total_phrase_ends = sum(phrase_end_count.values())
+    if total_phrase_ends < 3:
+        confidence_caps.append(('few_phrases', 0.70))
+    
+    # Aplicar a trava mais restritiva
+    if confidence_caps:
+        max_allowed = min(cap[1] for cap in confidence_caps)
+        if confidence > max_allowed:
+            logger.info(
+                f"[v10.5] Confiança {confidence:.2f} reduzida para {max_allowed:.2f} "
+                f"(razões: {[c[0] for c in confidence_caps]})"
+            )
+            confidence = max_allowed
+    
     confidence = max(0.0, min(1.0, confidence))
     
     logger.info(f"[v10] Krumhansl 24-key winner: {NOTE_NAMES_BR[krumhansl_winner_pc]} {krumhansl_winner_quality}")
