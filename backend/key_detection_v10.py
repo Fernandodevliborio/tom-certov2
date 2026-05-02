@@ -408,11 +408,17 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     margin = winner_score - runner_up_score
     phrase_end_confidence = 1.0 if phrase_end_count[winner_pc] >= 2 else 0.7
     
-    confidence = (
+    raw_confidence = (
         0.40 * winner_score +
         0.35 * min(1.0, margin / 0.12) +
         0.25 * phrase_end_confidence
     )
+    
+    # Fator de evidência: confiança escala com a quantidade de notas
+    # Poucas notas = incerteza alta, independente do acordo interno
+    # Requer >=10 notas para confiança plena (sem penalização)
+    evidence_factor = min(1.0, len(notes) / 10.0)
+    confidence = raw_confidence * (0.60 + 0.40 * evidence_factor)
     confidence = max(0.0, min(1.0, confidence))
     
     logger.info(f"[v10] Top 3: {[(NOTE_NAMES_BR[pc], f'{s:.3f}') for pc, s in ranked[:3]]}")
