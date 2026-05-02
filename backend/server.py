@@ -901,25 +901,20 @@ async def get_plans():
     return JSONResponse({
         "plans": [
             {
-                "id": "mensal",
-                "name": "Mensal",
-                "price": PLAN_PRICES[PlanType.MENSAL],
-                "duration_days": PLAN_DURATIONS[PlanType.MENSAL],
+                "id": "essencial",
+                "name": "Essencial",
+                "price": 9.90,
+                "duration_days": 30,
                 "badge": None,
+                "checkout_url": "https://checkout.ticto.app/ODBC8F242",
             },
             {
-                "id": "trimestral",
-                "name": "Trimestral",
-                "price": PLAN_PRICES[PlanType.TRIMESTRAL],
-                "duration_days": PLAN_DURATIONS[PlanType.TRIMESTRAL],
+                "id": "profissional",
+                "name": "Profissional",
+                "price": 19.90,
+                "duration_days": 30,
                 "badge": "MAIS ESCOLHIDO",
-            },
-            {
-                "id": "semestral",
-                "name": "Semestral",
-                "price": PLAN_PRICES[PlanType.SEMESTRAL],
-                "duration_days": PLAN_DURATIONS[PlanType.SEMESTRAL],
-                "badge": "MAIOR ECONOMIA",
+                "checkout_url": "https://checkout.ticto.app/OF743CFCB",
             },
         ]
     })
