@@ -60,10 +60,13 @@ MODEL_CAPACITY = 'tiny'
 F0_MIN = 65.0
 F0_MAX = 1000.0
 
-# FIX BUG 4: Thresholds mais rígidos para não aceitar pitches ruidosos
-CONFIDENCE_THRESHOLD = 0.45  # era 0.35 — filtrar mais ruído
-MIN_NOTE_DUR_MS = 100        # era 60 — notas muito curtas são ornamentos/ruído
-MIN_RMS_THRESHOLD = 0.010    # era 0.008
+# FIX CRÍTICO: Thresholds calibrados para VOZ REAL (não sinais sintéticos)
+# Com vibrato e harmônicos, muitos frames têm conf 0.35-0.44.
+# CONFIDENCE_THRESHOLD = 0.45 filtrava 65% dos frames → 0 notas detectadas.
+# MIN_NOTE_DUR_MS = 100ms era longo demais → notas curtas eliminadas.
+CONFIDENCE_THRESHOLD = 0.35  # Valor calibrado para voz com vibrato
+MIN_NOTE_DUR_MS = 60         # Notas curtas de voz real (sílabas rápidas)
+MIN_RMS_THRESHOLD = 0.010    # Silêncio mínimo para processar
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -275,73 +278,69 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     else:
         duration_score = np.zeros(12)
     
-    # ═══ 3. CORRELAÇÃO KRUMHANSL (40%) ═══
+    # ═══ 3. CORRELAÇÃO KRUMHANSL — 24 CHAVES INDEPENDENTES (40%) ═══
+    #
+    # FIX CRÍTICO: Antes calculávamos max(major, minor) por raiz (12 chaves).
+    # Isso confundia Sol maior com Mi menor (relativo) porque ambos têm a mesma
+    # coleção de notas — CREPE escolhia Mi como raiz porque Mi menor correlaciona
+    # alto, depois a decisão major/minor acertava "Mi menor" mas a tônica real era Sol.
+    #
+    # SOLUÇÃO: Ranquear TODAS as 24 chaves (12 maior + 12 menor) independentemente.
+    # Isso permite comparar diretamente "Sol maior" vs "Mi menor" e escolher o melhor.
     pcp = np.zeros(12, dtype=np.float64)
     for n in notes:
         pcp[n.pitch_class] += n.dur_ms * n.confidence
     
-    krumhansl_score = np.zeros(12, dtype=np.float64)
-    krumhansl_major = np.zeros(12, dtype=np.float64)
-    krumhansl_minor = np.zeros(12, dtype=np.float64)
+    scores_24: dict = {}  # (root, quality) → score
     
     for root in range(12):
         rotated_major = np.roll(KK_MAJOR, root)
-        corr_major = np.corrcoef(pcp, rotated_major)[0, 1] if pcp.sum() > 0 else 0
+        corr_major = float(np.corrcoef(pcp, rotated_major)[0, 1]) if pcp.sum() > 0 else 0.0
         
         rotated_minor = np.roll(KK_MINOR, root)
-        corr_minor = np.corrcoef(pcp, rotated_minor)[0, 1] if pcp.sum() > 0 else 0
+        corr_minor = float(np.corrcoef(pcp, rotated_minor)[0, 1]) if pcp.sum() > 0 else 0.0
         
-        krumhansl_major[root] = max(0.0, float(corr_major))
-        krumhansl_minor[root] = max(0.0, float(corr_minor))
-        krumhansl_score[root] = max(krumhansl_major[root], krumhansl_minor[root])
+        scores_24[(root, 'major')] = max(0.0, corr_major)
+        scores_24[(root, 'minor')] = max(0.0, corr_minor)
     
-    # Normalizar Krumhansl
-    min_k = krumhansl_score.min()
-    max_k = krumhansl_score.max()
-    if max_k > min_k:
-        krumhansl_score = (krumhansl_score - min_k) / (max_k - min_k)
+    # Normalizar entre 0 e 1
+    max_score = max(scores_24.values()) if scores_24 else 1.0
+    min_score = min(scores_24.values()) if scores_24 else 0.0
+    if max_score > min_score:
+        scores_24_norm = {k: (v - min_score) / (max_score - min_score) for k, v in scores_24.items()}
     else:
-        krumhansl_score = np.zeros(12)
+        scores_24_norm = {k: 0.0 for k in scores_24}
     
-    # ═══ COMBINAÇÃO FINAL (pesos corrigidos) ═══
+    # Score por raiz (max entre major e minor) para usar nos outros scores
+    krumhansl_by_root = np.array([max(scores_24_norm.get((r, 'major'), 0), scores_24_norm.get((r, 'minor'), 0)) for r in range(12)])
+    
+    # Melhor chave de acordo com Krumhansl puro
+    best_24_key = max(scores_24_norm, key=scores_24_norm.get)
+    krumhansl_winner_pc = best_24_key[0]
+    krumhansl_winner_quality = best_24_key[1]
+    krumhansl_score = krumhansl_by_root  # array 12 para combinação final
+    
+    # ═══ COMBINAÇÃO FINAL ═══
     final_score = (
         0.35 * phrase_end_score +
         0.25 * duration_score +
         0.40 * krumhansl_score
     )
     
-    # ═══ PENALIZAÇÃO ANTI-DOMINANTE + ANTI-MEDIANT ═══
-    # 
-    # Dois erros clássicos de confusão tonal:
-    # 1. ANTI-DOMINANTE: A dominante (V = +7st) é muito frequente mas não é tônica
-    # 2. ANTI-MEDIANT:   A terça (III = +4st) pode acumular peso quando o cantor
-    #    permanece muito no 3ª grau (ex: em Sol maior, Si recebe mais tempo que Sol)
-    #    → resulta em "Sol maior detectado como Si maior" (exatamente o bug G→B)
-    #
-    # Aplicamos as duas penalizações em cascata:
-    for pc in range(12):
-        if final_score[pc] > 0.55:
-            # Penalizar dominante (V → pode confundir com tônica)
-            dominant_of_pc = (pc + 7) % 12
-            penalty_dom = final_score[pc] * 0.12
-            final_score[dominant_of_pc] = max(0, final_score[dominant_of_pc] - penalty_dom)
-            # Penalizar mediant maior (III → 3ª maior, ex: Si de Sol maior)
-            mediant_major = (pc + 4) % 12
-            penalty_med = final_score[pc] * 0.10
-            final_score[mediant_major] = max(0, final_score[mediant_major] - penalty_med)
-            # Penalizar mediant menor (bIII → 3ª menor, ex: Sib de Sol menor)
-            mediant_minor = (pc + 3) % 12
-            penalty_med_m = final_score[pc] * 0.07
-            final_score[mediant_minor] = max(0, final_score[mediant_minor] - penalty_med_m)
+    # ═══ PENALIZAÇÕES ANTI-CONFUSÃO (aplicadas UMA VEZ ao top candidato apenas) ═══
+    # Não aplicar em loop para evitar que candidatos se penalizem mutuamente
+    ranked_raw = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)
+    top_pc = ranked_raw[0][0]
+    
+    # Penalizar dominante, mediant maior e mediant menor do top candidato
+    if final_score[top_pc] > 0.50:
+        for offset, penalty in [(7, 0.12), (4, 0.10), (3, 0.07)]:
+            target = (top_pc + offset) % 12
+            final_score[target] = max(0, final_score[target] - final_score[top_pc] * penalty)
     
     # ═══ ÂNCORA DE DURAÇÃO ═══
-    # Se a nota com MAIOR tempo total diferir do vencedor Krumhansl,
-    # dar bônus para ela. Em música tonal, a tônica é sempre a nota
-    # mais sustentada. Este é o indicador mais confiável.
     dur_winner_pc = int(np.argmax(duration_weight))
     if dur_winner_pc != int(np.argmax(final_score)):
-        # Discordância: Krumhansl e duração apontam direções diferentes
-        # Dar bônus à nota mais longa para desempatar com evidência física
         bonus = min(0.15, duration_score[dur_winner_pc] * 0.20)
         final_score[dur_winner_pc] = min(1.0, final_score[dur_winner_pc] + bonus)
         logger.info(f"[v10] Âncora duração: bônus {bonus:.3f} para {NOTE_NAMES_BR[dur_winner_pc]}")
@@ -351,58 +350,48 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     winner_score = ranked[0][1]
     runner_up_score = ranked[1][1] if len(ranked) > 1 else 0
     
-    # ═══ DETERMINAR MODO: MAIOR vs MENOR (FIX BUG 3) ═══
+    # ═══ DECISÃO MAIOR/MENOR ═══
     #
-    # Para tom com tônica em winner_pc:
-    #   Terça Maior = winner_pc + 4 semitoms
-    #   Terça Menor = winner_pc + 3 semitoms
-    #   Sétima Sensível (maior) = winner_pc + 11 semitoms
-    #   Sétima Menor = winner_pc + 10 semitoms
-    #   Sexta Maior  = winner_pc + 9 semitoms
-    #   Sexta Menor  = winner_pc + 8 semitoms
-    #
-    # Exemplo: Sol Maior vs Mi Menor
-    #   Sol Maior: terça=Si(11), sensível=Fá#(6), 6ªM=Mi(4)
-    #   Mi Menor:  terça=Sol(7), 7ª_menor=Ré(2), 6ªm=Dó(0)
-    #   A presença de Fá# (sensível de Sol) distingue fortemente Sol Maior de Mi Menor.
+    # FIX: Usar os 24 scores diretos do Krumhansl como evidência principal,
+    # MAIS a análise de graus (3ª + 7ª + 6ª) como tiebreaker.
+    # Isso resolve diretamente a confusão Sol maior vs Mi menor:
+    # - Krumhansl para Sol maior costuma > Krumhansl para Sol menor
+    # - Graus confirmam: Si natural (3ª maior de Sol) presente → Sol maior
     
+    ks_major_winner = scores_24_norm.get((winner_pc, 'major'), 0.0)
+    ks_minor_winner = scores_24_norm.get((winner_pc, 'minor'), 0.0)
+    
+    # Análise de graus (3ª + 7ª + 6ª)
     major_3rd   = (winner_pc + 4) % 12
     minor_3rd   = (winner_pc + 3) % 12
-    major_7th   = (winner_pc + 11) % 12  # sensível (leading tone)
-    minor_7th   = (winner_pc + 10) % 12  # sétima menor
-    major_6th   = (winner_pc + 9) % 12   # 6ª maior
-    minor_6th   = (winner_pc + 8) % 12   # 6ª menor
+    major_7th   = (winner_pc + 11) % 12
+    minor_7th   = (winner_pc + 10) % 12
+    major_6th   = (winner_pc + 9) % 12
+    minor_6th   = (winner_pc + 8) % 12
     
-    dw = duration_weight  # atalho
+    dw = duration_weight
+    total = dw.sum() + 1e-6
     
-    # Score para modo maior (0..1 cada)
-    major_evidence = (
+    degree_major = (
         0.50 * (dw[major_3rd] / (dw[major_3rd] + dw[minor_3rd] + 1e-6)) +
         0.30 * (dw[major_7th] / (dw[major_7th] + dw[minor_7th] + 1e-6)) +
         0.20 * (dw[major_6th] / (dw[major_6th] + dw[minor_6th] + 1e-6))
     )
+    degree_minor = 1.0 - degree_major
     
-    # Score para modo menor (espelho)
-    minor_evidence = (
-        0.50 * (dw[minor_3rd] / (dw[major_3rd] + dw[minor_3rd] + 1e-6)) +
-        0.30 * (dw[minor_7th] / (dw[major_7th] + dw[minor_7th] + 1e-6)) +
-        0.20 * (dw[minor_6th] / (dw[major_6th] + dw[minor_6th] + 1e-6))
-    )
+    # Combinar Krumhansl (60%) + graus (40%)
+    combined_major = 0.60 * ks_major_winner + 0.40 * degree_major
+    combined_minor = 0.60 * ks_minor_winner + 0.40 * degree_minor
     
-    # Desambiguação adicional via Krumhansl (usar correlação direta maior/menor)
-    ks_major_winner = krumhansl_major[winner_pc]
-    ks_minor_winner = krumhansl_minor[winner_pc]
-    
-    # Combinar evidência de graus + Krumhansl para decisão final
-    combined_major = 0.65 * major_evidence + 0.35 * ks_major_winner
-    combined_minor = 0.65 * minor_evidence + 0.35 * ks_minor_winner
-    
-    if combined_major > combined_minor * 1.15:
+    # Leve bias para maior (em música popular, a maioria dos tons é maior)
+    # Necessário para casos ambíguos sem 3ª definida
+    MAJOR_BIAS = 1.04
+    if combined_major * MAJOR_BIAS > combined_minor * 1.10:
         quality = 'major'
-    elif combined_minor > combined_major * 1.15:
+    elif combined_minor > combined_major * MAJOR_BIAS * 1.10:
         quality = 'minor'
     else:
-        quality = 'major'  # Default: maior quando ambíguo (maioria dos casos em música popular)
+        quality = 'major'  # Default maior quando ambíguo
     
     # ═══ CALCULAR CONFIANÇA ═══
     margin = winner_score - runner_up_score
@@ -413,17 +402,15 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
         0.35 * min(1.0, margin / 0.12) +
         0.25 * phrase_end_confidence
     )
-    
-    # Fator de evidência: confiança escala com a quantidade de notas
-    # Poucas notas = incerteza alta, independente do acordo interno
-    # Requer >=10 notas para confiança plena (sem penalização)
+    # Escalar pela quantidade de notas (poucas notas = baixa confiança)
     evidence_factor = min(1.0, len(notes) / 10.0)
     confidence = raw_confidence * (0.60 + 0.40 * evidence_factor)
     confidence = max(0.0, min(1.0, confidence))
     
+    logger.info(f"[v10] Krumhansl 24-key winner: {NOTE_NAMES_BR[krumhansl_winner_pc]} {krumhansl_winner_quality}")
+    logger.info(f"[v10] Final winner: {NOTE_NAMES_BR[winner_pc]} {quality} (conf={confidence:.2f})")
+    logger.info(f"[v10] Mode: major={combined_major:.3f} minor={combined_minor:.3f}")
     logger.info(f"[v10] Top 3: {[(NOTE_NAMES_BR[pc], f'{s:.3f}') for pc, s in ranked[:3]]}")
-    logger.info(f"[v10] Maior evidence={combined_major:.3f} vs Menor evidence={combined_minor:.3f}")
-    logger.info(f"[v10] Vencedor: {NOTE_NAMES_BR[winner_pc]} {quality} (conf={confidence:.2f})")
     
     return AnalysisResult(
         success=True,
@@ -439,10 +426,10 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
                 'major': round(combined_major, 3),
                 'minor': round(combined_minor, 3),
             },
+            'krumhansl_24_winner': f"{NOTE_NAMES_BR[krumhansl_winner_pc]} {krumhansl_winner_quality}",
             'scores': {
                 'phrase_end': {NOTE_NAMES_BR[i]: round(phrase_end_score[i], 3) for i in range(12) if phrase_end_score[i] > 0.1},
                 'duration': {NOTE_NAMES_BR[i]: round(duration_score[i], 3) for i in range(12) if duration_score[i] > 0.1},
-                'krumhansl': {NOTE_NAMES_BR[i]: round(krumhansl_score[i], 3) for i in range(12) if krumhansl_score[i] > 0.1},
             },
         }
     )

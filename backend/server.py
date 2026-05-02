@@ -463,21 +463,84 @@ async def reset_key_session(request: Request):
     return {'reset': True, 'device': device_id[:8], 'version': 'v10-definitivo'}
 
 
+@api_router.post("/analyze-key/diagnostic")
+async def analyze_key_diagnostic(request: Request):
+    """
+    DIAGNÓSTICO — Mostra exatamente o que o CREPE detecta, nota a nota.
+    Use para verificar se o áudio está chegando corretamente ao backend.
+    Acesse: POST /api/analyze-key/diagnostic com body = WAV bytes
+    """
+    from key_detection_v10 import load_audio, extract_pitch, pitch_to_notes, NOTE_NAMES_BR, SAMPLE_RATE
+    import numpy as np
+
+    audio_bytes = await request.body()
+    device_id = request.headers.get('X-Device-Id', 'diag')
+
+    if not audio_bytes:
+        return JSONResponse({"error": "sem audio"}, status_code=400)
+
+    # 1. Carregar áudio
+    audio, has_audio = load_audio(audio_bytes)
+    duration_s = len(audio) / SAMPLE_RATE
+    rms = float(np.sqrt(np.mean(audio ** 2)))
+
+    # 2. Extrair pitch com CREPE
+    f0, conf = extract_pitch(audio)
+    valid_mask = ~np.isnan(f0)
+    valid_frames = int(valid_mask.sum())
+    total_frames = len(f0)
+
+    # 3. Distribuição de pitch classes detectados
+    pcp = {}
+    if valid_frames > 0:
+        midis = 69.0 + 12.0 * np.log2(f0[valid_mask] / 440.0)
+        for m in midis:
+            pc = int(round(m)) % 12
+            pcp[NOTE_NAMES_BR[pc]] = pcp.get(NOTE_NAMES_BR[pc], 0) + 1
+        # Ordenar por contagem
+        pcp = dict(sorted(pcp.items(), key=lambda x: -x[1]))
+
+    # 4. Converter em notas
+    notes = pitch_to_notes(f0, conf)
+    notes_detail = [
+        {
+            "nota": NOTE_NAMES_BR[n.pitch_class],
+            "dur_ms": round(n.dur_ms),
+            "conf": round(n.confidence, 2),
+            "phrase_end": n.is_phrase_end,
+        }
+        for n in notes
+    ]
+
+    # 5. Confiança média dos frames válidos
+    avg_conf = float(np.mean(conf[valid_mask])) if valid_frames > 0 else 0.0
+
+    resultado = {
+        "audio": {
+            "bytes": len(audio_bytes),
+            "duration_s": round(duration_s, 2),
+            "rms": round(rms, 4),
+            "has_audio": bool(has_audio),
+        },
+        "crepe": {
+            "total_frames": int(total_frames),
+            "valid_frames": int(valid_frames),
+            "valid_pct": round(100 * valid_frames / max(total_frames, 1), 1),
+            "avg_confidence": round(float(avg_conf), 3),
+            "pitch_class_distribution": pcp,
+        },
+        "notes_extracted": int(len(notes)),
+        "notes": notes_detail,
+        "verdict": "audio_ok" if (has_audio and valid_frames > 20 and len(notes) >= 2) else "problema_no_audio",
+    }
+
+    logger.info(f"[DIAG] {device_id[:8]} | {duration_s:.1f}s | valid={valid_frames}/{total_frames} | notas={len(notes)} | pcp={pcp}")
+    return JSONResponse(resultado)
+
+
 @api_router.post("/analyze-key")
 async def analyze_key(request: Request):
-    """
-    DETECÇÃO DE TONALIDADE v10 — VERSÃO DEFINITIVA
-    
-    Princípios:
-    1. A TÔNICA é onde as frases TERMINAM (60% do peso)
-    2. A TÔNICA é a nota mais LONGA (25% do peso)
-    3. Correlação Krumhansl (15% do peso)
-    
-    Critérios para lock:
-    - Mínimo 3 análises
-    - Confiança >= 55%
-    - Pelo menos 2 votos consecutivos no mesmo tom
-    """
+    """DETECÇÃO DE TONALIDADE v10 — VERSÃO DEFINITIVA"""
     audio_bytes = await request.body()
     device_id = request.headers.get('X-Device-Id', 'anon')
     logger.info(f"[AnalyzeKey v10] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
