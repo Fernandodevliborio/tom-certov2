@@ -83,6 +83,25 @@ export interface MLAnalysisResult {
     is_warming_up: boolean; // true enquanto current < target e ainda não travou
   };
   
+  // v13 — Máquina de estados por TEMPO decorrido (novo fluxo UX)
+  // Controla o que o usuário vê em cada faixa temporal:
+  //   listening  (0-5s):   "Ouvindo…"
+  //   analyzing  (5-15s):  "Analisando padrão melódico…"
+  //   probable   (15-25s): "Tom provável" (se confiança aceitável)
+  //   confirmed  (25s+):   "Tom confirmado" (se critérios rigorosos)
+  //   needs_more (30s+):   "Continue cantando mais alguns segundos…"
+  stage?: 'listening' | 'analyzing' | 'probable' | 'confirmed' | 'needs_more';
+  stage_label?: string;   // texto já formatado em pt-BR
+  stage_hint?: string;    // sub-mensagem opcional
+  show_key?: boolean;     // se true, frontend pode exibir tonic/key_name
+  elapsed_s?: number;     // tempo desde o início da sessão
+  ambiguity?: {
+    margin_ratio: number;
+    is_ambiguous_hard: boolean;
+    is_relative_ambiguous: boolean;
+    is_dominant_ambiguous: boolean;
+  };
+  
   // Breakdown de confiança v8
   confidence_breakdown?: {
     combined_score?: number;

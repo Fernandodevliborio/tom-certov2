@@ -484,30 +484,73 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     }
   }, [reset, isResetting]);
   
-  // Processar novas análises ML
+  // Processar novas análises ML — v13: backend controla stage via tempo decorrido
   useEffect(() => {
-    if (!mlResult?.success || mlResult.tonic === undefined || !mlResult.quality) return;
+    if (!mlResult?.success) return;
+    
+    // v13: backend agora decide quando é seguro mostrar o tom.
+    // Só avançamos a engine cliente quando o backend diz show_key === true
+    // e o stage é 'probable' ou 'confirmed'. Isso previne lock prematuro.
+    const stage = (mlResult as any).stage as string | undefined;
+    const showKey = (mlResult as any).show_key as boolean | undefined;
+    const backendLocked = (mlResult as any).locked as boolean | undefined;
+    
+    if (stage && !showKey) {
+      // Backend diz para não mostrar nada ainda (listening/analyzing/needs_more)
+      return;
+    }
+    
+    if (mlResult.tonic === undefined || !mlResult.quality) return;
     
     const conf = mlResult.confidence ?? 0;
     const tonic = mlResult.tonic;
     const quality = mlResult.quality as 'major' | 'minor';
     const keyName = mlResult.key_name || '';
     
+    // Se backend confirmou (stage='confirmed' + locked=true), aplicar lock imediato.
+    // Se é apenas 'probable', passar pela engine que pode mostrar como preview.
+    if (stage === 'confirmed' && backendLocked) {
+      setStableState(prev => {
+        // Ignorar se já está travado no mesmo tom
+        if (prev.lockedKey && prev.lockedKey.tonic === tonic && prev.lockedKey.quality === quality) {
+          return prev;
+        }
+        const hadLockedKey = prev.lockedKey !== null;
+        if (hadLockedKey) {
+          setRecentKeyChange(true);
+          setTimeout(() => setRecentKeyChange(false), 3000);
+        }
+        return {
+          ...prev,
+          internalStage: 'locked',
+          currentCandidate: null,
+          hiddenCandidate: null,
+          lockedKey: {
+            tonic, quality, keyName,
+            lockedAt: Date.now(),
+            confidence: conf,
+            totalAnalyses: (prev.totalAnalysesCount || 0) + 1,
+            stabilityScore: 0,
+          },
+          visualConfidence: Math.round(conf * 100),
+        };
+      });
+      return;
+    }
+    
+    // Stage 'probable': passar pela engine mas ela não vai travar antes do backend
     setStableState(prev => {
       const hadLockedKey = prev.lockedKey !== null;
       const newState = processAnalysis(prev, { tonic, quality, confidence: conf, keyName });
-      
-      // Detectar mudança de tom
       if (hadLockedKey && newState.lockedKey && 
           (prev.lockedKey!.tonic !== newState.lockedKey.tonic || 
            prev.lockedKey!.quality !== newState.lockedKey.quality)) {
         setRecentKeyChange(true);
         setTimeout(() => setRecentKeyChange(false), 3000);
       }
-      
       return newState;
     });
-  }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success]);
+  }, [mlResult?.confidence, mlResult?.tonic, mlResult?.quality, mlResult?.success, (mlResult as any)?.stage, (mlResult as any)?.show_key, (mlResult as any)?.locked]);
 
   // Incrementar confiança visual gradualmente
   useEffect(() => {
@@ -575,6 +618,35 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   }, [isRunning, userVisibleState]);
 
   const statusInfo = useMemo(() => {
+    // v13: se backend mandou stage_label, usar ele diretamente (fonte única da verdade)
+    const backendStage = (mlResult as any)?.stage as string | undefined;
+    const backendLabel = (mlResult as any)?.stage_label as string | undefined;
+    const backendHint = (mlResult as any)?.stage_hint as string | undefined;
+    if (isRunning && backendStage && backendLabel) {
+      if (backendStage === 'confirmed') {
+        return {
+          icon: recentKeyChange ? 'swap-horizontal' : 'checkmark-circle',
+          label: recentKeyChange ? 'ATUALIZADO' : 'CONFIRMADO',
+          sub: backendHint || 'Tom confirmado com segurança.',
+        };
+      }
+      if (backendStage === 'probable') {
+        return {
+          icon: 'pulse',
+          label: 'TOM PROVÁVEL',
+          sub: backendHint || backendLabel,
+        };
+      }
+      if (backendStage === 'listening') {
+        return { icon: 'ear', label: 'OUVINDO', sub: backendHint || backendLabel };
+      }
+      if (backendStage === 'needs_more') {
+        return { icon: 'musical-notes', label: 'CONTINUE CANTANDO', sub: backendLabel };
+      }
+      // analyzing (ou qualquer outro intermediário)
+      return { icon: 'analytics', label: 'ANALISANDO', sub: backendHint || backendLabel };
+    }
+    
     if (userVisibleState === 'confirmed') {
       return { 
         icon: recentKeyChange ? 'swap-horizontal' : 'checkmark-circle', 
@@ -591,7 +663,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
       return SMART_MESSAGES[dynamicMsgIndex];
     }
     return SMART_MESSAGES[dynamicMsgIndex];
-  }, [userVisibleState, stableState.internalStage, dynamicMsgIndex, recentKeyChange]);
+  }, [userVisibleState, stableState.internalStage, dynamicMsgIndex, recentKeyChange, mlResult, isRunning]);
 
   // Confiança e cores (usa novo engine)
   const confPct = stableState.visualConfidence;

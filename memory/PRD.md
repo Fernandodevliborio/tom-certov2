@@ -31,6 +31,48 @@ Backend Python com CREPE (torchcrepe) para extração F0 e lógica tonal madura 
 - Backend: FastAPI + Motor (MongoDB) + torchcrepe + librosa
 - Auth: JWT (30 dias) + token de ativação por device_limit
 
+## Algoritmo de Detecção de Tom (v13 — 2026-02-XX)
+
+### Máquina de Estados por TEMPO DECORRIDO (UX redesenhada pelo usuário)
+
+O backend agora controla 5 estágios baseados no tempo desde o início da sessão:
+
+| Tempo       | Stage       | UI mostra                                           | Tom mostrado?         |
+|-------------|-------------|-----------------------------------------------------|-----------------------|
+| 0 – 5s      | `listening` | "Ouvindo…"                                          | ❌ não                |
+| 5 – 15s    | `analyzing` | "Analisando padrão melódico…"                       | ❌ não (oculto)       |
+| 15 – 25s   | `probable`  | "Tom provável" (se confiança ≥ 0.55)               | ⚠️ sim, sem lock      |
+| 25s+        | `confirmed` | "Tom confirmado"                                    | ✅ sim, com lock      |
+| 30s+ ambíguo| `needs_more`| "Continue cantando mais alguns segundos…"           | ❌ não                |
+
+### Critérios para `confirmed` (rigorosos — evita erro rápido):
+- confiança ≥ 0.70
+- margem relativa top/runner ≥ 25%
+- NÃO é relativo ambíguo (diff +3/+9 + margem < 20%)
+- NÃO é dominante/subdominante ambígua (diff +5/+7 + margem < 20%)
+- consenso de votos: ≥ 5 votos para o mesmo tom nas últimas 10 análises
+
+### Contrato do payload API (novo):
+```json
+{
+  "stage": "listening|analyzing|probable|confirmed|needs_more",
+  "stage_label": "texto em pt-BR pronto para exibir",
+  "stage_hint": "sub-texto opcional",
+  "show_key": true/false,
+  "elapsed_s": 12.5,
+  "locked": true/false,
+  "tonic": 0, "quality": "major", "key_name": "Dó Maior",
+  "confidence": 0.85,
+  "ambiguity": { "margin_ratio": 0.35, ... }
+}
+```
+
+### Frontend (v13 OTA 2026-02-XX):
+- `index.tsx` respeita `stage_label` do backend como fonte única da verdade
+- `processAnalysis` da engine cliente só roda em stages `probable`/`confirmed`
+- Lock client-side só acontece quando backend manda `locked: true`
+- Update ID: `505cc2d0-ea2f-4d26-bed2-18981cdcd69c` (produção)
+
 ## Algoritmo de Detecção de Tom (v12 — 2026-02-XX)
 
 ### Mudanças v11 → v12 (baseadas em 5 feedbacks reais do usuário)
