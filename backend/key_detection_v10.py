@@ -328,27 +328,52 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     )
     
     # ═══════════════════════════════════════════════════════════════════════════
-    # CORREÇÃO ESTRUTURAL v10.3 — DESAMBIGUAÇÃO DE RELATIVOS (BUG CRÍTICO)
+    # CORREÇÃO ESTRUTURAL v10.4 — DESAMBIGUAÇÃO DE RELATIVOS POR CADÊNCIA FINAL
     # ═══════════════════════════════════════════════════════════════════════════
     # PROBLEMA: Krumhansl-Kessler não distingue um tom do seu relativo
-    # (Ex: Ré menor e Sib Maior têm a MESMA escala, perfis correlacionam similar).
-    # Quando o áudio cabe na escala, Krumhansl pode escolher o relativo errado.
+    # (Ex: Sol Maior e Mi menor têm a mesma escala). Em música real, o problema
+    # piora quando frases internas repousam na 6ª (que é o relativo menor).
     #
-    # Caso real: hino "A alma abatida" (Vanessa Ferreira, a capela), música em Ré
-    # menor com Sib (6ª menor) muito proeminente — algoritmo reportou Sib Maior.
-    # Phrase ends mostram que a música REPOUSA em Ré (9.450ms total em Ré vs 310ms
-    # em Sib), o que é o critério MUSICAL CORRETO para a tônica.
+    # PRINCÍPIO MUSICAL: a TÔNICA é a nota onde a música TERMINA — a CADÊNCIA
+    # FINAL define a tonalidade. Frases internas podem ir e voltar do relativo,
+    # mas a cadência final é definitiva.
     #
-    # SOLUÇÃO MUSICOLÓGICA: a tônica é a nota de REPOUSO, não a mais "comum".
-    # Para cada par de relativos (tom_maior, relativo_menor) que compartilham
-    # a mesma escala, escolhemos o que tem MAIOR phrase_end ponderado por duração.
-    # Aplicado universalmente aos 24 tons via aritmética modular (mod 12).
+    # SOLUÇÃO v10.4: dar peso enorme à cadência (últimos 20% das notas em phrase
+    # ends), com fallback para phrase_end ponderado quando não há cadência clara.
+    # Universal para 24 tons (aritmética modular).
     relative_minor_offset = 9   # relativo menor = tônica - 3 semitons (= +9 mod 12)
     
-    # Rastreio: quais pcs foram selecionados COMO MENOR via desambiguação?
     forced_minor_pcs: set = set()
     forced_major_pcs: set = set()
     
+    # ═══ CADÊNCIA: últimas notas + últimos phrase ends ═══
+    # A cadência musical real combina:
+    #   1) As ÚLTIMAS notas reais (independente de phrase_end) — onde a música acaba
+    #   2) Os últimos phrase_ends — pontos de repouso explícitos
+    # Com peso por recência e duração. Funciona universal: sintéticos curtos (10
+    # notas) e hinos longos (440 notas).
+    cadence_weight = np.zeros(12, dtype=np.float64)
+    
+    # 1) ÚLTIMAS 10 NOTAS — peso por recência (mais recentes pesam mais)
+    last_n = min(10, len(notes))
+    last_notes = notes[-last_n:]
+    for rank, n in enumerate(last_notes):
+        # rank 0 = nota mais antiga; rank last_n-1 = última nota
+        recency = (rank + 1) ** 1.5
+        weight = n.dur_ms * n.confidence * recency
+        if n.is_phrase_end:
+            weight *= 2.5
+        cadence_weight[n.pitch_class] += weight
+    
+    # 2) ÚLTIMOS 3 PHRASE ENDS REAIS — independente da posição
+    phrase_end_indices = [i for i, n in enumerate(notes) if n.is_phrase_end]
+    last_3_pe = phrase_end_indices[-3:]
+    for rank, pe_idx in enumerate(last_3_pe):
+        n = notes[pe_idx]
+        recency = (len(last_3_pe) - rank) ** 1.2
+        cadence_weight[n.pitch_class] += n.dur_ms * n.confidence * recency * 1.5
+    
+    # ═══ Iterar pares (R_maior, R+9_menor) ═══
     top4 = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)[:4]
     top4_pcs = {pc for pc, _ in top4}
     
@@ -368,54 +393,63 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
         ks_minor = scores_24_norm.get((minor_pc, 'minor'), 0.0)
         
         # Ambos precisam ter correlação Krumhansl ALTA (estão na mesma escala).
-        # Se um deles é fraco, não é caso de relativos ambíguos.
         if ks_major < 0.70 or ks_minor < 0.70:
             continue
         
-        # Phrase end ponderado por duração — quem é a TÔNICA REAL?
+        # ═══ DECISÃO HIERÁRQUICA: cadência > phrase end > duração ═══
+        cad_major = cadence_weight[major_pc]
+        cad_minor = cadence_weight[minor_pc]
+        cad_total = cad_major + cad_minor
+        
+        # CRITÉRIO 1 (forte): cadência final tem evidência clara (>= 70/30 split)
+        if cad_total > 0:
+            cad_ratio_minor = cad_minor / cad_total
+            if cad_ratio_minor >= 0.70:
+                final_score[minor_pc] = min(1.0, final_score[minor_pc] + 0.25)
+                final_score[major_pc] = max(0.0, final_score[major_pc] - 0.20)
+                forced_minor_pcs.add(minor_pc)
+                logger.info(
+                    f"[v10.4] CADÊNCIA FINAL → {NOTE_NAMES_BR[minor_pc]} menor "
+                    f"(cad_minor={cad_minor:.0f} cad_major={cad_major:.0f} "
+                    f"ratio={cad_ratio_minor:.2%})"
+                )
+                continue
+            if cad_ratio_minor <= 0.30:
+                final_score[major_pc] = min(1.0, final_score[major_pc] + 0.25)
+                final_score[minor_pc] = max(0.0, final_score[minor_pc] - 0.20)
+                forced_major_pcs.add(major_pc)
+                logger.info(
+                    f"[v10.4] CADÊNCIA FINAL → {NOTE_NAMES_BR[major_pc]} maior "
+                    f"(cad_minor={cad_minor:.0f} cad_major={cad_major:.0f} "
+                    f"ratio_minor={cad_ratio_minor:.2%})"
+                )
+                continue
+        
+        # CRITÉRIO 2 (médio): phrase end ponderado por duração
         pe_major = phrase_end_weight[major_pc]
         pe_minor = phrase_end_weight[minor_pc]
+        pe_total = pe_major + pe_minor
         
-        # Duração total — quem está mais presente em notas longas?
-        dur_major = duration_weight[major_pc]
-        dur_minor = duration_weight[minor_pc]
-        
-        # Decisão: combinação 70% phrase_end + 30% duração
-        rest_major = 0.70 * pe_major + 0.30 * dur_major
-        rest_minor = 0.70 * pe_minor + 0.30 * dur_minor
-        
-        if rest_major < 1e-6 and rest_minor < 1e-6:
-            continue
-        
-        rest_total = rest_major + rest_minor
-        ratio_minor = rest_minor / rest_total
-        
-        # Se o relativo MENOR tem >= 60% do peso de repouso, é o vencedor.
-        # Esse threshold é robusto: 50% seria 50/50 (incerto), 60% é evidência clara.
-        if ratio_minor >= 0.60:
-            # Relativo menor é a tônica real
-            # Boost para o pc menor + penalize o pc maior
-            final_score[minor_pc] = min(1.0, final_score[minor_pc] + 0.20)
-            final_score[major_pc] = max(0.0, final_score[major_pc] - 0.15)
-            forced_minor_pcs.add(minor_pc)
-            logger.info(
-                f"[v10.3] DESAMBIGUAÇÃO RELATIVOS: {NOTE_NAMES_BR[major_pc]} maior vs "
-                f"{NOTE_NAMES_BR[minor_pc]} menor → repouso favorece "
-                f"{NOTE_NAMES_BR[minor_pc]} menor "
-                f"(ratio_minor={ratio_minor:.2%}, pe_min={pe_minor:.0f} pe_maj={pe_major:.0f})"
-            )
-        elif ratio_minor <= 0.40:
-            # Tom maior é a tônica real
-            final_score[major_pc] = min(1.0, final_score[major_pc] + 0.20)
-            final_score[minor_pc] = max(0.0, final_score[minor_pc] - 0.15)
-            forced_major_pcs.add(major_pc)
-            logger.info(
-                f"[v10.3] DESAMBIGUAÇÃO RELATIVOS: {NOTE_NAMES_BR[major_pc]} maior vs "
-                f"{NOTE_NAMES_BR[minor_pc]} menor → repouso favorece "
-                f"{NOTE_NAMES_BR[major_pc]} maior "
-                f"(ratio_minor={ratio_minor:.2%})"
-            )
-        # Se 40% < ratio_minor < 60%, é genuinamente ambíguo — não força decisão
+        if pe_total > 0:
+            pe_ratio_minor = pe_minor / pe_total
+            if pe_ratio_minor >= 0.65:
+                final_score[minor_pc] = min(1.0, final_score[minor_pc] + 0.15)
+                final_score[major_pc] = max(0.0, final_score[major_pc] - 0.10)
+                forced_minor_pcs.add(minor_pc)
+                logger.info(
+                    f"[v10.4] phrase_end → {NOTE_NAMES_BR[minor_pc]} menor "
+                    f"(pe_minor={pe_minor:.0f} pe_major={pe_major:.0f} "
+                    f"ratio={pe_ratio_minor:.2%})"
+                )
+            elif pe_ratio_minor <= 0.35:
+                final_score[major_pc] = min(1.0, final_score[major_pc] + 0.15)
+                final_score[minor_pc] = max(0.0, final_score[minor_pc] - 0.10)
+                forced_major_pcs.add(major_pc)
+                logger.info(
+                    f"[v10.4] phrase_end → {NOTE_NAMES_BR[major_pc]} maior "
+                    f"(pe_minor={pe_minor:.0f} pe_major={pe_major:.0f})"
+                )
+        # Se ainda incerto após critério 2, mantém o que Krumhansl decidir
     
     # ═══ PENALIZAÇÕES ANTI-CONFUSÃO ═══
     # Aplicadas em duas etapas para serem aplicáveis universalmente aos 24 tons:
@@ -439,11 +473,19 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
             scores_24_norm.get((pre_top_pc, 'minor'), 0.0),
         )
         ks_margin = ks_top_score - ks_pre_top_score
-        # Quando o vencedor pós-fórmula é mediant/dominante do Krumhansl winner
-        # E Krumhansl tem qualquer margem positiva, FORÇA o swap.
-        # Justificativa musical: a 3ª/5ª NUNCA é tônica quando o conjunto INTEIRO
-        # de notas tem perfil diatônico que correlaciona melhor com outra raiz.
-        if diff_to_krumhansl in (3, 4, 7) and ks_margin > 0.03:
+        # PROTEÇÃO v10.4: NÃO sobrescrever decisão da desambiguação de relativos.
+        # Se pre_top_pc foi escolhido pela cadência final (forced_major_pcs ou
+        # forced_minor_pcs), confiamos nessa decisão — é musicologicamente mais
+        # robusta que Krumhansl-anchored quando há ambiguidade tom/relativo.
+        skip_swap = (
+            pre_top_pc in forced_major_pcs or pre_top_pc in forced_minor_pcs
+        )
+        if skip_swap:
+            logger.info(
+                f"[v10.4] Anti-mediant SKIPPED: {NOTE_NAMES_BR[pre_top_pc]} foi "
+                f"escolhido pela cadência final — preservando decisão musical."
+            )
+        elif diff_to_krumhansl in (3, 4, 7) and ks_margin > 0.03:
             # Garantir que Krumhansl winner fica acima do pre_top com margem clara
             target_score = final_score[pre_top_pc] + 0.05 + ks_margin * 0.5
             final_score[krumhansl_winner_pc] = max(
