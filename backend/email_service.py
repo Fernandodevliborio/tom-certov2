@@ -17,7 +17,7 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 DOMAIN = os.environ.get('DOMAIN', 'tomcerto.online')
 
 # URL base para download do APK (usa domínio próprio que redireciona para o APK real)
-APK_DOWNLOAD_URL = os.environ.get('APK_DOWNLOAD_URL', 'https://tom-certov2-production.up.railway.app/download')
+APK_DOWNLOAD_URL = os.environ.get('APK_DOWNLOAD_URL', 'https://tomcerto.online/download')
 
 # URLs dos planos (Ticto)
 CHECKOUT_URLS = {

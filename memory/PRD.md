@@ -63,3 +63,9 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - Smoke tests via `/api/analyze-key`: Dó/Sol/Ré Maior + Lá menor detectados ≤ 9s
 - ✅ **Landing Page** — refatorada de 3 → 2 planos (Essencial e Profissional) em `/app/backend/tom-certo-emergent-ready/standalone-html/index.html`
 - ✅ **Railway + MongoDB Setup** — variáveis de ambiente configuradas (ver `/app/RAILWAY_SETUP_GUIDE.md`)
+- ✅ **Branding & Copy refinement (Feb 2026)**:
+  - Removida promessa "Teste grátis" da landing → "Escolha seu plano e comece agora."
+  - Frase "Pagamento seguro..." centralizada com `mt-16`, fonte 13px, cor #666 (75% opacidade)
+  - Favicon Tom Certo (logo dourado em fundo preto) servido em `/favicon.ico`, `/favicon.png`, `/favicon-256.png`, `/apple-touch-icon.png`
+  - Tags `<link rel="icon">` adicionadas em landing, admin UI e página de download
+  - Email de credenciais com URL de download corrigida para `https://tomcerto.online/download`

@@ -1380,6 +1380,41 @@ async def serve_landing_logo():
         return FileResponse(str(logo_path), media_type="image/png")
     raise HTTPException(404, "Logo not found")
 
+@app.get("/favicon.ico")
+async def serve_favicon_ico():
+    """Serve o favicon (multi-resolução ICO)."""
+    fav = LANDING_DIR / "favicon.ico"
+    if fav.exists():
+        return FileResponse(str(fav), media_type="image/x-icon")
+    fav2 = ROOT_DIR / "favicon.ico"
+    if fav2.exists():
+        return FileResponse(str(fav2), media_type="image/x-icon")
+    raise HTTPException(404, "Favicon not found")
+
+@app.get("/favicon.png")
+async def serve_favicon_png():
+    """Serve o favicon em PNG (1254x1254 — alta resolução)."""
+    fav = LANDING_DIR / "favicon.png"
+    if fav.exists():
+        return FileResponse(str(fav), media_type="image/png")
+    raise HTTPException(404, "Favicon not found")
+
+@app.get("/favicon-256.png")
+async def serve_favicon_256():
+    """Serve o favicon em PNG 256x256 (otimizado para browsers)."""
+    fav = LANDING_DIR / "favicon-256.png"
+    if fav.exists():
+        return FileResponse(str(fav), media_type="image/png")
+    raise HTTPException(404, "Favicon not found")
+
+@app.get("/apple-touch-icon.png")
+async def serve_apple_touch_icon():
+    """Apple touch icon (iOS adiciona à tela inicial)."""
+    fav = LANDING_DIR / "favicon-256.png"
+    if fav.exists():
+        return FileResponse(str(fav), media_type="image/png")
+    raise HTTPException(404, "Icon not found")
+
 @app.get("/", response_class=HTMLResponse)
 async def root_page():
     """Serve a landing page principal."""
@@ -1422,6 +1457,9 @@ async def download_page():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tom Certo - Download</title>
+    <link rel="icon" type="image/png" sizes="256x256" href="/favicon-256.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" sizes="256x256" href="/favicon-256.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
