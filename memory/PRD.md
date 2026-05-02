@@ -68,11 +68,11 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - **Streaming chunks de 5s (simulação realista do app)**: trava corretamente em Mi Maior aos 20s (antes travava em Si Maior aos 10s)
   - **Lock criteria endurecido** (`_should_lock`): mínimo 4 análises (20s de áudio) para qualquer lock + gate anti-dominante/anti-mediant que rejeita lock se runner-up é 3ª/5ª do top com margem <25%
   - **Lock criteria descongela** (`_should_change`): cap em 0.92 + fast-path anti-dominante/mediant retroativo para descongelar quando descobre raiz tonal real
-  - **Proteção anti-lock-prematuro do FRONTEND (universal, sem viés)**: nas primeiras 4 análises (≈20s), o backend retorna confidence=0.30 (abaixo do MIN_CONFIDENCE_THRESHOLD=0.35 do `stableKeyEngine.ts`) quando há ambiguidade — definida por: confidence < 0.75 OU margem top-vs-runner-up < 35% OU top é 3ª/5ª de outro candidato com score ≥ 70% do top. Isso faz o frontend mostrar "analisando..." sem travar em nenhum tom errado. Funciona universalmente para qualquer tom (não confia em Krumhansl winner). Solução cirúrgica que NÃO requer regerar APK.
-- ✅ **UX Warmup Progress (Feb 2026)** — barra de progresso "Analisando 1/4 → 4/4" durante warmup:
-  - Backend: novo campo `warmup_progress: { current, target: 4, is_warming_up }` em todas as respostas
-  - Frontend: contador "X/4" no badge, barra âmbar progressiva (25% → 100%), texto "Coletando contexto musical · X/4"
-  - Some automaticamente quando trava no tom correto. testIDs: `warmup-progress-counter`, `warmup-progress-bar`
+- ✅ **Key Detection v10.3 (Feb 2026)** — Correção estrutural musicológica: DESAMBIGUAÇÃO DE RELATIVOS:
+  - **Bug raiz identificado**: Krumhansl-Kessler não distingue um tom do seu relativo (Ré menor e Sib Maior compartilham a mesma escala). Quando o áudio cabe na escala, o algoritmo escolhia o relativo errado.
+  - **Solução musicológica**: separar identificação da escala (via Krumhansl) da identificação da tônica (via análise de repouso = phrase ends + duração). Para cada par (tom_maior, relativo_menor) com Krumhansl alto e ambos no top 4, aplicamos desambiguação por ratio de phrase_end ponderado. Universal para os 24 tons via aritmética modular.
+  - **Override da decisão maior/menor**: se a desambiguação selecionou o relativo menor, força `quality='minor'` (mais robusto que análise de graus 3ª/7ª/6ª, que falha em hinos com 6ª menor proeminente).
+  - **Validado empiricamente**: hino "A alma abatida" (Vanessa Ferreira, Sib Maior real, confirmado pelo usuário) → algoritmo reporta Sib Maior corretamente. Áudios sintéticos: Sol Maior, Lá Maior, Ré menor, Mi Maior — todos 100% confiança. 33/33 pytest passando.
   - **Prova de globalidade (33 testes pytest)**: novos testes `test_padrao_hino_funciona_em_todos_12_tons_maiores` e `_menores` aplicam o exato padrão musical do hino problemático aos 24 tons — todos passam, provando que a correção é puramente baseada em aritmética modular (mod 12) sem hardcode
 - ✅ **Landing Page** — refatorada de 3 → 2 planos (Essencial e Profissional) em `/app/backend/tom-certo-emergent-ready/standalone-html/index.html`
 - ✅ **Railway + MongoDB Setup** — variáveis de ambiente configuradas (ver `/app/RAILWAY_SETUP_GUIDE.md`)
