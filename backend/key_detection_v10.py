@@ -715,6 +715,7 @@ class SessionAccumulator:
         self.locked_at: Optional[float] = None
         self.last_activity_time: float = time.time()
         self.start_time: float = time.time()  # Para timeout inteligente
+        self._detection_duration_s: Optional[float] = None  # v14: tempo até tom confirmado
         # v3.17: snapshot da última análise completa para feedback do usuário
         self.last_result_snapshot: Optional[Dict[str, Any]] = None
     
@@ -797,8 +798,8 @@ class SessionAccumulator:
             return {
                 'success': True,
                 'stage': 'listening',
-                'stage_label': 'Ouvindo…',
-                'stage_hint': 'Cante o hino do início ao fim — vou decidir aos 30 segundos.',
+                'stage_label': 'Ouvindo sua voz…',
+                'stage_hint': 'Cante com calma — a IA está escutando.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
@@ -830,8 +831,8 @@ class SessionAccumulator:
             return {
                 'success': True,
                 'stage': 'analyzing',
-                'stage_label': 'Analisando padrão melódico…',
-                'stage_hint': 'Continue cantando — decisão aos 30 segundos.',
+                'stage_label': 'Identificando o centro tonal…',
+                'stage_hint': 'Percebendo onde a música repousa.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
@@ -847,8 +848,8 @@ class SessionAccumulator:
             return {
                 'success': True,
                 'stage': 'uncertain',
-                'stage_label': 'Não captei notas suficientes',
-                'stage_hint': 'Continue cantando por mais alguns segundos — volume mais alto ajuda.',
+                'stage_label': 'Aguardando uma frase musical mais clara.',
+                'stage_hint': 'Cante um pouco mais alto — a IA precisa ouvir melhor.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
@@ -863,8 +864,8 @@ class SessionAccumulator:
             return {
                 'success': True,
                 'stage': 'uncertain',
-                'stage_label': 'Continue cantando mais alguns segundos para confirmar o tom.',
-                'stage_hint': 'Ainda não consegui decidir — mais áudio ajuda.',
+                'stage_label': 'Quase lá… continue cantando mais um pouco.',
+                'stage_hint': 'Segurando o resultado até ter confiança suficiente.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
@@ -916,13 +917,16 @@ class SessionAccumulator:
             # Travar o tom
             if self.locked_tonic != result.tonic or self.locked_quality != result.quality:
                 self._lock(result.tonic, result.quality, result.confidence)
+                # tempo de detecção (elapsed no momento do lock)
+                self._detection_duration_s = round(elapsed, 1)
             else:
                 self.locked_confidence = min(0.95, max(self.locked_confidence, result.confidence))
+            detection_s = getattr(self, '_detection_duration_s', round(elapsed, 1))
             return {
                 'success': True,
                 'stage': 'confirmed',
-                'stage_label': 'Tom confirmado',
-                'stage_hint': '',
+                'stage_label': f'Tom confirmado em {int(round(detection_s))} segundos',
+                'stage_hint': 'A IA identificou o centro tonal da música.',
                 'show_key': True,
                 'tonic': result.tonic,
                 'tonic_name': NOTE_NAMES_BR[result.tonic],
@@ -931,6 +935,7 @@ class SessionAccumulator:
                 'confidence': self.locked_confidence,
                 'locked': True,
                 'locked_for': round(time.time() - self.locked_at, 1) if self.locked_at else 0,
+                'detection_duration_s': detection_s,
                 'elapsed_s': elapsed,
                 'notes_count': result.notes_count,
                 'debug': result.debug,
@@ -945,6 +950,17 @@ class SessionAccumulator:
             }
         
         # ─── INCERTO — bloqueia qualquer exposição de tom ───
+        # Mensagens humanas por tipo de problema
+        friendly_msg = 'Segurando o resultado até ter confiança suficiente.'
+        if ambiguity['is_relative_ambiguous']:
+            friendly_msg = 'Entre maior e menor — cante mais um trecho para eu ter certeza.'
+        elif ambiguity['is_dominant_ambiguous']:
+            friendly_msg = 'Ainda confirmando se essa é a tônica mesmo.'
+        elif not consensus_ok:
+            friendly_msg = 'Já encontrei uma direção, estou confirmando o tom.'
+        elif not cadence_ok:
+            friendly_msg = 'Aguardando um final de frase mais claro.'
+        
         failing = []
         if not margin_ok:
             failing.append(f"margem estreita ({ambiguity['margin_ratio']:.0%})")
@@ -969,8 +985,8 @@ class SessionAccumulator:
         return {
             'success': True,
             'stage': 'uncertain',
-            'stage_label': 'Continue cantando mais alguns segundos para confirmar o tom.',
-            'stage_hint': f"Motivo: {failing[0] if failing else 'ambiguidade'}.",
+            'stage_label': friendly_msg,
+            'stage_hint': 'Continue cantando — só mostro o tom quando tiver certeza.',
             'show_key': False,
             'locked': False,
             'elapsed_s': elapsed,

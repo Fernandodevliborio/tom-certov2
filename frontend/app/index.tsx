@@ -597,12 +597,15 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     }
   }, [isRunning]);
 
-  // Mensagens dinâmicas para fase de escuta (mais inteligentes)
+  // v14 — Mensagens musicais rotativas (trocam a cada 3s durante análise)
+  // Premium, humano, confiante — nunca técnico
   const SMART_MESSAGES = [
-    { icon: 'ear', label: 'OUVINDO', sub: 'Ouvindo com inteligência…' },
-    { icon: 'analytics', label: 'ANALISANDO', sub: 'Analisando estabilidade do tom…' },
-    { icon: 'pulse', label: 'VERIFICANDO', sub: 'Verificando consistência musical…' },
-    { icon: 'musical-notes', label: 'CAPTANDO', sub: 'Captando mais notas…' },
+    { icon: 'ear', label: 'OUVINDO', sub: 'Ouvindo sua voz…' },
+    { icon: 'musical-note', label: 'ANALISANDO', sub: 'Identificando o centro tonal…' },
+    { icon: 'pulse', label: 'ANALISANDO', sub: 'Percebendo onde a música repousa…' },
+    { icon: 'musical-notes', label: 'ANALISANDO', sub: 'Analisando as notas mais importantes…' },
+    { icon: 'shield-checkmark', label: 'CONFIRMANDO', sub: 'Confirmando o tom com mais segurança…' },
+    { icon: 'sparkles', label: 'QUASE LÁ', sub: 'Quase lá… buscando o tom mais provável' },
   ];
 
   const [dynamicMsgIndex, setDynamicMsgIndex] = useState(0);
@@ -624,24 +627,30 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     const backendHint = (mlResult as any)?.stage_hint as string | undefined;
     if (isRunning && backendStage && backendLabel) {
       if (backendStage === 'confirmed') {
+        const ds = (mlResult as any)?.detection_duration_s;
+        const secs = typeof ds === 'number' ? Math.round(ds) : null;
         return {
           icon: recentKeyChange ? 'swap-horizontal' : 'checkmark-circle',
-          label: recentKeyChange ? 'ATUALIZADO' : 'CONFIRMADO',
-          sub: backendHint || 'Tom confirmado com segurança.',
+          label: recentKeyChange ? 'ATUALIZADO' : 'TOM DETECTADO',
+          sub: secs != null
+            ? `Identificado com segurança em ${secs} segundos.`
+            : (backendHint || 'A IA confirmou o centro tonal da música.'),
         };
       }
       if (backendStage === 'uncertain' || backendStage === 'needs_more') {
         return {
           icon: 'musical-notes',
-          label: 'CONTINUE CANTANDO',
-          sub: backendHint || backendLabel,
+          label: 'MAIS UM POUCO',
+          sub: backendLabel || 'Continue cantando — estou confirmando.',
         };
       }
       if (backendStage === 'listening') {
-        return { icon: 'ear', label: 'OUVINDO', sub: backendHint || backendLabel };
+        // Durante "ouvindo": mensagem fixa humana
+        return { icon: 'ear', label: 'OUVINDO', sub: backendLabel || 'Ouvindo sua voz…' };
       }
-      // analyzing (ou probable legado)
-      return { icon: 'analytics', label: 'ANALISANDO', sub: backendHint || backendLabel };
+      // analyzing → rotacionar mensagens musicais a cada 3s (sem repetir 'OUVINDO')
+      const rotIdx = 1 + (dynamicMsgIndex % (SMART_MESSAGES.length - 1));
+      return SMART_MESSAGES[rotIdx];
     }
     
     if (userVisibleState === 'confirmed') {
@@ -841,6 +850,27 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               </View>
               <KeyDisplay root={displayKey.tonic} quality={displayKey.quality} provisional={false} />
               <ConfidenceBar pct={confPct} color={confColor} />
+              {(() => {
+                // v14: exibir "Tom confirmado em X segundos" — tempo de detecção
+                const ds = (mlResult as any)?.detection_duration_s;
+                const secs = typeof ds === 'number' ? Math.round(ds) : null;
+                if (secs == null) return null;
+                return (
+                  <Text
+                    testID="detection-duration"
+                    style={{
+                      fontFamily: 'Manrope_500Medium',
+                      fontSize: 12,
+                      color: C.text3,
+                      textAlign: 'center',
+                      marginTop: 6,
+                      letterSpacing: 0.3,
+                    }}
+                  >
+                    Tom confirmado em {secs} segundos
+                  </Text>
+                );
+              })()}
               <WrongKeyFeedback
                 apiBaseUrl={process.env.EXPO_PUBLIC_BACKEND_URL || ''}
                 deviceId={deviceId}
