@@ -310,13 +310,41 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
         0.40 * krumhansl_score
     )
     
-    # ═══ PENALIZAÇÃO ANTI-DOMINANTE ═══
-    # Penalizar a dominante (V = +7st) para evitar confundir tônica com dominante
+    # ═══ PENALIZAÇÃO ANTI-DOMINANTE + ANTI-MEDIANT ═══
+    # 
+    # Dois erros clássicos de confusão tonal:
+    # 1. ANTI-DOMINANTE: A dominante (V = +7st) é muito frequente mas não é tônica
+    # 2. ANTI-MEDIANT:   A terça (III = +4st) pode acumular peso quando o cantor
+    #    permanece muito no 3ª grau (ex: em Sol maior, Si recebe mais tempo que Sol)
+    #    → resulta em "Sol maior detectado como Si maior" (exatamente o bug G→B)
+    #
+    # Aplicamos as duas penalizações em cascata:
     for pc in range(12):
-        if final_score[pc] > 0.6:
+        if final_score[pc] > 0.55:
+            # Penalizar dominante (V → pode confundir com tônica)
             dominant_of_pc = (pc + 7) % 12
-            penalty = final_score[pc] * 0.12
-            final_score[dominant_of_pc] = max(0, final_score[dominant_of_pc] - penalty)
+            penalty_dom = final_score[pc] * 0.12
+            final_score[dominant_of_pc] = max(0, final_score[dominant_of_pc] - penalty_dom)
+            # Penalizar mediant maior (III → 3ª maior, ex: Si de Sol maior)
+            mediant_major = (pc + 4) % 12
+            penalty_med = final_score[pc] * 0.10
+            final_score[mediant_major] = max(0, final_score[mediant_major] - penalty_med)
+            # Penalizar mediant menor (bIII → 3ª menor, ex: Sib de Sol menor)
+            mediant_minor = (pc + 3) % 12
+            penalty_med_m = final_score[pc] * 0.07
+            final_score[mediant_minor] = max(0, final_score[mediant_minor] - penalty_med_m)
+    
+    # ═══ ÂNCORA DE DURAÇÃO ═══
+    # Se a nota com MAIOR tempo total diferir do vencedor Krumhansl,
+    # dar bônus para ela. Em música tonal, a tônica é sempre a nota
+    # mais sustentada. Este é o indicador mais confiável.
+    dur_winner_pc = int(np.argmax(duration_weight))
+    if dur_winner_pc != int(np.argmax(final_score)):
+        # Discordância: Krumhansl e duração apontam direções diferentes
+        # Dar bônus à nota mais longa para desempatar com evidência física
+        bonus = min(0.15, duration_score[dur_winner_pc] * 0.20)
+        final_score[dur_winner_pc] = min(1.0, final_score[dur_winner_pc] + bonus)
+        logger.info(f"[v10] Âncora duração: bônus {bonus:.3f} para {NOTE_NAMES_BR[dur_winner_pc]}")
     
     ranked = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)
     winner_pc = ranked[0][0]
@@ -427,25 +455,26 @@ class SessionAccumulator:
     def reset(self):
         self.all_notes: List[Note] = []
         self.analysis_count = 0
-        self.vote_history: List[int] = []  # Histórico de votos de tônica
+        self.vote_history: List[int] = []
         self.locked_tonic: Optional[int] = None
         self.locked_quality: Optional[str] = None
         self.locked_confidence: float = 0.0
         self.locked_at: Optional[float] = None
-        self.last_activity_time: float = time.time()  # NOVO: Rastrear atividade
+        self.last_activity_time: float = time.time()
+        self.start_time: float = time.time()  # Para timeout inteligente
     
     def add_analysis(self, notes: List[Note]):
         """Adiciona notas de uma análise."""
         now = time.time()
-        # Auto-reset se inativo por mais de 8 segundos
-        if now - self.last_activity_time > 8.0 and self.analysis_count > 0:
+        # Auto-reset se inativo por mais de 10 segundos
+        if now - self.last_activity_time > 10.0 and self.analysis_count > 0:
             logger.info(f"[v10] Auto-reset por inatividade ({now - self.last_activity_time:.1f}s)")
             self.reset()
         self.last_activity_time = now
-        # Acumular notas (janela deslizante de no máximo 50 notas)
+        # Janela deslizante maior = mais contexto musical = menos confusão
         self.all_notes.extend(notes)
-        if len(self.all_notes) > 50:
-            self.all_notes = self.all_notes[-50:]
+        if len(self.all_notes) > 80:
+            self.all_notes = self.all_notes[-80:]
         self.analysis_count += 1
     
     def get_result(self) -> Dict[str, Any]:
@@ -514,49 +543,67 @@ class SessionAccumulator:
         }
     
     def _should_lock(self, result: AnalysisResult) -> bool:
-        """Decide se deve travar o tom."""
+        """Decide se deve travar o tom.
+        
+        REGRA PRINCIPAL: Só travar quando há consistência real entre análises.
+        - Previne lock prematuro em nota errada de alta confiança
+        - Exige múltiplas análises apontando para o mesmo tom
+        """
         if self.locked_tonic is not None:
-            # Já está travado - verificar se deve mudar
             return self._should_change(result)
         
-        # Critério 1: Alta confiança com pelo menos 2 análises
-        if self.analysis_count >= 2 and result.confidence >= 0.60:
+        phrases = result.phrases_count
+        
+        # Critério 1: Confiança muito alta + múltiplas frases detectadas
+        if self.analysis_count >= 3 and result.confidence >= 0.65 and phrases >= 2:
             return True
         
-        # Critério 2: Confiança muito alta mesmo na 1ª análise
-        if result.confidence >= 0.75:
+        # Critério 2: Confiança excepcional (muito difícil de ser ruído)
+        if result.confidence >= 0.80 and phrases >= 1 and self.analysis_count >= 2:
             return True
         
-        # Critério 3: 3 votos consecutivos no mesmo tom com confiança razoável
-        if len(self.vote_history) >= 3 and result.confidence >= 0.50:
-            votes_for_current = sum(1 for v in self.vote_history[-3:] if v == result.tonic)
+        # Critério 3: Consenso forte ao longo do tempo (3 de 4 últimos votos)
+        if len(self.vote_history) >= 4 and result.confidence >= 0.55 and phrases >= 2:
+            votes_for_current = sum(1 for v in self.vote_history[-4:] if v == result.tonic)
             if votes_for_current >= 3:
                 return True
+        
+        # Critério 4: Timeout inteligente — após 12s sem lock, usar melhor candidato
+        elapsed = time.time() - self.start_time
+        if elapsed >= 12.0 and self.analysis_count >= 4 and result.confidence >= 0.45:
+            logger.info(f"[v10] Timeout inteligente após {elapsed:.0f}s — travando melhor candidato")
+            return True
         
         return False
     
     def _should_change(self, result: AnalysisResult) -> bool:
-        """Verifica se deve mudar o tom travado."""
+        """Verifica se deve mudar o tom travado.
+        
+        Mudança de tom é rara — exige evidência forte e consistente.
+        A histerese protege contra oscilação entre tons próximos.
+        """
         if result.tonic == self.locked_tonic:
-            # Mesmo tom - atualizar confiança
-            self.locked_confidence = max(self.locked_confidence, result.confidence)
+            # Mesmo tom — reforçar confiança gradualmente
+            self.locked_confidence = min(0.99, self.locked_confidence * 0.9 + result.confidence * 0.1)
             return False
         
-        # Tom diferente - precisa de evidência
         time_since_lock = time.time() - (self.locked_at or time.time())
         
-        # Mínimo 2 segundos antes de considerar mudança
-        if time_since_lock < 2.0:
+        # Mínimo 4 segundos antes de considerar qualquer mudança
+        if time_since_lock < 4.0:
             return False
         
-        # Precisa de 2 votos nos últimos 3 no novo tom
-        if len(self.vote_history) >= 2:
-            last_votes = self.vote_history[-3:]
+        # Precisa de 3 votos nos últimos 5 no novo tom
+        if len(self.vote_history) >= 5:
+            last_votes = self.vote_history[-5:]
             votes_for_new = sum(1 for v in last_votes if v == result.tonic)
-            if votes_for_new >= 2:
-                # E confiança claramente superior
-                if result.confidence > self.locked_confidence + 0.05:
-                    logger.info(f"[v10] Mudando de {NOTE_NAMES_BR[self.locked_tonic]} para {NOTE_NAMES_BR[result.tonic]}")
+            if votes_for_new >= 3:
+                # E confiança claramente superior (margem de 15%)
+                if result.confidence > self.locked_confidence + 0.15:
+                    logger.info(
+                        f"[v10] Mudando {NOTE_NAMES_BR[self.locked_tonic]} → "
+                        f"{NOTE_NAMES_BR[result.tonic]} ({self.locked_confidence:.2f} → {result.confidence:.2f})"
+                    )
                     return True
         
         return False

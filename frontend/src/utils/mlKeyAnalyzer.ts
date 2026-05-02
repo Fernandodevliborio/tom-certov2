@@ -157,7 +157,7 @@ export interface MLAnalysisResult {
 
 export async function analyzeKeyML(
   clip: CapturedClip,
-  timeoutMs: number = 30000,
+  timeoutMs: number = 12000,  // FIX: 30s era longo demais — CREPE tiny deve responder em <10s
   deviceId?: string,
 ): Promise<MLAnalysisResult> {
   const wav = float32ToWav(clip.samples, clip.sampleRate);

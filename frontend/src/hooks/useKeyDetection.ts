@@ -350,8 +350,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     return () => { cancelled = true; };
   }, []);
 
-  const ML_CAPTURE_DURATION_MS = 2500;     // 2.5s — captura mais curta para resultado rápido
-  const ML_MIN_CLIP_SAMPLES = 16000 * 1.0; // 1.0s mínimo (era 1.5s)
+  const ML_CAPTURE_DURATION_MS = 2000;     // FIX: era 2500 — clip mais curto = CREPE mais rápido
+  const ML_MIN_CLIP_SAMPLES = 16000 * 1.2; // 1.2s mínimo
 
   const runMLAnalysis = useCallback(async () => {
     // Usar ref para ler estado atual (evita stale closure)
@@ -479,7 +479,37 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
   }, []);
 
-  // ── Ref estável para runMLAnalysis (evita capturas stale em closures)
+  // ─── Watchdog anti-travamento ─────────────────────────────────────────────
+  // Se mlState ficar preso em 'analyzing' por mais de 18s, força reset para 'waiting'
+  // Isso previne o bug "1 minuto analisando" causado por backend lento ou timeout silencioso
+  const mlAnalysisStartRef = useRef<number>(0);
+  
+  useEffect(() => {
+    if (mlState === 'analyzing') {
+      mlAnalysisStartRef.current = Date.now();
+    }
+  }, [mlState]);
+
+  useEffect(() => {
+    if (!isRunning) return;
+    const watchdog = setInterval(() => {
+      if (mlStateRef.current === 'analyzing') {
+        const elapsed = Date.now() - mlAnalysisStartRef.current;
+        if (elapsed > 18000) {
+          // eslint-disable-next-line no-console
+          console.warn(`[ML-WATCHDOG] Preso em 'analyzing' por ${(elapsed/1000).toFixed(0)}s — forçando reset`);
+          setMlState('waiting');
+        }
+      }
+    }, 3000);
+    return () => clearInterval(watchdog);
+  }, [isRunning]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Ref para mlResult (evita stale closure no loop)
+  const mlResultRef = useRef(mlResult);
+  useEffect(() => { mlResultRef.current = mlResult; }, [mlResult]);
+
   const runMLAnalysisRef = useRef(runMLAnalysis);
   useEffect(() => { runMLAnalysisRef.current = runMLAnalysis; }, [runMLAnalysis]);
 
@@ -508,10 +538,12 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       // Delays baseados no estado atual
       let delay: number;
       switch (currentState) {
-        case 'idle': delay = 300; break;
-        case 'waiting': delay = 500; break;
-        case 'done': delay = 50; break;
-        default: delay = 500;
+        case 'idle': delay = 400; break;
+        case 'waiting': delay = 800; break;
+        // FIX: quando já tem resultado, não redespachar imediatamente
+        // Evita inundar o backend com requests a cada 50ms
+        case 'done': delay = (mlResultRef.current?.locked ? 6000 : 1500); break;
+        default: delay = 800;
       }
       
       // eslint-disable-next-line no-console

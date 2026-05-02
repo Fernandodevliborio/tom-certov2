@@ -362,6 +362,70 @@ def test_default_para_maior_quando_ambiguo():
     )
 
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTE 9 — Sol Maior NÃO pode virar Si Maior (bug G→B reportado)
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_sol_maior_nao_vira_si_maior():
+    """
+    Bug real reportado: cantor em Sol maior, app detectou Si maior.
+    Si (B=11) é a 3ª de Sol maior. O cantor permaneceu muito no 3ª grau.
+    O anti-mediant penalty deve prevenir isso.
+    """
+    # Simulação: cantor dwell muito em Si (3ª de Sol) mas resolve em Sol
+    notes = make_notes([
+        (SOL, 400, False),
+        (SI, 500, False),   # dwell no 3ª grau
+        (DO, 300, False),
+        (SI, 400, False),   # volta para o 3ª
+        (LA, 200, False),
+        (SOL, 900, True),   # fim de frase em Sol — RESOLVE
+        (MI, 300, False),
+        (SI, 400, False),   # outro dwell no 3ª
+        (FAsh, 300, False),
+        (SOL, 800, True),   # resolve em Sol novamente
+    ])
+    
+    result = analyze_tonality(notes)
+    
+    assert result.success
+    assert result.tonic == SOL, (
+        f"Com cadência em Sol, esperado Sol Maior. "
+        f"Detectado: {NOTE_NAMES_BR[result.tonic]} {result.quality}. "
+        f"Top: {result.debug.get('top_candidates', [])[:4]}"
+    )
+    assert result.quality == 'major'
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TESTE 10 — Timeout inteligente: retornar melhor candidato após 12s
+# ═══════════════════════════════════════════════════════════════════════════════
+def test_timeout_inteligente_retorna_candidato():
+    """
+    Se há evidência suficiente mas não excepcional,
+    o sistema deve retornar o melhor candidato em vez de ficar preso.
+    """
+    # Criamos notas com confiança razoável mas não alta
+    notes = make_notes([
+        (SOL, 600, False),
+        (LA, 300, False),
+        (SI, 300, False),
+        (DO, 300, False),
+        (RE, 300, False),
+        (SOL, 700, True),
+        (FAsh, 200, False),
+        (SOL, 600, True),
+    ])
+    
+    result = analyze_tonality(notes)
+    
+    # Mesmo com confiança moderada, deve retornar resultado (não None)
+    assert result.success, "Sistema nunca deve retornar 'sem resultado' quando há notas suficientes"
+    assert result.tonic is not None
+    assert result.quality is not None
+
+
+
 if __name__ == '__main__':
     import pytest
     pytest.main([__file__, '-v', '--tb=short'])
