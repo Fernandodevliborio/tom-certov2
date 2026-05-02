@@ -785,7 +785,7 @@ class SessionAccumulator:
         # ─── WARMUP TARGET (UX) ───
         # Número de análises necessárias antes que o backend libere lock.
         # Usado pelo frontend para mostrar barra de progresso "Analisando 1/4 → 4/4".
-        WARMUP_TARGET = 4
+        WARMUP_TARGET = 6  # v3.14: 4 → 6 análises (≈30s mínimo)
         warmup_progress = {
             'current': min(self.analysis_count, WARMUP_TARGET),
             'target': WARMUP_TARGET,
@@ -828,15 +828,15 @@ class SessionAccumulator:
         provisional_confidence = result.confidence
         provisional_method = 'v10-provisional'
         
-        if self.analysis_count < 4:
+        if self.analysis_count < 6:
             top_candidates = result.debug.get('top_candidates', [])
             should_signal_uncertain = False
             uncertain_reason = ''
             
             # Critério A: confidence absoluta baixa
-            if result.confidence < 0.75:
+            if result.confidence < 0.80:
                 should_signal_uncertain = True
-                uncertain_reason = f'conf<0.75 ({result.confidence:.2f})'
+                uncertain_reason = f'conf<0.80 ({result.confidence:.2f})'
             
             # Critério B: margem entre top e runner-up estreita
             if not should_signal_uncertain and len(top_candidates) >= 2:
@@ -873,7 +873,7 @@ class SessionAccumulator:
                 provisional_confidence = 0.30  # abaixo de MIN_CONFIDENCE (0.35) do frontend
                 provisional_method = 'v10-uncertain-waiting-context'
                 logger.info(
-                    f"[v10.2] Provisional incerto (análise {self.analysis_count}/4): "
+                    f"[v10.2] Provisional incerto (análise {self.analysis_count}/6): "
                     f"{uncertain_reason} — frontend não vai travar"
                 )
         
@@ -906,12 +906,12 @@ class SessionAccumulator:
         
         phrases = result.phrases_count
         
-        # ─── GATE UNIVERSAL: nunca travar com menos de 4 análises ───
-        # 4 chunks de 5s = 20s de áudio mínimo. Frase musical típica tem ~10-15s.
-        # Com 20s temos pelo menos 1-2 frases completas + cadências = contexto suficiente.
-        # Sem isso, o algoritmo trava prematuramente na 5ª (dominante) ou 3ª (mediant)
-        # do tom real (caso reportado: hino em Mi maior travando em Si Maior aos 10s).
-        if self.analysis_count < 4:
+        # ─── GATE UNIVERSAL: nunca travar com menos de 6 análises ───
+        # FIX v3.14: 4 → 6 (≈30s mínimo de áudio). O usuário reportou "app trava
+        # rápido demais e SEMPRE erra". Backend agora exige mais evidência antes
+        # de liberar lock. Mesmo com cap de confiança v10.5, frontend pode contar
+        # confidences médias acumuladas — backend precisa segurar.
+        if self.analysis_count < 6:
             return False
         
         # ─── GATE ANTI-DOMINANTE/ANTI-MEDIANT ───
@@ -936,23 +936,27 @@ class SessionAccumulator:
             except ValueError:
                 pass
         
-        # Critério 1: Confiança alta + múltiplas frases + análises suficientes
-        if self.analysis_count >= 4 and result.confidence >= 0.70 and phrases >= 3:
+        # Critério 1: Confiança ALTA + cadência clara (≥ 3 frases)
+        # FIX v3.14: 0.70 → 0.80 (depende de v10.5 não capar a confiança)
+        if self.analysis_count >= 6 and result.confidence >= 0.80 and phrases >= 3:
             return True
         
         # Critério 2: Confiança excepcional + várias análises
-        if result.confidence >= 0.85 and phrases >= 2 and self.analysis_count >= 4:
+        # FIX v3.14: 0.85 → 0.90 (precisa ser MUITO confiante)
+        if result.confidence >= 0.90 and phrases >= 3 and self.analysis_count >= 6:
             return True
         
-        # Critério 3: Consenso forte ao longo do tempo (4 de 5 últimos votos)
-        if len(self.vote_history) >= 5 and result.confidence >= 0.55 and phrases >= 2:
-            votes_for_current = sum(1 for v in self.vote_history[-5:] if v == result.tonic)
-            if votes_for_current >= 4:
+        # Critério 3: Consenso forte ao longo do tempo (5 de 6 últimos votos)
+        # FIX v3.14: 4/5 → 5/6 + conf ≥ 0.70
+        if len(self.vote_history) >= 6 and result.confidence >= 0.70 and phrases >= 3:
+            votes_for_current = sum(1 for v in self.vote_history[-6:] if v == result.tonic)
+            if votes_for_current >= 5:
                 return True
         
-        # Critério 4: Timeout inteligente — após 25s sem lock, usar melhor candidato
+        # Critério 4: Timeout inteligente — após 40s sem lock, usar melhor candidato
+        # FIX v3.14: 25s → 40s
         elapsed = time.time() - self.start_time
-        if elapsed >= 25.0 and self.analysis_count >= 5 and result.confidence >= 0.45:
+        if elapsed >= 40.0 and self.analysis_count >= 7 and result.confidence >= 0.55:
             logger.info(f"[v10] Timeout inteligente após {elapsed:.0f}s — travando melhor candidato")
             return True
         

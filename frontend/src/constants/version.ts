@@ -9,5 +9,5 @@
 // Como atualizar: edite APENAS a constante abaixo e publique novo OTA.
 // ═════════════════════════════════════════════════════════════════════════
 
-export const APP_VERSION = "3.13.0";
-export const APP_VERSION_LABEL = "v3.13.0";
+export const APP_VERSION = "3.14.0";
+export const APP_VERSION_LABEL = "v3.14.0";

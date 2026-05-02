@@ -111,22 +111,26 @@ const CONFIG = {
   MIN_HITS_FOR_CANDIDATE: 1,
   
   // Mínimo de análises consecutivas para candidato estável
-  MIN_HITS_FOR_STABLE: 2,
+  MIN_HITS_FOR_STABLE: 3,
   
   // Mínimo de análises consecutivas para travar tom
-  MIN_HITS_FOR_LOCK: 2,
+  // FIX v3.14.0: 2 → 5 (precisa ver o tom 5x consecutivas, ~25s)
+  // O usuário reportou "app trava muito rápido e sempre erra" — agora é mais
+  // conservador, demora mais para mostrar mas mostra certo.
+  MIN_HITS_FOR_LOCK: 5,
   
   // Confiança mínima para considerar análise válida
-  // FIX BUG 4: era 0.12 — um resultado com 12% de confiança não deve influenciar nada
-  MIN_CONFIDENCE_THRESHOLD: 0.35,
+  // FIX v3.14.0: 0.35 → 0.65 — resultados com confiança média/baixa do backend
+  // (que já tem trava anti-confiança-falsa v10.5) não devem nem ser contabilizados
+  MIN_CONFIDENCE_THRESHOLD: 0.65,
   
   // Confiança mínima para lock rápido (alta confiança)
-  // FIX BUG 4: era 0.25 — 25% não é alta confiança
-  FAST_LOCK_CONFIDENCE: 0.55,
+  // FIX v3.14.0: 0.55 → 0.85 — só trava rápido com confiança ALTA real do backend
+  FAST_LOCK_CONFIDENCE: 0.85,
   
   // Tempo mínimo (ms) que candidato deve existir antes de travar
-  // FIX BUG 4: era 500ms — tempo mínimo realista para confirmação
-  MIN_CANDIDATE_DURATION_MS: 1500,
+  // FIX v3.14.0: 1500ms → 4000ms — precisa pelo menos 4s estável
+  MIN_CANDIDATE_DURATION_MS: 4000,
   
   // Tempo mínimo (ms) antes de permitir mudança de tom travado
   MIN_LOCK_DURATION_MS: 3000,
