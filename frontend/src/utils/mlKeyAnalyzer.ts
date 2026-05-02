@@ -85,16 +85,25 @@ export interface MLAnalysisResult {
   
   // v13 — Máquina de estados por TEMPO decorrido (novo fluxo UX)
   // Controla o que o usuário vê em cada faixa temporal:
-  //   listening  (0-5s):   "Ouvindo…"
-  //   analyzing  (5-15s):  "Analisando padrão melódico…"
-  //   probable   (15-25s): "Tom provável" (se confiança aceitável)
-  //   confirmed  (25s+):   "Tom confirmado" (se critérios rigorosos)
-  //   needs_more (30s+):   "Continue cantando mais alguns segundos…"
-  stage?: 'listening' | 'analyzing' | 'probable' | 'confirmed' | 'needs_more';
+  //   listening  (0-10s):  "Ouvindo…"
+  //   analyzing  (10-30s): "Analisando padrão melódico…"
+  //   confirmed  (30s+):   "Tom confirmado" (se critérios rigorosos)
+  //   uncertain  (30s+):   "Continue cantando mais alguns segundos…"
+  stage?: 'listening' | 'analyzing' | 'probable' | 'confirmed' | 'uncertain' | 'needs_more' | 'decision';
   stage_label?: string;   // texto já formatado em pt-BR
   stage_hint?: string;    // sub-mensagem opcional
   show_key?: boolean;     // se true, frontend pode exibir tonic/key_name
   elapsed_s?: number;     // tempo desde o início da sessão
+  window_s?: number;      // janela total (30s)
+  window_progress?: number; // [0..1] progresso na janela
+  failing_criteria?: string[]; // motivos da decisão incerta
+  criteria?: {             // evidências usadas na decisão confirmada
+    margin_ratio?: number;
+    cadence?: number;
+    third_ratio?: number;
+    confidence?: number;
+    consensus_votes?: number;
+  };
   ambiguity?: {
     margin_ratio: number;
     is_ambiguous_hard: boolean;

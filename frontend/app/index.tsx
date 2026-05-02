@@ -630,20 +630,17 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
           sub: backendHint || 'Tom confirmado com segurança.',
         };
       }
-      if (backendStage === 'probable') {
+      if (backendStage === 'uncertain' || backendStage === 'needs_more') {
         return {
-          icon: 'pulse',
-          label: 'TOM PROVÁVEL',
+          icon: 'musical-notes',
+          label: 'CONTINUE CANTANDO',
           sub: backendHint || backendLabel,
         };
       }
       if (backendStage === 'listening') {
         return { icon: 'ear', label: 'OUVINDO', sub: backendHint || backendLabel };
       }
-      if (backendStage === 'needs_more') {
-        return { icon: 'musical-notes', label: 'CONTINUE CANTANDO', sub: backendLabel };
-      }
-      // analyzing (ou qualquer outro intermediário)
+      // analyzing (ou probable legado)
       return { icon: 'analytics', label: 'ANALISANDO', sub: backendHint || backendLabel };
     }
     
@@ -859,14 +856,29 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   <Text style={[ss.keyCardBadgeTxt, { color: C.amber }]}>{statusInfo.label}</Text>
                 </View>
                 {(() => {
-                  const wp = (mlResult as any)?.warmup_progress;
-                  if (wp && wp.is_warming_up) {
+                  // v14: preferir window_progress do backend (0..1 na janela de 30s)
+                  const wp = (mlResult as any)?.window_progress;
+                  const elapsed = (mlResult as any)?.elapsed_s;
+                  const windowS = (mlResult as any)?.window_s || 30;
+                  if (typeof wp === 'number') {
+                    const secs = Math.min(windowS, Math.round(elapsed || 0));
                     return (
                       <Text
                         testID="warmup-progress-counter"
                         style={[ss.keyCardConfPct, { color: C.amber }]}
                       >
-                        {wp.current}/{wp.target}
+                        {secs}/{windowS}s
+                      </Text>
+                    );
+                  }
+                  const legacy = (mlResult as any)?.warmup_progress;
+                  if (legacy && legacy.is_warming_up) {
+                    return (
+                      <Text
+                        testID="warmup-progress-counter"
+                        style={[ss.keyCardConfPct, { color: C.amber }]}
+                      >
+                        {legacy.current}/{legacy.target}
                       </Text>
                     );
                   }
@@ -880,9 +892,13 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   : 'Confirmando detecção…'}
               </Text>
               {(() => {
-                const wp = (mlResult as any)?.warmup_progress;
-                if (wp && wp.is_warming_up) {
-                  const pct = Math.min(100, (wp.current / Math.max(1, wp.target)) * 100);
+                // v14: barra de progresso baseada em window_progress do backend
+                const wp = (mlResult as any)?.window_progress;
+                const elapsed = (mlResult as any)?.elapsed_s;
+                const windowS = (mlResult as any)?.window_s || 30;
+                if (typeof wp === 'number') {
+                  const pct = Math.min(100, wp * 100);
+                  const secs = Math.min(windowS, Math.round(elapsed || 0));
                   return (
                     <View testID="warmup-progress-bar" style={ss.analysisProgress}>
                       <View style={ss.analysisProgressBar}>
@@ -903,7 +919,35 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                           textAlign: 'center',
                         }}
                       >
-                        Coletando contexto musical · {wp.current}/{wp.target}
+                        Janela de análise · {secs}s / {windowS}s
+                      </Text>
+                    </View>
+                  );
+                }
+                const legacy = (mlResult as any)?.warmup_progress;
+                if (legacy && legacy.is_warming_up) {
+                  const pct = Math.min(100, (legacy.current / Math.max(1, legacy.target)) * 100);
+                  return (
+                    <View testID="warmup-progress-bar" style={ss.analysisProgress}>
+                      <View style={ss.analysisProgressBar}>
+                        <View
+                          style={[
+                            ss.analysisProgressFill,
+                            { width: `${pct}%` as any },
+                          ]}
+                        />
+                      </View>
+                      <Text
+                        style={{
+                          fontFamily: 'Manrope_500Medium',
+                          fontSize: 11,
+                          color: C.text3,
+                          letterSpacing: 0.4,
+                          marginTop: 6,
+                          textAlign: 'center',
+                        }}
+                      >
+                        Coletando contexto musical · {legacy.current}/{legacy.target}
                       </Text>
                     </View>
                   );

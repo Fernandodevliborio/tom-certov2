@@ -31,7 +31,40 @@ Backend Python com CREPE (torchcrepe) para extração F0 e lógica tonal madura 
 - Backend: FastAPI + Motor (MongoDB) + torchcrepe + librosa
 - Auth: JWT (30 dias) + token de ativação por device_limit
 
-## Algoritmo de Detecção de Tom (v13 — 2026-02-XX)
+## Algoritmo de Detecção de Tom (v14 — 2026-02-XX)
+
+### Janela fixa 30s — DECISÃO BINÁRIA (sem intermediário)
+
+Regra principal: **É melhor não mostrar nada do que mostrar um tom errado.**
+
+| Tempo       | Stage       | UI mostra                                                                 | Tom exibido? |
+|-------------|-------------|---------------------------------------------------------------------------|--------------|
+| 0 – 10s     | `listening` | "Ouvindo…" + barra de progresso 0→33%                                     | ❌           |
+| 10 – 30s    | `analyzing` | "Analisando padrão melódico…" + barra 33→100%                             | ❌           |
+| 30s+ (ok)   | `confirmed` | "Tom confirmado" — só se 7 critérios rigorosos passam                    | ✅           |
+| 30s+ (dúvida)| `uncertain`| "Continue cantando mais alguns segundos para confirmar o tom."           | ❌           |
+
+### 7 critérios RIGOROSOS para `confirmed` (TODOS devem passar):
+1. Margem top1/top2 ≥ 25%
+2. Cadência ≥ 0.15 (evidência de repouso)
+3. Third_ratio ≥ 0.65 OU ≤ 0.35 (3ª claramente maior ou menor)
+4. Confiança ≥ 0.60
+5. NÃO é relativo ambíguo
+6. NÃO é dominante/subdominante ambígua
+7. Consenso ≥ 4 votos iguais nas últimas 10 análises
+
+### Mudanças vs v13
+- ❌ Removido stage `probable` (causava exibição de tons errados entre 15-25s)
+- ✅ Decisão **binária** aos 30s: confirmado com evidência real OU incerto (sem tom)
+- ✅ Payload novo: `window_s: 30`, `window_progress: 0..1`, `failing_criteria`, `criteria`
+- ✅ Log detalhado dos critérios que falharam quando `uncertain`
+
+### Frontend v14 (OTA 2026-02-XX)
+- Barra de progresso agora é "Janela de análise · Ns / 30s"
+- Removida exposição de tom em qualquer stage ≠ `confirmed`
+- Update ID: `da5f4b8a-258b-4598-920c-f88eca5e2a8c`
+
+## Algoritmo de Detecção de Tom (v13 — anterior)
 
 ### Máquina de Estados por TEMPO DECORRIDO (UX redesenhada pelo usuário)
 

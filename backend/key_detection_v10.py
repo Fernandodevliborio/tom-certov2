@@ -765,50 +765,54 @@ class SessionAccumulator:
     
     def _current_stage(self) -> Dict[str, Any]:
         """
-        Calcula o estágio UX baseado no TEMPO DECORRIDO desde o início da sessão.
+        Máquina de estados v14 — JANELA FIXA 30s, decisão única.
         
         Stages:
-          - listening   (0-5s):    "Ouvindo..." — sem tom nenhum
-          - analyzing   (5-15s):   "Analisando padrão melódico..." — sem tom
-          - probable    (15-25s):  pode mostrar "Tom provável" se houver confiança aceitável
-          - confirmed   (25s+):    pode mostrar "Tom confirmado" se critérios rigorosos
-          - needs_more  (30s+):    se ainda ambíguo — pedir mais alguns segundos
+          - listening   (0-10s):    "Ouvindo…"
+          - analyzing   (10-30s):   "Analisando padrão melódico…" (não mostra tom)
+          - confirmed   (30s+):     SE critérios rigorosos, tom travado com confiança
+          - uncertain   (30s+):     SE não tem critérios, pede mais áudio (sem mostrar)
+        
+        NUNCA mostra tom antes dos 30s. Elimina o estágio "provável" que confundia
+        usuário com resultados errados "parciais".
         """
         elapsed = time.time() - self.start_time
         return {
             'elapsed_s': round(elapsed, 1),
             'stage': (
-                'listening' if elapsed < 5.0
-                else 'analyzing' if elapsed < 15.0
-                else 'probable' if elapsed < 25.0
-                else 'confirmed'
+                'listening' if elapsed < 10.0
+                else 'analyzing' if elapsed < 30.0
+                else 'decision'  # decisão binária aos 30s+
             ),
         }
     
     def get_result(self) -> Dict[str, Any]:
-        """Retorna resultado baseado em todas as notas acumuladas + estágio temporal."""
+        """Janela fixa 30s: decisão binária ao final (confirmed OU uncertain)."""
         stage_info = self._current_stage()
         elapsed = stage_info['elapsed_s']
         stage = stage_info['stage']
         
-        # ─── STAGE LISTENING (0-5s): não mostra nada ───
+        # ─── STAGE LISTENING (0-10s): "Ouvindo…" sem análise exposta ───
         if stage == 'listening':
             return {
                 'success': True,
                 'stage': 'listening',
                 'stage_label': 'Ouvindo…',
-                'stage_hint': 'Cante ou toque o instrumento.',
+                'stage_hint': 'Cante o hino do início ao fim — vou decidir aos 30 segundos.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
+                'window_s': 30.0,
+                'window_progress': min(1.0, elapsed / 30.0),
                 'notes_count': len(self.all_notes),
                 'analyses': self.analysis_count,
-                'method': 'v13-listening',
+                'method': 'v14-listening',
             }
         
-        # ─── STAGE ANALYZING (5-15s): coletando contexto, não mostra tom ───
+        # ─── STAGE ANALYZING (10-30s): coletando — sem mostrar tom ───
         if stage == 'analyzing':
-            # Rodar análise internamente, mas NÃO expor o tom
+            # Rodar análise internamente para alimentar vote_history,
+            # mas NUNCA expor o tom ao usuário nesta janela.
             if len(self.all_notes) >= 2:
                 result = analyze_tonality(self.all_notes)
                 if result.success:
@@ -822,45 +826,49 @@ class SessionAccumulator:
                         'notes_count': result.notes_count,
                     }
                     self.vote_history.append(result.tonic)
-                    self.vote_history = self.vote_history[-15:]
+                    self.vote_history = self.vote_history[-20:]
             return {
                 'success': True,
                 'stage': 'analyzing',
                 'stage_label': 'Analisando padrão melódico…',
-                'stage_hint': 'Continue cantando — preciso de mais contexto.',
+                'stage_hint': 'Continue cantando — decisão aos 30 segundos.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
+                'window_s': 30.0,
+                'window_progress': min(1.0, elapsed / 30.0),
                 'notes_count': len(self.all_notes),
                 'analyses': self.analysis_count,
-                'method': 'v13-analyzing',
+                'method': 'v14-analyzing',
             }
         
-        # ─── STAGE PROBABLE / CONFIRMED (15s+): análise completa ───
-        if len(self.all_notes) < 2:
+        # ─── STAGE DECISION (30s+): decisão BINÁRIA ───
+        if len(self.all_notes) < 4:
             return {
                 'success': True,
-                'stage': 'needs_more',
-                'stage_label': 'Continue cantando…',
-                'stage_hint': 'Ainda não tenho notas suficientes.',
+                'stage': 'uncertain',
+                'stage_label': 'Não captei notas suficientes',
+                'stage_hint': 'Continue cantando por mais alguns segundos — volume mais alto ajuda.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
+                'window_s': 30.0,
+                'window_progress': 1.0,
                 'notes_count': len(self.all_notes),
-                'method': 'v13-insufficient',
+                'method': 'v14-insufficient',
             }
         
         result = analyze_tonality(self.all_notes)
         if not result.success:
             return {
-                'success': False,
-                'stage': 'needs_more',
-                'error': 'analysis_failed',
+                'success': True,
+                'stage': 'uncertain',
                 'stage_label': 'Continue cantando mais alguns segundos para confirmar o tom.',
+                'stage_hint': 'Ainda não consegui decidir — mais áudio ajuda.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
-                'notes_count': len(self.all_notes),
+                'method': 'v14-uncertain-nofit',
             }
         
         # snapshot para feedback
@@ -874,69 +882,37 @@ class SessionAccumulator:
             'notes_count': result.notes_count,
         }
         self.vote_history.append(result.tonic)
-        self.vote_history = self.vote_history[-15:]
+        self.vote_history = self.vote_history[-20:]
         
-        # ─── AVALIAR AMBIGUIDADE (usado nos dois estágios) ───
+        # ─── AVALIAR CRITÉRIOS RIGOROSOS ───
         top_candidates = result.debug.get('top_candidates', [])
         ambiguity = self._evaluate_ambiguity(result, top_candidates)
+        winner_details = result.debug.get('winner_details', {})
+        cadence_score = winner_details.get('cadence', 0.0)
+        third_ratio = winner_details.get('third_ratio', 0.5)
         
-        # ─── STAGE PROBABLE (15-25s): tom provável se confiança aceitável ───
-        if elapsed < 25.0:
-            # Critério para mostrar "provável": confiança mínima de 0.55
-            # e candidato top-1 tem separação mínima de 15% sobre top-2
-            show_probable = (
-                result.confidence >= 0.55
-                and not ambiguity['is_ambiguous_hard']
-            )
-            if show_probable:
-                return {
-                    'success': True,
-                    'stage': 'probable',
-                    'stage_label': 'Tom provável',
-                    'stage_hint': 'Continuando análise para confirmar…',
-                    'show_key': True,
-                    'tonic': result.tonic,
-                    'tonic_name': NOTE_NAMES_BR[result.tonic],
-                    'quality': result.quality,
-                    'key_name': f"{NOTE_NAMES_BR[result.tonic]} {'Maior' if result.quality == 'major' else 'menor'}",
-                    'confidence': result.confidence,
-                    'locked': False,
-                    'elapsed_s': elapsed,
-                    'notes_count': result.notes_count,
-                    'debug': result.debug,
-                    'method': 'v13-probable',
-                    'ambiguity': ambiguity,
-                }
-            # Mesmo sem mostrar tom, informar que está refinando
-            return {
-                'success': True,
-                'stage': 'analyzing',
-                'stage_label': 'Refinando análise…',
-                'stage_hint': 'Ainda avaliando se o tom é claro.',
-                'show_key': False,
-                'locked': False,
-                'elapsed_s': elapsed,
-                'notes_count': result.notes_count,
-                'method': 'v13-analyzing-refine',
-                'ambiguity': ambiguity,
-            }
-        
-        # ─── STAGE CONFIRMED (25-30s): tom confirmado se critérios rigorosos ───
-        # Critérios rigorosos:
-        #   1) confiança ≥ 0.70
-        #   2) margem relativa entre top e runner-up ≥ 25%
-        #   3) NÃO é relativo ambíguo
-        #   4) NÃO é dominante/subdominante ambígua
+        # Critério 1: margem clara entre top1 e top2 (≥ 25%)
+        margin_ok = ambiguity['margin_ratio'] >= 0.25
+        # Critério 2: evidência de tônica (repouso/cadência) — cadence > 0.15
+        cadence_ok = cadence_score >= 0.15
+        # Critério 3: evidência da 3ª (para decidir maior/menor)
+        # third_ratio ≥ 0.65 = 3ª da qualidade escolhida claramente predomina
+        third_ok = third_ratio >= 0.65 or third_ratio <= 0.35
+        # Critério 4: confiança mínima honesta
+        confidence_ok = result.confidence >= 0.60
+        # Critério 5: NÃO há ambiguidade relativo ou dominante
+        no_relative = not ambiguity['is_relative_ambiguous']
+        no_dominant = not ambiguity['is_dominant_ambiguous']
+        # Critério 6: consenso de votos (últimas 10 análises concordam)
         consensus_votes = sum(1 for v in self.vote_history[-10:] if v == result.tonic)
-        confirmed_ok = (
-            result.confidence >= 0.70
-            and ambiguity['margin_ratio'] >= 0.25
-            and not ambiguity['is_relative_ambiguous']
-            and not ambiguity['is_dominant_ambiguous']
-            and consensus_votes >= 5
+        consensus_ok = consensus_votes >= 4
+        
+        all_ok = (
+            margin_ok and cadence_ok and third_ok
+            and confidence_ok and no_relative and no_dominant and consensus_ok
         )
         
-        if confirmed_ok:
+        if all_ok:
             # Travar o tom
             if self.locked_tonic != result.tonic or self.locked_quality != result.quality:
                 self._lock(result.tonic, result.quality, result.confidence)
@@ -958,78 +934,50 @@ class SessionAccumulator:
                 'elapsed_s': elapsed,
                 'notes_count': result.notes_count,
                 'debug': result.debug,
-                'method': 'v13-confirmed',
-                'ambiguity': ambiguity,
+                'method': 'v14-confirmed',
+                'criteria': {
+                    'margin_ratio': round(ambiguity['margin_ratio'], 3),
+                    'cadence': round(cadence_score, 3),
+                    'third_ratio': round(third_ratio, 3),
+                    'confidence': round(result.confidence, 3),
+                    'consensus_votes': consensus_votes,
+                },
             }
         
-        # ─── STAGE NEEDS_MORE (30s+ ainda ambíguo) ───
-        if elapsed >= 30.0:
-            # Se há um candidato mais provável, mostrar como "tom provável" sem travar
-            if result.confidence >= 0.55 and not ambiguity['is_ambiguous_hard']:
-                return {
-                    'success': True,
-                    'stage': 'probable',
-                    'stage_label': 'Tom provável',
-                    'stage_hint': 'Continue cantando mais alguns segundos para confirmar o tom.',
-                    'show_key': True,
-                    'tonic': result.tonic,
-                    'tonic_name': NOTE_NAMES_BR[result.tonic],
-                    'quality': result.quality,
-                    'key_name': f"{NOTE_NAMES_BR[result.tonic]} {'Maior' if result.quality == 'major' else 'menor'}",
-                    'confidence': result.confidence,
-                    'locked': False,
-                    'elapsed_s': elapsed,
-                    'notes_count': result.notes_count,
-                    'debug': result.debug,
-                    'method': 'v13-needs-more-probable',
-                    'ambiguity': ambiguity,
-                }
-            return {
-                'success': True,
-                'stage': 'needs_more',
-                'stage_label': 'Continue cantando mais alguns segundos para confirmar o tom.',
-                'stage_hint': 'Ainda há ambiguidade — não vou arriscar um tom errado.',
-                'show_key': False,
-                'locked': False,
-                'elapsed_s': elapsed,
-                'notes_count': result.notes_count,
-                'debug': result.debug,
-                'method': 'v13-needs-more',
-                'ambiguity': ambiguity,
-            }
+        # ─── INCERTO — bloqueia qualquer exposição de tom ───
+        failing = []
+        if not margin_ok:
+            failing.append(f"margem estreita ({ambiguity['margin_ratio']:.0%})")
+        if not cadence_ok:
+            failing.append("sem cadência de repouso clara")
+        if not third_ok:
+            failing.append("3ª ambígua (maior/menor)")
+        if not confidence_ok:
+            failing.append(f"confiança baixa ({result.confidence:.0%})")
+        if ambiguity['is_relative_ambiguous']:
+            failing.append("ambiguidade entre relativos")
+        if ambiguity['is_dominant_ambiguous']:
+            failing.append("ambiguidade tônica/dominante")
+        if not consensus_ok:
+            failing.append(f"votos inconsistentes ({consensus_votes}/4)")
         
-        # 25-30s sem critérios rigorosos: tom provável (sem lock)
-        if result.confidence >= 0.55 and not ambiguity['is_ambiguous_hard']:
-            return {
-                'success': True,
-                'stage': 'probable',
-                'stage_label': 'Tom provável',
-                'stage_hint': 'Aguardando mais contexto para confirmar…',
-                'show_key': True,
-                'tonic': result.tonic,
-                'tonic_name': NOTE_NAMES_BR[result.tonic],
-                'quality': result.quality,
-                'key_name': f"{NOTE_NAMES_BR[result.tonic]} {'Maior' if result.quality == 'major' else 'menor'}",
-                'confidence': result.confidence,
-                'locked': False,
-                'elapsed_s': elapsed,
-                'notes_count': result.notes_count,
-                'debug': result.debug,
-                'method': 'v13-probable-late',
-                'ambiguity': ambiguity,
-            }
-        
+        logger.info(
+            f"[v14] DECISÃO INCERTA aos {elapsed:.1f}s — {', '.join(failing)} | "
+            f"melhor candidato interno: {NOTE_NAMES_BR[result.tonic]} {result.quality} "
+            f"(conf={result.confidence:.2f}) — NÃO mostrando ao usuário"
+        )
         return {
             'success': True,
-            'stage': 'analyzing',
-            'stage_label': 'Refinando análise…',
-            'stage_hint': '',
+            'stage': 'uncertain',
+            'stage_label': 'Continue cantando mais alguns segundos para confirmar o tom.',
+            'stage_hint': f"Motivo: {failing[0] if failing else 'ambiguidade'}.",
             'show_key': False,
             'locked': False,
             'elapsed_s': elapsed,
             'notes_count': result.notes_count,
-            'method': 'v13-analyzing-late',
-            'ambiguity': ambiguity,
+            'debug': result.debug,
+            'method': 'v14-uncertain',
+            'failing_criteria': failing,
         }
     
     def _evaluate_ambiguity(self, result: AnalysisResult, top_candidates: List) -> Dict[str, Any]:
