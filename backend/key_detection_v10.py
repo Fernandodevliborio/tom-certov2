@@ -607,29 +607,60 @@ class SessionAccumulator:
         REGRA PRINCIPAL: Só travar quando há consistência real entre análises.
         - Previne lock prematuro em nota errada de alta confiança
         - Exige múltiplas análises apontando para o mesmo tom
+        - Verifica margem clara sobre runner-up (anti-dominante/anti-mediant)
         """
         if self.locked_tonic is not None:
             return self._should_change(result)
         
         phrases = result.phrases_count
         
-        # Critério 1: Confiança muito alta + múltiplas frases detectadas
-        if self.analysis_count >= 3 and result.confidence >= 0.65 and phrases >= 2:
+        # ─── GATE UNIVERSAL: nunca travar com menos de 4 análises ───
+        # 4 chunks de 5s = 20s de áudio mínimo. Frase musical típica tem ~10-15s.
+        # Com 20s temos pelo menos 1-2 frases completas + cadências = contexto suficiente.
+        # Sem isso, o algoritmo trava prematuramente na 5ª (dominante) ou 3ª (mediant)
+        # do tom real (caso reportado: hino em Mi maior travando em Si Maior aos 10s).
+        if self.analysis_count < 4:
+            return False
+        
+        # ─── GATE ANTI-DOMINANTE/ANTI-MEDIANT ───
+        # Mesmo com confiança alta, se o runner-up está próximo (margem < 25%) E
+        # o vencedor é uma 5ª/3ª do runner-up, NÃO travar — esperar mais evidência.
+        top_candidates = result.debug.get('top_candidates', [])
+        if len(top_candidates) >= 2:
+            top_name, top_score = top_candidates[0]
+            runner_name, runner_score = top_candidates[1]
+            try:
+                top_pc = NOTE_NAMES_BR.index(top_name)
+                runner_pc = NOTE_NAMES_BR.index(runner_name)
+                margin = (top_score - runner_score) / max(top_score, 0.01)
+                # offset do top em relação ao runner: se for 3ª/5ª do runner, é armadilha
+                offset = (top_pc - runner_pc) % 12
+                if offset in (3, 4, 7) and margin < 0.25:
+                    logger.info(
+                        f"[v10.2] Lock adiado: {top_name} é offset+{offset} de runner-up "
+                        f"{runner_name} (margem={margin:.2%}) — esperando mais evidência"
+                    )
+                    return False
+            except ValueError:
+                pass
+        
+        # Critério 1: Confiança alta + múltiplas frases + análises suficientes
+        if self.analysis_count >= 4 and result.confidence >= 0.70 and phrases >= 3:
             return True
         
-        # Critério 2: Confiança excepcional (muito difícil de ser ruído)
-        if result.confidence >= 0.80 and phrases >= 1 and self.analysis_count >= 2:
+        # Critério 2: Confiança excepcional + várias análises
+        if result.confidence >= 0.85 and phrases >= 2 and self.analysis_count >= 4:
             return True
         
-        # Critério 3: Consenso forte ao longo do tempo (3 de 4 últimos votos)
-        if len(self.vote_history) >= 4 and result.confidence >= 0.55 and phrases >= 2:
-            votes_for_current = sum(1 for v in self.vote_history[-4:] if v == result.tonic)
-            if votes_for_current >= 3:
+        # Critério 3: Consenso forte ao longo do tempo (4 de 5 últimos votos)
+        if len(self.vote_history) >= 5 and result.confidence >= 0.55 and phrases >= 2:
+            votes_for_current = sum(1 for v in self.vote_history[-5:] if v == result.tonic)
+            if votes_for_current >= 4:
                 return True
         
-        # Critério 4: Timeout inteligente — após 12s sem lock, usar melhor candidato
+        # Critério 4: Timeout inteligente — após 25s sem lock, usar melhor candidato
         elapsed = time.time() - self.start_time
-        if elapsed >= 12.0 and self.analysis_count >= 4 and result.confidence >= 0.45:
+        if elapsed >= 25.0 and self.analysis_count >= 5 and result.confidence >= 0.45:
             logger.info(f"[v10] Timeout inteligente após {elapsed:.0f}s — travando melhor candidato")
             return True
         
