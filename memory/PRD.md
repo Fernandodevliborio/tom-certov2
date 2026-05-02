@@ -63,8 +63,9 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - Smoke tests via `/api/analyze-key`: Dó/Sol/Ré Maior + Lá menor detectados ≤ 9s
 - ✅ **Key Detection v10.2 (Feb 2026)** — Correção do bug "tom oscilando para 3ª maior" em áudios reais:
   - **Janela de notas: 80 → 250** no `SessionAccumulator` (≈30-60s de contexto musical, suficiente para Krumhansl convergir corretamente)
-  - **Anti-mediant Krumhansl-anchored bidirecional**: quando o vencedor pós-fórmula é uma 3ª/5ª do vencedor de Krumhansl puro (que olha conjunto INTEIRO de notas), transferimos peso de volta à raiz tonal real. Aplicado universalmente aos 24 tons via aritmética modular
+  - **Anti-mediant Krumhansl-anchored bidirecional + swap forçado**: quando o vencedor pós-fórmula é uma 3ª/5ª do vencedor de Krumhansl puro (que olha conjunto INTEIRO de notas), o algoritmo força o swap garantindo que o Krumhansl winner fique acima com margem clara. Aplicado universalmente aos 24 tons via aritmética modular (gate KS_margin>0.03)
   - **Resultado validado**: hino "Os guerreiros se preparam" (Vanessa Ferreira, a capela 3:32) detectado como **Mi Maior 100%** (antes: Sol# menor 97% errado)
+  - **Prova de globalidade (33 testes pytest)**: novos testes `test_padrao_hino_funciona_em_todos_12_tons_maiores` e `_menores` aplicam o exato padrão musical do hino problemático aos 24 tons — todos passam, provando que a correção é puramente baseada em aritmética modular (mod 12) sem hardcode
 - ✅ **Landing Page** — refatorada de 3 → 2 planos (Essencial e Profissional) em `/app/backend/tom-certo-emergent-ready/standalone-html/index.html`
 - ✅ **Railway + MongoDB Setup** — variáveis de ambiente configuradas (ver `/app/RAILWAY_SETUP_GUIDE.md`)
 - ✅ **Branding & Copy refinement (Feb 2026)**:

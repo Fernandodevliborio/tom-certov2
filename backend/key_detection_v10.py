@@ -349,21 +349,25 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
             scores_24_norm.get((pre_top_pc, 'minor'), 0.0),
         )
         ks_margin = ks_top_score - ks_pre_top_score
-        # Penalidades por intervalo (mesma estrutura da etapa B, mas aplicada no
-        # offset INVERTIDO — ou seja, "estou sendo um mediant/dominante de quem?")
-        # Coeficientes mais agressivos: queremos que o swap seja decisivo quando
-        # Krumhansl já decidiu pela raiz tonal real.
-        krumhansl_penalty_map = {4: 0.55, 3: 0.40, 7: 0.45}  # mediant_major, mediant_minor, dominant
-        if diff_to_krumhansl in krumhansl_penalty_map and ks_margin > 0.15:
-            transfer = krumhansl_penalty_map[diff_to_krumhansl] * ks_margin
-            final_score[pre_top_pc] = max(0.0, final_score[pre_top_pc] - transfer)
-            final_score[krumhansl_winner_pc] = min(
-                1.0, final_score[krumhansl_winner_pc] + transfer * 0.9
+        # Quando o vencedor pós-fórmula é mediant/dominante do Krumhansl winner
+        # E Krumhansl tem qualquer margem positiva, FORÇA o swap.
+        # Justificativa musical: a 3ª/5ª NUNCA é tônica quando o conjunto INTEIRO
+        # de notas tem perfil diatônico que correlaciona melhor com outra raiz.
+        if diff_to_krumhansl in (3, 4, 7) and ks_margin > 0.03:
+            # Garantir que Krumhansl winner fica acima do pre_top com margem clara
+            target_score = final_score[pre_top_pc] + 0.05 + ks_margin * 0.5
+            final_score[krumhansl_winner_pc] = max(
+                final_score[krumhansl_winner_pc],
+                min(1.0, target_score),
             )
+            # E penaliza o pre_top proporcionalmente
+            penalty = 0.05 + ks_margin * 0.3
+            final_score[pre_top_pc] = max(0.0, final_score[pre_top_pc] - penalty)
+            offset_name = {3: 'mediant_minor (3ªm)', 4: 'mediant_major (3ªM)', 7: 'dominant (5ªJ)'}[diff_to_krumhansl]
             logger.info(
-                f"[v10.2] Krumhansl-anchored anti-mediant: {NOTE_NAMES_BR[pre_top_pc]} "
-                f"é offset+{diff_to_krumhansl} de {NOTE_NAMES_BR[krumhansl_winner_pc]} "
-                f"(KS_margin={ks_margin:.3f}) → transferido {transfer:.3f}"
+                f"[v10.2] Krumhansl-anchored anti-mediant: {NOTE_NAMES_BR[pre_top_pc]} é "
+                f"{offset_name} de {NOTE_NAMES_BR[krumhansl_winner_pc]} (KS_margin={ks_margin:.3f}) "
+                f"→ swap forçado para {NOTE_NAMES_BR[krumhansl_winner_pc]}"
             )
     
     # Re-ranquear após etapa A

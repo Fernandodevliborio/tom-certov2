@@ -591,6 +591,180 @@ def test_modo_maior_vs_menor_invariante():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# BLOCO 12 — REGRESSÃO UNIVERSAL: padrão "Os guerreiros se preparam"
+# Reproduz o exato padrão musical do hino real que falhava (Mi maior → Sol# menor)
+# aplicando-o aos 12 tons maiores. Prova que a correção v10.2 funciona globalmente.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _hymn_pattern_major(root: int) -> list:
+    """
+    Reproduz o padrão tonal do hino real "Os guerreiros se preparam" (Mi maior).
+    Características que faziam o algoritmo errar antes da v10.2:
+      - Distribuição PCP fortemente diatônica em maior (TODOS os 7 graus)
+      - Notas longas e phrase ends frequentemente sobre a 3ª maior (mediant)
+      - Cadências curtas sobre a tônica
+      - Aparição da 7ª (sensível) — característica de música tonal real
+    
+    Aplicado a `root`, deve detectar `root maior` para qualquer tom.
+    """
+    # Graus diatônicos em maior: I=0, II=1, III=2, IV=3, V=4, VI=5, VII=6
+    # Padrão construído reproduzindo a riqueza diatônica de música real,
+    # mas com o "armadilha" de phrase ends repetidos sobre a 3ª maior.
+    return make_phrase(root, MAJOR_SCALE, [
+        # ─── Verso 1 — exposição diatônica ───
+        (0, 350, False),   # I
+        (2, 400, False),   # III
+        (4, 500, False),   # V
+        (6, 250, False),   # VII (sensível) — IMPORTANTE para Krumhansl
+        (0, 400, False),   # I
+        (5, 300, False),   # VI
+        (4, 350, False),   # V
+        (3, 300, False),   # IV
+        (1, 250, False),   # II
+        (2, 800, True),    # III (phrase end longa — armadilha do mediant)
+        # ─── Verso 2 ───
+        (4, 400, False),   # V
+        (5, 350, False),   # VI
+        (6, 300, False),   # VII
+        (0, 500, False),   # I
+        (4, 300, False),   # V
+        (2, 900, True),    # III novamente (phrase end longa)
+        # ─── Refrão ───
+        (0, 400, False),
+        (3, 350, False),   # IV
+        (4, 400, False),   # V
+        (6, 300, False),   # VII (cadência V-I)
+        (0, 600, True),    # I (cadência) — mais curta que III ends
+        # ─── Repetição ───
+        (4, 300, False),
+        (3, 250, False),
+        (1, 300, False),
+        (2, 850, True),    # III phrase end (de novo)
+        (4, 400, False),
+        (5, 350, False),
+        (6, 250, False),   # VII
+        (0, 800, True),    # I (cadência final maior)
+    ])
+
+
+def test_padrao_hino_funciona_em_todos_12_tons_maiores():
+    """
+    REGRESSÃO UNIVERSAL — o exato padrão musical que fez o app errar
+    (hino real em Mi maior → Sol# menor errado) NÃO PODE ocorrer em
+    nenhuma das 12 tonalidades maiores.
+    
+    Esta é a prova matemática de que a correção v10.2 é universal:
+    se passa para todos os 12 roots, então é puramente baseada em
+    aritmética modular e não em hardcoding de tom específico.
+    """
+    falhas = []
+    for root in range(12):
+        notes = _hymn_pattern_major(root)
+        result = run(notes)
+        
+        if not result.success:
+            falhas.append(f"  ❌ {NAMES[root]} maior → análise falhou")
+            continue
+        
+        # Verifica: tônica correta E modo maior
+        tonic_ok = (result.tonic == root)
+        mode_ok = (result.quality == 'major')
+        
+        if not tonic_ok:
+            mediant_major = (root + 4) % 12
+            mediant_minor = (root + 3) % 12
+            dominant     = (root + 7) % 12
+            tipo_erro = 'desconhecido'
+            if result.tonic == mediant_major:
+                tipo_erro = 'mediant_major (3ª maior — bug Mi→Sol#)'
+            elif result.tonic == mediant_minor:
+                tipo_erro = 'mediant_minor (3ª menor)'
+            elif result.tonic == dominant:
+                tipo_erro = 'dominant (5ª justa)'
+            falhas.append(
+                f"  ❌ {NAMES[root]} maior → detectado {NAMES[result.tonic]} "
+                f"{result.quality} [{tipo_erro}] conf={result.confidence:.2f}"
+            )
+        elif not mode_ok:
+            falhas.append(
+                f"  ❌ {NAMES[root]} maior → tônica OK mas modo errado "
+                f"({result.quality}) conf={result.confidence:.2f}"
+            )
+    
+    assert not falhas, (
+        "REGRESSÃO UNIVERSAL FALHOU — padrão do hino real ainda gera erros:\n"
+        + "\n".join(falhas)
+    )
+
+
+def _hymn_pattern_minor(root: int) -> list:
+    """
+    Padrão equivalente para tom MENOR. Características:
+      - Diatônico em menor harmônica/natural
+      - Phrase ends frequentes sobre a 5ª maior (dominante) — armadilha
+      - Cadências curtas sobre a tônica
+    
+    Aplicado a `root`, deve detectar `root menor` para qualquer tom.
+    """
+    return make_phrase(root, MINOR_SCALE, [
+        (0, 400, False),   # i
+        (2, 500, False),   # bIII (terça menor)
+        (4, 600, False),   # V (dominante)
+        (3, 300, False),   # IV
+        # Phrase end sobre dominante (V) — armadilha clássica
+        (4, 800, True),    # V phrase end longa
+        (2, 400, False),
+        (5, 350, False),   # bVI
+        (4, 700, True),    # V novamente
+        (0, 500, False),
+        (3, 300, False),
+        (2, 400, False),
+        # Cadência final em i (curta vs as duas em V)
+        (0, 600, True),
+        # Repetições
+        (2, 350, False),
+        (4, 850, True),    # V outra vez
+        (0, 700, True),    # i
+    ])
+
+
+def test_padrao_hino_funciona_em_todos_12_tons_menores():
+    """REGRESSÃO UNIVERSAL — versão menor: 12 tons menores devem ser detectados
+    apesar do bias de phrase end sobre a dominante."""
+    falhas = []
+    for root in range(12):
+        notes = _hymn_pattern_minor(root)
+        result = run(notes)
+        
+        if not result.success:
+            falhas.append(f"  ❌ {NAMES[root]} menor → análise falhou")
+            continue
+        
+        if result.tonic != root:
+            dominant = (root + 7) % 12
+            mediant_minor = (root + 3) % 12
+            tipo_erro = 'desconhecido'
+            if result.tonic == dominant:
+                tipo_erro = 'dominant (5ª justa)'
+            elif result.tonic == mediant_minor:
+                tipo_erro = 'relativo maior (bIII = 3ª menor)'
+            falhas.append(
+                f"  ❌ {NAMES[root]} menor → detectado {NAMES[result.tonic]} "
+                f"{result.quality} [{tipo_erro}] conf={result.confidence:.2f}"
+            )
+        elif result.quality != 'minor':
+            falhas.append(
+                f"  ❌ {NAMES[root]} menor → tônica OK mas modo errado "
+                f"(maior) conf={result.confidence:.2f}"
+            )
+    
+    assert not falhas, (
+        "REGRESSÃO UNIVERSAL FALHOU em modo menor:\n" + "\n".join(falhas)
+    )
+
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # RELATÓRIO FINAL
 # ═══════════════════════════════════════════════════════════════════════════════
 
