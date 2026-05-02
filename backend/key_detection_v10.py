@@ -714,9 +714,9 @@ class SessionAccumulator:
             uncertain_reason = ''
             
             # Critério A: confidence absoluta baixa
-            if result.confidence < 0.80:
+            if result.confidence < 0.70:
                 should_signal_uncertain = True
-                uncertain_reason = f'conf<0.80 ({result.confidence:.2f})'
+                uncertain_reason = f'conf<0.70 ({result.confidence:.2f})'
             
             # Critério B: margem entre top e runner-up estreita
             if not should_signal_uncertain and len(top_candidates) >= 2:
@@ -816,27 +816,25 @@ class SessionAccumulator:
             except ValueError:
                 pass
         
-        # Critério 1: Confiança ALTA + cadência clara (≥ 3 frases)
-        # FIX v3.14: 0.70 → 0.80 (depende de v10.5 não capar a confiança)
-        if self.analysis_count >= 6 and result.confidence >= 0.80 and phrases >= 3:
+        # Critério 1: Confiança boa + cadência clara (≥ 3 frases)
+        # v11: backend v11 retorna max ~0.78 quando há evidência sólida.
+        # Threshold 0.70 captura esses casos.
+        if self.analysis_count >= 6 and result.confidence >= 0.70 and phrases >= 3:
             return True
         
-        # Critério 2: Confiança excepcional + várias análises
-        # FIX v3.14: 0.85 → 0.90 (precisa ser MUITO confiante)
-        if result.confidence >= 0.90 and phrases >= 3 and self.analysis_count >= 6:
+        # Critério 2: Confiança alta + várias análises
+        if result.confidence >= 0.78 and phrases >= 3 and self.analysis_count >= 5:
             return True
         
         # Critério 3: Consenso forte ao longo do tempo (5 de 6 últimos votos)
-        # FIX v3.14: 4/5 → 5/6 + conf ≥ 0.70
-        if len(self.vote_history) >= 6 and result.confidence >= 0.70 and phrases >= 3:
+        if len(self.vote_history) >= 6 and result.confidence >= 0.60 and phrases >= 2:
             votes_for_current = sum(1 for v in self.vote_history[-6:] if v == result.tonic)
             if votes_for_current >= 5:
                 return True
         
-        # Critério 4: Timeout inteligente — após 40s sem lock, usar melhor candidato
-        # FIX v3.14: 25s → 40s
+        # Critério 4: Timeout inteligente — após 35s sem lock, usar melhor candidato
         elapsed = time.time() - self.start_time
-        if elapsed >= 40.0 and self.analysis_count >= 7 and result.confidence >= 0.55:
+        if elapsed >= 35.0 and self.analysis_count >= 6 and result.confidence >= 0.50:
             logger.info(f"[v10] Timeout inteligente após {elapsed:.0f}s — travando melhor candidato")
             return True
         
