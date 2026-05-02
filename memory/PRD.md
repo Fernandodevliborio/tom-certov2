@@ -68,6 +68,15 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - **Streaming chunks de 5s (simulação realista do app)**: trava corretamente em Mi Maior aos 20s (antes travava em Si Maior aos 10s)
   - **Lock criteria endurecido** (`_should_lock`): mínimo 4 análises (20s de áudio) para qualquer lock + gate anti-dominante/anti-mediant que rejeita lock se runner-up é 3ª/5ª do top com margem <25%
   - **Lock criteria descongela** (`_should_change`): cap em 0.92 + fast-path anti-dominante/mediant retroativo para descongelar quando descobre raiz tonal real
+- ✅ **Sistema de Feedback "Tom Errado?" (v3.17.0, Feb 2026)** — Aprendizado baseado em reports do usuário:
+  - **Backend**: novo módulo `feedback_service.py` com classificação automática de tipo de erro (relative, dominant, subdominant, mediant, wrong_scale, wrong_quality) + sugestão de causa raiz musical para cada caso
+  - **Endpoints**: `POST /api/key-feedback/submit` (salva snapshot de features: notes, PCP, top_candidates, cadence, scale_fit — sem áudio cru) e `GET /api/key-feedback/stats` (agregação de tipos de erro, top confusões, recent samples)
+  - **MongoDB collection `key_feedback`**: persistência leve (~2KB por caso) que permite reanálise offline com futuras versões
+  - **SessionAccumulator agora grava `last_result_snapshot`** após cada análise para feedback posterior
+  - **Frontend**: novo componente `WrongKeyFeedback.tsx` com botão "Tom errado?" no card do tom detectado. Modal elegante com grid 4x3 das 12 tônicas + toggle Maior/menor + comentário opcional
+  - **Admin dashboard** (acessível com X-Admin-Token se ADMIN_TOKEN está configurado): mostra padrões agregados para decidir ajustes futuros do algoritmo
+  - Validado end-to-end: envio de feedback testado, classifica corretamente "Mi detectado vs Sol esperado = dominant (diff=7)" e gera sugestões musicologicamente corretas
+
 - ✅ **Key Detection v11 (Feb 2026)** — REESCRITA MUSICOLÓGICA do zero:
   - **Removidas 6+ camadas conflitantes** (Krumhansl + phrase_end + duration + anti-mediant + anti-relativo + anti-dominante)
   - **Substituídas por 5 etapas explícitas, transparentes, testáveis:**

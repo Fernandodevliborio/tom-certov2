@@ -450,6 +450,7 @@ async def swap_device(body: DeviceSwapRequest):
 from key_detection_v10 import (
     analyze_audio_bytes_v10,
     reset_session,
+    get_session as _get_kd_session,
     NOTE_NAMES_BR,
 )
 
@@ -461,6 +462,112 @@ async def reset_key_session(request: Request):
     reset_session(device_id)
     logger.info(f"[AnalyzeKey v10] sessão resetada dev={device_id[:8]}")
     return {'reset': True, 'device': device_id[:8], 'version': 'v10-definitivo'}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEEDBACK DO USUÁRIO (v3.17) — quando usuário marca "tom errado"
+# ═══════════════════════════════════════════════════════════════════════════════
+from feedback_service import (
+    build_feedback_document,
+    aggregate_error_stats,
+    parse_key_name,
+    NOTE_NAMES_BR as FB_NOTE_NAMES,
+)
+
+
+class KeyFeedbackRequest(BaseModel):
+    """Payload quando o usuário reporta 'tom errado'."""
+    correct_key_name: str           # Ex: "Sol Maior", "Lá menor", "Lá# Maior"
+    session_id: Optional[str] = None  # Passado pelo frontend, ou usa X-Device-Id
+    user_comment: Optional[str] = None  # Ex: "estava cantando em Sol, detectou Si"
+
+
+@api_router.post("/key-feedback/submit")
+async def submit_key_feedback(payload: KeyFeedbackRequest, request: Request):
+    """
+    O usuário informa que o tom detectado está errado.
+    Salvamos features (PCP, notes, candidates) para análise posterior.
+    """
+    device_id = request.headers.get('X-Device-Id', 'anon')
+    session_id = payload.session_id or device_id
+    
+    # Validar tom correto informado
+    parsed = parse_key_name(payload.correct_key_name)
+    if parsed is None:
+        raise HTTPException(400, f"Tom correto inválido: {payload.correct_key_name!r}. Use ex.: 'Sol Maior', 'Lá menor'.")
+    
+    # Pegar snapshot da última análise do usuário
+    session = _get_kd_session(device_id)
+    snapshot = session.get_feedback_snapshot()
+    
+    if snapshot is None:
+        raise HTTPException(
+            400,
+            "Não há análise recente para esse dispositivo. Detecte um tom antes de reportar."
+        )
+    
+    detected = snapshot['result']
+    analysis_debug = detected.get('debug', {})
+    notes_summary = snapshot.get('notes_summary', [])
+    
+    doc = build_feedback_document(
+        session_id=session_id,
+        device_id=device_id,
+        detected={
+            'key_name': detected.get('key_name'),
+            'confidence': detected.get('confidence'),
+        },
+        correct_key_name=payload.correct_key_name,
+        analysis_debug=analysis_debug,
+        notes_summary=notes_summary,
+    )
+    
+    if doc is None:
+        raise HTTPException(500, "Falha ao montar documento de feedback.")
+    
+    if payload.user_comment:
+        doc['user_comment'] = payload.user_comment[:500]  # limitar tamanho
+    
+    # Persistir no MongoDB
+    await db.key_feedback.insert_one(doc)
+    
+    logger.info(
+        f"[key-feedback] detected={detected.get('key_name')} correct={payload.correct_key_name} "
+        f"→ type={doc['error_classification']['type']} causes={len(doc['possible_causes'])}"
+    )
+    
+    return {
+        'success': True,
+        'message': 'Obrigado! Vou analisar esse caso para melhorar a detecção.',
+        'error_type': doc['error_classification']['type'],
+        'possible_causes': doc['possible_causes'],
+    }
+
+
+@api_router.get("/key-feedback/stats")
+async def key_feedback_stats(request: Request):
+    """
+    Estatísticas agregadas de feedback (tipos de erro, tons mais confundidos).
+    Útil para decidir ajustes no algoritmo.
+    Requer header X-Admin-Token se ADMIN_TOKEN está configurado.
+    """
+    admin_token_required = os.environ.get('ADMIN_TOKEN')
+    if admin_token_required:
+        provided = request.headers.get('X-Admin-Token', '')
+        if provided != admin_token_required:
+            raise HTTPException(401, "token admin necessário")
+    
+    cursor = db.key_feedback.find({}, {'_id': 0}).sort('timestamp', -1).limit(1000)
+    docs = await cursor.to_list(length=1000)
+    
+    # Serializar datetime para string
+    for d in docs:
+        if 'timestamp' in d and hasattr(d['timestamp'], 'isoformat'):
+            d['timestamp'] = d['timestamp'].isoformat()
+    
+    stats = aggregate_error_stats(docs)
+    stats['recent_samples'] = docs[:20]  # 20 amostras mais recentes
+    return stats
 
 
 @api_router.post("/analyze-key/diagnostic")

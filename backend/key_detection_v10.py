@@ -608,6 +608,34 @@ class SessionAccumulator:
         self.locked_at: Optional[float] = None
         self.last_activity_time: float = time.time()
         self.start_time: float = time.time()  # Para timeout inteligente
+        # v3.17: snapshot da última análise completa para feedback do usuário
+        self.last_result_snapshot: Optional[Dict[str, Any]] = None
+    
+    def get_feedback_snapshot(self) -> Optional[Dict[str, Any]]:
+        """Retorna snapshot da última análise + notas para registro de feedback.
+        
+        Inclui TUDO que é necessário para reproduzir/diagnosticar o erro:
+          - O result da última análise (debug com top_candidates, winner_details)
+          - Resumo das notas (pc, dur_ms, is_phrase_end)
+        
+        Usado pelo endpoint /api/key-feedback/submit.
+        """
+        if self.last_result_snapshot is None:
+            return None
+        notes_summary = [
+            {
+                'pc': n.pitch_class,
+                'dur_ms': round(n.dur_ms, 1),
+                'conf': round(n.confidence, 3),
+                'is_phrase_end': n.is_phrase_end,
+            }
+            for n in self.all_notes
+        ]
+        return {
+            'result': self.last_result_snapshot,
+            'notes_summary': notes_summary,
+            'analysis_count': self.analysis_count,
+        }
     
     def add_analysis(self, notes: List[Note]):
         """Adiciona notas de uma análise."""
@@ -651,6 +679,17 @@ class SessionAccumulator:
                 'notes': len(self.all_notes),
                 'analyses': self.analysis_count,
             }
+        
+        # v3.17: snapshot para feedback — usado quando o usuário marca "tom errado"
+        self.last_result_snapshot = {
+            'tonic_pc': result.tonic,
+            'quality': result.quality,
+            'key_name': f"{NOTE_NAMES_BR[result.tonic]} {'Maior' if result.quality == 'major' else 'menor'}",
+            'confidence': result.confidence,
+            'debug': result.debug or {},
+            'phrases_count': result.phrases_count,
+            'notes_count': result.notes_count,
+        }
         
         # Adicionar voto ao histórico
         self.vote_history.append(result.tonic)

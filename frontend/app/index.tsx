@@ -16,6 +16,8 @@ import { APP_VERSION_LABEL } from '../src/constants/version';
 import AudioVisualizer from '../src/components/AudioVisualizer';
 import SmartChordsMode from '../src/components/SmartChordsMode';
 import UpgradeModal from '../src/components/UpgradeModal';
+import { WrongKeyFeedback } from '../src/components/WrongKeyFeedback';
+import { getDeviceId } from '../src/auth/deviceId';
 import {
   StableKeyState,
   createStableKeyState,
@@ -388,6 +390,12 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     softInfo, reset, phraseStage, phrasesAnalyzed,
     smartStatus, mlResult,
   } = det;
+
+  // v3.17 — device ID para feedback de tom errado
+  const [deviceId, setDeviceId] = useState<string>('');
+  useEffect(() => {
+    getDeviceId().then(setDeviceId).catch(() => setDeviceId('anon'));
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FEATURES DO PLANO — Controle de acesso
@@ -764,6 +772,12 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
               </View>
               <KeyDisplay root={displayKey.tonic} quality={displayKey.quality} provisional={false} />
               <ConfidenceBar pct={confPct} color={confColor} />
+              <WrongKeyFeedback
+                apiBaseUrl={process.env.EXPO_PUBLIC_BACKEND_URL || ''}
+                deviceId={deviceId}
+                detectedKeyName={`${NOTES_BR[displayKey.tonic]} ${displayKey.quality === 'major' ? 'Maior' : 'menor'}`}
+                confidencePct={confPct}
+              />
             </View>
           ) : isRunning ? (
             <View testID="analyzing-card" style={[ss.keyCard, ss.keyCardProv]}>
