@@ -332,9 +332,19 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     ranked_raw = sorted(enumerate(final_score), key=lambda x: x[1], reverse=True)
     top_pc = ranked_raw[0][0]
     
-    # Penalizar dominante, mediant maior e mediant menor do top candidato
+    # ANTI-MEDIANT / ANTI-DOMINANT: penalizar dominante (5ª justa = +7),
+    # mediant_major (3ª maior = +4) e mediant_minor (3ª menor = +3) do top candidato.
+    # Isso evita confundir, p.ex., Sol maior com Si maior (mediant_major) ou
+    # Si menor (mediant_minor) ou Ré maior (dominante).
     if final_score[top_pc] > 0.50:
-        for offset, penalty in [(7, 0.12), (4, 0.10), (3, 0.07)]:
+        dominant_offset    = 7   # 5ª justa
+        mediant_major      = 4   # 3ª maior  (anti-mediant_major)
+        mediant_minor      = 3   # 3ª menor  (anti-mediant_minor)
+        for offset, penalty in [
+            (dominant_offset,  0.12),
+            (mediant_major,    0.10),
+            (mediant_minor,    0.07),
+        ]:
             target = (top_pc + offset) % 12
             final_score[target] = max(0, final_score[target] - final_score[top_pc] * penalty)
     
@@ -372,10 +382,19 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     dw = duration_weight
     total = dw.sum() + 1e-6
     
+    # Razão "neutra-na-ausência": quando não há evidência (ambas durações ≈ 0),
+    # retorna 0.5 (neutro) em vez de 0 (que enviesava artificialmente para menor).
+    # Isto é vital para letras sem 3ª (cantorias modais, riffs em quintas, etc.).
+    def _neutral_ratio(pos: float, neg: float) -> float:
+        denom = pos + neg
+        if denom < 1e-3:
+            return 0.5
+        return pos / denom
+    
     degree_major = (
-        0.50 * (dw[major_3rd] / (dw[major_3rd] + dw[minor_3rd] + 1e-6)) +
-        0.30 * (dw[major_7th] / (dw[major_7th] + dw[minor_7th] + 1e-6)) +
-        0.20 * (dw[major_6th] / (dw[major_6th] + dw[minor_6th] + 1e-6))
+        0.50 * _neutral_ratio(dw[major_3rd], dw[minor_3rd]) +
+        0.30 * _neutral_ratio(dw[major_7th], dw[minor_7th]) +
+        0.20 * _neutral_ratio(dw[major_6th], dw[minor_6th])
     )
     degree_minor = 1.0 - degree_major
     
