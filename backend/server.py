@@ -1288,8 +1288,8 @@ app.include_router(api_router)
 # ─── Download do APK ─────────────────────────────────────────────────────
 DOWNLOADS_DIR = ROOT_DIR / "downloads"
 
-# URL externa do APK mais recente
-APK_EXTERNAL_URL = "https://customer-assets.emergentagent.com/job_credentials-deploy-1/artifacts/o2k0a39r_apptomcerto.apk"
+# URL externa do APK mais recente (via variável de ambiente)
+APK_EXTERNAL_URL = os.environ.get('APK_EXTERNAL_URL', os.environ.get('APK_DOWNLOAD_URL', 'https://tomcerto.online/download'))
 
 @app.get("/download/apk")
 async def download_apk():
