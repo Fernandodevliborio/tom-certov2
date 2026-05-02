@@ -1,0 +1,1943 @@
+[
+  {
+    "session_id": "429e79847805078d",
+    "device_id": "429e79847805078d",
+    "timestamp": "2026-05-02T15:18:31.638000",
+    "detected": {
+      "tonic_pc": 3,
+      "quality": "minor",
+      "key_name": "Ré# menor",
+      "confidence": 0.5290726914211118
+    },
+    "correct": {
+      "tonic_pc": 9,
+      "quality": "minor",
+      "key_name": "Lá menor"
+    },
+    "error_classification": {
+      "type": "wrong_scale",
+      "diff_semitones": 6
+    },
+    "possible_causes": [
+      "Tonalidade distante 6 semitons — possível pitch shift na captura, áudio ruidoso, ou cantor em tessitura muito variável."
+    ],
+    "analysis_debug": {
+      "top_candidates": [
+        [
+          "Ré#",
+          0.426
+        ],
+        [
+          "Sol#",
+          0.384
+        ],
+        [
+          "Dó#",
+          0.272
+        ],
+        [
+          "Si",
+          0.267
+        ],
+        [
+          "Fá#",
+          0.131
+        ]
+      ],
+      "top_scales": [
+        [
+          "Si",
+          0.774
+        ],
+        [
+          "Mi",
+          0.759
+        ],
+        [
+          "Fá#",
+          0.568
+        ]
+      ],
+      "mode_evidence": {
+        "major": 0.398,
+        "minor": 1.081
+      },
+      "winner_details": {
+        "cadence": 0.477,
+        "third_ratio": 0.458,
+        "pcp_tonic": 0.319,
+        "fifth_score": 0.049,
+        "penalty_dominant": 0.0,
+        "scale_fit": 0.568
+      },
+      "phrase_ends": {
+        "11": 8,
+        "8": 7,
+        "3": 4,
+        "4": 1,
+        "6": 1,
+        "10": 1,
+        "7": 1
+      },
+      "engine": "v11"
+    },
+    "notes_summary": [
+      {
+        "pc": 8,
+        "dur_ms": 90,
+        "conf": 0.654,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.698,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.741,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 90,
+        "conf": 0.663,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 8,
+        "dur_ms": 390,
+        "conf": 0.666,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 80,
+        "conf": 0.633,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 70,
+        "conf": 0.805,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 70,
+        "conf": 0.834,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.818,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.751,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 250,
+        "conf": 0.409,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.644,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 140,
+        "conf": 0.823,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 110,
+        "conf": 0.819,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.722,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 250,
+        "conf": 0.409,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.592,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 90,
+        "conf": 0.711,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 180,
+        "conf": 0.631,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 60,
+        "conf": 0.762,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 220,
+        "conf": 0.342,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 80,
+        "conf": 0.849,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.534,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 80,
+        "conf": 0.828,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 60,
+        "conf": 0.732,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 90,
+        "conf": 0.823,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.592,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 300,
+        "conf": 0.745,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 60,
+        "conf": 0.564,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 60,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 300,
+        "conf": 0.664,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 140,
+        "conf": 0.861,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 80,
+        "conf": 0.852,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 200,
+        "conf": 0.842,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 4,
+        "dur_ms": 150,
+        "conf": 0.799,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.849,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 250,
+        "conf": 0.859,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 220,
+        "conf": 0.86,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.848,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.852,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 350,
+        "conf": 0.862,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 80,
+        "conf": 0.833,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 90,
+        "conf": 0.794,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 90,
+        "conf": 0.832,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 80,
+        "conf": 0.787,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 90,
+        "conf": 0.834,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.808,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 110,
+        "conf": 0.84,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 120,
+        "conf": 0.83,
+        "is_phrase_end": false
+      }
+    ],
+    "reviewed": false,
+    "applied_to_tuning": false
+  },
+  {
+    "session_id": "429e79847805078d",
+    "device_id": "429e79847805078d",
+    "timestamp": "2026-05-02T15:17:10.485000",
+    "detected": {
+      "tonic_pc": 3,
+      "quality": "major",
+      "key_name": "Ré# Maior",
+      "confidence": 0.65
+    },
+    "correct": {
+      "tonic_pc": 10,
+      "quality": "major",
+      "key_name": "Lá# Maior"
+    },
+    "error_classification": {
+      "type": "subdominant",
+      "diff_semitones": 5
+    },
+    "possible_causes": [
+      "Algoritmo tratou a 4ª justa (IV grau) como tônica. Caso raro: música modal ou com plagal cadence."
+    ],
+    "analysis_debug": {
+      "top_candidates": [
+        [
+          "Ré#",
+          0.626
+        ],
+        [
+          "Ré",
+          0.479
+        ],
+        [
+          "Fá",
+          0.391
+        ],
+        [
+          "Sol",
+          0.327
+        ],
+        [
+          "Lá#",
+          0.0
+        ]
+      ],
+      "top_scales": [
+        [
+          "Lá#",
+          0.949
+        ],
+        [
+          "Ré#",
+          0.871
+        ],
+        [
+          "Fá",
+          0.847
+        ]
+      ],
+      "mode_evidence": {
+        "major": 1.017,
+        "minor": 0.807
+      },
+      "winner_details": {
+        "cadence": 0.489,
+        "third_ratio": 0.899,
+        "pcp_tonic": 0.085,
+        "fifth_score": 0.155,
+        "penalty_dominant": 0.0,
+        "scale_fit": 0.871
+      },
+      "phrase_ends": {
+        "2": 6,
+        "5": 4,
+        "3": 1,
+        "0": 3,
+        "10": 1,
+        "1": 1,
+        "9": 2,
+        "4": 1
+      },
+      "engine": "v11"
+    },
+    "notes_summary": [
+      {
+        "pc": 7,
+        "dur_ms": 120,
+        "conf": 0.864,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 710,
+        "conf": 0.846,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 80,
+        "conf": 0.527,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 70,
+        "conf": 0.496,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 80,
+        "conf": 0.628,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.76,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 220,
+        "conf": 0.854,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 140,
+        "conf": 0.772,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 1720,
+        "conf": 0.893,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 700,
+        "conf": 0.869,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 370,
+        "conf": 0.85,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 430,
+        "conf": 0.855,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 90,
+        "conf": 0.878,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 420,
+        "conf": 0.865,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 70,
+        "conf": 0.876,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 130,
+        "conf": 0.825,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 1040,
+        "conf": 0.839,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 5,
+        "dur_ms": 60,
+        "conf": 0.394,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 5,
+        "dur_ms": 60,
+        "conf": 0.374,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 80,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 240,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 100,
+        "conf": 0.776,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 130,
+        "conf": 0.829,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 260,
+        "conf": 0.845,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 90,
+        "conf": 0.784,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 230,
+        "conf": 0.801,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 250,
+        "conf": 0.841,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 70,
+        "conf": 0.484,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 90,
+        "conf": 0.784,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 230,
+        "conf": 0.801,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 450,
+        "conf": 0.854,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 140,
+        "conf": 0.883,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 130,
+        "conf": 0.768,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 550,
+        "conf": 0.82,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 0,
+        "dur_ms": 130,
+        "conf": 0.775,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 190,
+        "conf": 0.806,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 840,
+        "conf": 0.8,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 70,
+        "conf": 0.823,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 100,
+        "conf": 0.724,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 80,
+        "conf": 0.718,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.888,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 130,
+        "conf": 0.84,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.671,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 430,
+        "conf": 0.813,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 340,
+        "conf": 0.821,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 620,
+        "conf": 0.848,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 1080,
+        "conf": 0.858,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 240,
+        "conf": 0.699,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 100,
+        "conf": 0.723,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 160,
+        "conf": 0.847,
+        "is_phrase_end": true
+      }
+    ],
+    "reviewed": false,
+    "applied_to_tuning": false
+  },
+  {
+    "session_id": "429e79847805078d",
+    "device_id": "429e79847805078d",
+    "timestamp": "2026-05-02T15:16:24.312000",
+    "detected": {
+      "tonic_pc": 1,
+      "quality": "minor",
+      "key_name": "Dó# menor",
+      "confidence": 0.55
+    },
+    "correct": {
+      "tonic_pc": 11,
+      "quality": "major",
+      "key_name": "Si Maior"
+    },
+    "error_classification": {
+      "type": "wrong_scale",
+      "diff_semitones": 2
+    },
+    "possible_causes": [
+      "Tonalidade distante 2 semitons — possível pitch shift na captura, áudio ruidoso, ou cantor em tessitura muito variável.",
+      "Diff 2 semitons: SUSPEITA de pitch-shift estrutural na captura de áudio."
+    ],
+    "analysis_debug": {
+      "top_candidates": [
+        [
+          "Dó#",
+          0.567
+        ],
+        [
+          "Si",
+          0.488
+        ],
+        [
+          "Mi",
+          0.255
+        ],
+        [
+          "Sol#",
+          0.0
+        ],
+        [
+          "Fá#",
+          0.0
+        ]
+      ],
+      "top_scales": [
+        [
+          "Mi",
+          0.795
+        ],
+        [
+          "Si",
+          0.794
+        ],
+        [
+          "Fá#",
+          0.792
+        ]
+      ],
+      "mode_evidence": {
+        "major": 0.743,
+        "minor": 0.567
+      },
+      "winner_details": {
+        "cadence": 0.596,
+        "third_ratio": 0.507,
+        "pcp_tonic": 0.106,
+        "fifth_score": 0.175,
+        "penalty_dominant": 0.0,
+        "scale_fit": 0.795
+      },
+      "phrase_ends": {
+        "3": 5,
+        "6": 1,
+        "1": 2,
+        "0": 2,
+        "7": 2,
+        "5": 3,
+        "8": 5,
+        "4": 1,
+        "11": 1
+      },
+      "engine": "v11"
+    },
+    "notes_summary": [
+      {
+        "pc": 8,
+        "dur_ms": 60,
+        "conf": 0.707,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 180,
+        "conf": 0.705,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 190,
+        "conf": 0.266,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 170,
+        "conf": 0.351,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 60,
+        "conf": 0.588,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 180,
+        "conf": 0.705,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 190,
+        "conf": 0.266,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 320,
+        "conf": 0.541,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 60,
+        "conf": 0.647,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 460,
+        "conf": 0.595,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.423,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 70,
+        "conf": 0.75,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 170,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 150,
+        "conf": 0.676,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 130,
+        "conf": 0.611,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 80,
+        "conf": 0.598,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.422,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 70,
+        "conf": 0.75,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 170,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 150,
+        "conf": 0.676,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 60,
+        "conf": 0.558,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 390,
+        "conf": 0.65,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 80,
+        "conf": 0.704,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 100,
+        "conf": 0.14,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 150,
+        "conf": 0.634,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 6,
+        "dur_ms": 180,
+        "conf": 0.651,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 430,
+        "conf": 0.712,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 150,
+        "conf": 0.282,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 140,
+        "conf": 0.193,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 110,
+        "conf": 0.368,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.474,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 120,
+        "conf": 0.385,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.476,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 260,
+        "conf": 0.18,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.743,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 360,
+        "conf": 0.646,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 80,
+        "conf": 0.774,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 80,
+        "conf": 0.535,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 6,
+        "dur_ms": 370,
+        "conf": 0.648,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 90,
+        "conf": 0.77,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 90,
+        "conf": 0.526,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 90,
+        "conf": 0.476,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 60,
+        "conf": 0.637,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 770,
+        "conf": 0.834,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 8,
+        "dur_ms": 70,
+        "conf": 0.616,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 130,
+        "conf": 0.706,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 5,
+        "dur_ms": 70,
+        "conf": 0.171,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 110,
+        "conf": 0.609,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 510,
+        "conf": 0.697,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.792,
+        "is_phrase_end": false
+      }
+    ],
+    "reviewed": false,
+    "applied_to_tuning": false
+  },
+  {
+    "session_id": "429e79847805078d",
+    "device_id": "429e79847805078d",
+    "timestamp": "2026-05-02T15:13:17.021000",
+    "detected": {
+      "tonic_pc": 11,
+      "quality": "minor",
+      "key_name": "Si menor",
+      "confidence": 0.913801620548307
+    },
+    "correct": {
+      "tonic_pc": 7,
+      "quality": "major",
+      "key_name": "Sol Maior"
+    },
+    "error_classification": {
+      "type": "mediant_major",
+      "diff_semitones": 4
+    },
+    "possible_causes": [
+      "Algoritmo tratou a 3ª como tônica — anti-mediant insuficiente ou cadência enganosa."
+    ],
+    "analysis_debug": {
+      "top_candidates": [
+        [
+          "Si",
+          0.542
+        ],
+        [
+          "Dó",
+          0.319
+        ],
+        [
+          "Lá",
+          0.287
+        ],
+        [
+          "Mi",
+          0.282
+        ],
+        [
+          "Ré",
+          0.222
+        ]
+      ],
+      "top_scales": [
+        [
+          "Sol",
+          0.867
+        ],
+        [
+          "Dó",
+          0.847
+        ],
+        [
+          "Ré",
+          0.486
+        ]
+      ],
+      "mode_evidence": {
+        "major": 0.541,
+        "minor": 1.111
+      },
+      "winner_details": {
+        "cadence": 0.66,
+        "third_ratio": 0.785,
+        "pcp_tonic": 0.306,
+        "fifth_score": 0.014,
+        "penalty_dominant": 0.0,
+        "scale_fit": 0.486
+      },
+      "phrase_ends": {
+        "0": 12,
+        "11": 15,
+        "9": 11,
+        "7": 6,
+        "1": 1,
+        "8": 2
+      },
+      "engine": "v11"
+    },
+    "notes_summary": [
+      {
+        "pc": 9,
+        "dur_ms": 440,
+        "conf": 0.615,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 70,
+        "conf": 0.708,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 450,
+        "conf": 0.649,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 370,
+        "conf": 0.598,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 340,
+        "conf": 0.867,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 70,
+        "conf": 0.764,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.797,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 160,
+        "conf": 0.796,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 500,
+        "conf": 0.776,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 11,
+        "dur_ms": 350,
+        "conf": 0.831,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.849,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 70,
+        "conf": 0.73,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 950,
+        "conf": 0.691,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 490,
+        "conf": 0.734,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 100,
+        "conf": 0.475,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 710,
+        "conf": 0.69,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 1030,
+        "conf": 0.86,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 240,
+        "conf": 0.614,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 150,
+        "conf": 0.821,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 270,
+        "conf": 0.818,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 80,
+        "conf": 0.78,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 330,
+        "conf": 0.844,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 450,
+        "conf": 0.82,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.713,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 170,
+        "conf": 0.792,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 11,
+        "dur_ms": 310,
+        "conf": 0.806,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 120,
+        "conf": 0.735,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.84,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 70,
+        "conf": 0.684,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 300,
+        "conf": 0.701,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 520,
+        "conf": 0.581,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 530,
+        "conf": 0.578,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 340,
+        "conf": 0.398,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.661,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.346,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 110,
+        "conf": 0.635,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.642,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 70,
+        "conf": 0.784,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 180,
+        "conf": 0.184,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 230,
+        "conf": 0.395,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.846,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 140,
+        "conf": 0.758,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 120,
+        "conf": 0.34,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 200,
+        "conf": 0.389,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.846,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 100,
+        "conf": 0.862,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.435,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 250,
+        "conf": 0.835,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 90,
+        "conf": 0.287,
+        "is_phrase_end": false
+      }
+    ],
+    "reviewed": false,
+    "applied_to_tuning": false
+  },
+  {
+    "session_id": "fb-final3-1777733835",
+    "device_id": "fb-final3-1777733835",
+    "timestamp": "2026-05-02T14:57:25.019000",
+    "detected": {
+      "tonic_pc": 8,
+      "quality": "minor",
+      "key_name": "Sol# menor",
+      "confidence": 0.9183181162420119
+    },
+    "correct": {
+      "tonic_pc": 7,
+      "quality": "major",
+      "key_name": "Sol Maior"
+    },
+    "error_classification": {
+      "type": "wrong_scale",
+      "diff_semitones": 1
+    },
+    "possible_causes": [
+      "Tonalidade distante 1 semitons — possível pitch shift na captura, áudio ruidoso, ou cantor em tessitura muito variável.",
+      "Diff 1 semitom: pode ser erro de oitava + desafinação ligeira."
+    ],
+    "analysis_debug": {
+      "top_candidates": [
+        [
+          "Sol#",
+          0.802
+        ],
+        [
+          "Mi",
+          0.315
+        ],
+        [
+          "Si",
+          0.268
+        ],
+        [
+          "Lá",
+          0.18
+        ],
+        [
+          "Dó#",
+          0.0
+        ]
+      ],
+      "top_scales": [
+        [
+          "Si",
+          0.779
+        ],
+        [
+          "Mi",
+          0.724
+        ],
+        [
+          "Lá",
+          0.68
+        ]
+      ],
+      "mode_evidence": {
+        "major": 0.763,
+        "minor": 0.802
+      },
+      "winner_details": {
+        "cadence": 0.883,
+        "third_ratio": 0.796,
+        "pcp_tonic": 0.108,
+        "fifth_score": 0.045,
+        "penalty_dominant": 0.0,
+        "scale_fit": 0.779
+      },
+      "phrase_ends": {
+        "1": 2,
+        "0": 1,
+        "6": 1,
+        "5": 1,
+        "4": 6,
+        "10": 2,
+        "11": 1,
+        "8": 1
+      },
+      "engine": "v11"
+    },
+    "notes_summary": [
+      {
+        "pc": 4,
+        "dur_ms": 180,
+        "conf": 0.85,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 540,
+        "conf": 0.682,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 180,
+        "conf": 0.785,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 60,
+        "conf": 0.568,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 80,
+        "conf": 0.859,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 160,
+        "conf": 0.9,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 230,
+        "conf": 0.872,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 170,
+        "conf": 0.843,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 300,
+        "conf": 0.864,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 110,
+        "conf": 0.68,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 790,
+        "conf": 0.823,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 170,
+        "conf": 0.424,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.816,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.808,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.769,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 380,
+        "conf": 0.835,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.813,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 70,
+        "conf": 0.85,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 120,
+        "conf": 0.818,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 540,
+        "conf": 0.686,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.826,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 160,
+        "conf": 0.853,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 100,
+        "conf": 0.856,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 410,
+        "conf": 0.819,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.822,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 200,
+        "conf": 0.797,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 370,
+        "conf": 0.833,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 130,
+        "conf": 0.646,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 470,
+        "conf": 0.865,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 320,
+        "conf": 0.812,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 400,
+        "conf": 0.668,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 150,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.864,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 110,
+        "conf": 0.83,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 70,
+        "conf": 0.87,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.807,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 90,
+        "conf": 0.836,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 160,
+        "conf": 0.786,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 110,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.852,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 210,
+        "conf": 0.875,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 280,
+        "conf": 0.866,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 80,
+        "conf": 0.856,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.662,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 180,
+        "conf": 0.814,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 240,
+        "conf": 0.844,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 180,
+        "conf": 0.842,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 130,
+        "conf": 0.781,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 80,
+        "conf": 0.858,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.882,
+        "is_phrase_end": false
+      }
+    ],
+    "reviewed": false,
+    "applied_to_tuning": false,
+    "user_comment": "estava em Sol, app detectou Mi"
+  }
+]

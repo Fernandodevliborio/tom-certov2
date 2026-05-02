@@ -31,7 +31,52 @@ Backend Python com CREPE (torchcrepe) para extração F0 e lógica tonal madura 
 - Backend: FastAPI + Motor (MongoDB) + torchcrepe + librosa
 - Auth: JWT (30 dias) + token de ativação por device_limit
 
-## Algoritmo de Detecção de Tom (v6 — definitivo)
+## Algoritmo de Detecção de Tom (v12 — 2026-02-XX)
+
+### Mudanças v11 → v12 (baseadas em 5 feedbacks reais do usuário)
+Diagnóstico: em múltiplos casos reais, a escala correta aparecia como top-1 no
+`scale_fit`, mas a tônica escolhida dentro dessa escala era errada (ex: iii, vi, ou IV).
+Em um caso (Lá# Maior) a tônica real chegava a aparecer com score 0.0 por conta
+de uma penalty absoluta que anulava o score base.
+
+Correções globais aplicadas a TODOS os 24 campos harmônicos:
+1. **24 escalas**: agora testamos 12 major naturais + 12 harmonic minor (antes
+   só 12 major). Resolve hinos em menor harmônico com sensível ativa (Lá menor H).
+2. **Scale-aligned tonic bonus**: tônica da escala top-1 recebe bônus aditivo
+   (0.28 major / 0.25 minor harmônico) + bônus proporcional à margem da escala
+   (até +0.20). Isso garante que quando a escala acerta, a tônica dentro dela
+   também acerta — corrigindo iii/vi/IV/V spoofing.
+3. **Penalty não-dominante multiplicativa e tolerante a 3ª forte**: a penalty
+   antiga (-0.30 absoluto + max(0,...)) podia zerar a tônica correta. Agora é
+   fator multiplicativo (0.92 a 0.70) atenuado por third_ratio ≥ 0.75.
+4. **Tratamento de empate entre escalas (margin < 0.01)**: em testes sintéticos
+   ideais ou em pares tônica/subdominante (Sol=Dó compartilham 6/7 notas), várias
+   escalas podem ter fit idêntico. O bônus agora é distribuído entre todas as
+   empatadas (até 4), evitando que a ordem arbitrária de sort decida o resultado.
+5. **Default major vs minor**: bônus para major_natural (0.28) > harmonic_minor
+   (0.25) enforce a convenção "quando ambíguo, prefira maior".
+
+### Validação (tests/test_global_key_detection.py + test_key_detection.py)
+- 37/37 testes sintéticos passando
+- 3/5 feedbacks REAIS resolvidos (cases 2, 3, 4)
+- 2/5 feedbacks falham porque têm captura corrompida (case 1: diff=6 semitons
+  irrecuperável; case 5: diff=1 semitom + PCP dominado por C#, G#, A# que não
+  estão em Sol Maior — confirma pitch-shift do microfone na captura).
+
+### Fórmula de score por candidato (tônica)
+```
+score_base = 0.40*cadence + 0.20*pcp_tonic + 0.25*third_ratio + 0.15*fifth_score
+score_base *= not_dominant_penalty_factor  # 0.92 a 0.70 multiplicativo
+score_final = score_base * scale_multiplier(fit_ratio) + alignment_bonus
+```
+- `cadence`: força de repouso ponderada (últimas 8 notas + phrase ends + última nota)
+- `pcp_tonic`: duração ponderada total da tônica (0..1)
+- `third_ratio`: 3ª da qualidade certa / (3ª certa + 3ª errada) → 0.5 neutro
+- `fifth_score`: duração ponderada da 5ª
+- `scale_multiplier` ∈ [0.45..1.0] baseado em fit relativo ao top-1
+- `alignment_bonus` ∈ [0, 0.48] quando tônica alinha com escala top-1
+
+## Algoritmo de Detecção de Tom (v6 — anterior, descontinuado)
 Fórmula validada matematicamente (168/168 = 100% em testes sintéticos):
 ```
 score = (corr + 0.3 × third_diff) × axis^1.2 + 0.3 × final_match

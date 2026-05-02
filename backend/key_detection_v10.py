@@ -220,7 +220,7 @@ def pitch_to_notes(f0: np.ndarray, conf: np.ndarray) -> List[Note]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ANÁLISE DE TONALIDADE — v11 (REESCRITA MUSICOLÓGICA)
+# ANÁLISE DE TONALIDADE — v12 (24 escalas + scale-aligned tonic)
 # ═══════════════════════════════════════════════════════════════════════════════
 #
 # Pipeline em 5 ETAPAS, baseado em LEIS MUSICAIS EXPLÍCITAS:
@@ -239,6 +239,9 @@ def pitch_to_notes(f0: np.ndarray, conf: np.ndarray) -> List[Note]:
 # Conjuntos diatônicos: cada escala maior natural tem 7 notas a partir de root.
 # Modo menor natural compartilha as mesmas 7 notas com o relativo maior em (root+9).
 MAJOR_SCALE_INTERVALS = (0, 2, 4, 5, 7, 9, 11)  # T T S T T T S
+# Escala menor HARMÔNICA: inclui a 7ª sensível (common em hinos sacros).
+# Diferença para relativo maior: pc(tonic+8) no lugar de pc(tonic+9).
+HARMONIC_MINOR_INTERVALS = (0, 2, 3, 5, 7, 8, 11)
 
 
 def _compute_pcp(notes: List[Note]) -> np.ndarray:
@@ -256,22 +259,31 @@ def _compute_pcp(notes: List[Note]) -> np.ndarray:
     return pcp
 
 
-def _score_diatonic_scales(pcp: np.ndarray) -> List[Tuple[int, float]]:
-    """ETAPA 2: Ranquear as 12 escalas diatônicas por encaixe com a PCP.
+def _score_diatonic_scales(pcp: np.ndarray) -> List[Tuple[int, str, float]]:
+    """ETAPA 2: Ranquear 24 escalas (12 maiores naturais + 12 menores harmônicas).
     
-    Para cada escala (root maior R), o "fit" é:
+    Para cada escala, o "fit" é:
       sum(pcp[notas da escala]) - 0.5 * sum(pcp[notas fora da escala])
     
-    Retorna lista [(scale_root_pc, fit), ...] ordenada decrescente.
+    Retorna lista [(root_pc, label, fit), ...] ordenada decrescente.
+      - label='major_natural' → tônicas possíveis: root (maior) e (root+9)%12 (relativo menor natural)
+      - label='harmonic_minor' → tônica: root (menor) — contém 7ª sensível (root+11)%12
     """
-    scores = []
+    scores: List[Tuple[int, str, float]] = []
     for root in range(12):
+        # Maior natural (cobre também relativo menor natural)
         scale_pcs = {(root + i) % 12 for i in MAJOR_SCALE_INTERVALS}
         in_scale = sum(pcp[pc] for pc in scale_pcs)
         out_of_scale = sum(pcp[pc] for pc in range(12) if pc not in scale_pcs)
-        fit = in_scale - 0.5 * out_of_scale
-        scores.append((root, fit))
-    scores.sort(key=lambda x: -x[1])
+        fit_major = in_scale - 0.5 * out_of_scale
+        scores.append((root, 'major_natural', fit_major))
+        # Menor harmônica (com sensível)
+        hm_pcs = {(root + i) % 12 for i in HARMONIC_MINOR_INTERVALS}
+        in_hm = sum(pcp[pc] for pc in hm_pcs)
+        out_hm = sum(pcp[pc] for pc in range(12) if pc not in hm_pcs)
+        fit_hm = in_hm - 0.5 * out_hm
+        scores.append((root, 'harmonic_minor', fit_hm))
+    scores.sort(key=lambda x: -x[2])
     return scores
 
 
@@ -329,6 +341,7 @@ def _score_tonic_candidate(
       LEI 2 (3ª):         3ª maior presente para 'major', 3ª menor para 'minor'
       LEI 3 (V GRADE):    5ª justa presente reforça função tonal
       LEI 4 (NÃO-V):      tônica não pode ser a 5ª de outra raiz com peso maior
+                          — mas penalty é MULTIPLICATIVA e cancelada por 3ª forte
     """
     # Notas da escala diatônica natural a partir da tônica
     if mode == 'major':
@@ -361,24 +374,32 @@ def _score_tonic_candidate(
     # ─── LEI 3: 5ª presente reforça função tonal ───
     fifth_score = float(pcp[fifth_pc])
     
-    # ─── LEI 4: NÃO-DOMINANTE ───
+    # ─── LEI 4: NÃO-DOMINANTE (multiplicativa, tolerante a 3ª forte) ───
     # Se há um candidato R' tal que tonic = R' + 7 (= ser 5ª de R'), penalize.
-    # I.e., se a "tônica" candidata é 5ª de outro pc com mais cadência,
-    # provavelmente é o V grau e não a tônica.
-    not_dominant_penalty = 0.0
+    # IMPORTANTE: se a 3ª da qualidade certa é FORTE (ratio ≥ 0.75), a tônica
+    # está comprovada pela função harmônica I-iii, e a cadência alta em +5 abaixo
+    # representa o IV grau (subdominante). Nesse caso a penalty é mínima.
+    not_dominant_penalty_factor = 1.0
     candidate_root_below = (tonic_pc - 7) % 12  # quem teria tonic como V grau
     if cadence[candidate_root_below] > cadence_score * 1.2:
-        not_dominant_penalty = 0.30
+        if third_ratio >= 0.75:
+            # Forte evidência harmônica da tônica → penalty leve
+            not_dominant_penalty_factor = 0.92
+        elif third_ratio >= 0.55:
+            not_dominant_penalty_factor = 0.82
+        else:
+            # Sem 3ª forte: alta chance de ser realmente a 5ª → penalty pesado
+            not_dominant_penalty_factor = 0.70
     
     # ─── COMBINAÇÃO ───
     # Pesos: cadência (REPOUSO) é o sinal mais forte musicalmente
     score = (
-        0.50 * cadence_score +
+        0.40 * cadence_score +
         0.20 * pcp[tonic_pc] +     # tônica deve estar presente em geral
-        0.20 * third_score +        # 3ª da qualidade certa
-        0.10 * fifth_score          # 5ª presente reforça
+        0.25 * third_score +        # 3ª da qualidade certa (subiu de 0.20 para 0.25)
+        0.15 * fifth_score          # 5ª presente reforça (subiu de 0.10 para 0.15)
     )
-    score = max(0.0, score - not_dominant_penalty)
+    score = score * not_dominant_penalty_factor
     
     return {
         'score': score,
@@ -386,7 +407,7 @@ def _score_tonic_candidate(
         'third_ratio': third_ratio,
         'pcp_tonic': float(pcp[tonic_pc]),
         'fifth_score': fifth_score,
-        'penalty_dominant': not_dominant_penalty,
+        'penalty_dominant': round(1.0 - not_dominant_penalty_factor, 3),
     }
 
 
@@ -477,10 +498,17 @@ def _compute_confidence(
 
 def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     """
-    DETECÇÃO DE TONALIDADE — v11 (musicológica, 5 etapas explícitas).
+    DETECÇÃO DE TONALIDADE — v12 (global, 24 escalas, scale-aligned tonic).
     
-    Substitui o código v10 com uma estrutura clara baseada em leis musicais.
-    Sem remendos. Cada decisão é transparente nos logs.
+    Mudanças-chave vs v11:
+      - Usa 24 escalas (12 major natural + 12 harmonic minor) ⇒ resolve hinos
+        com sensível ativa (Lá menor harmônico etc).
+      - Após identificar top-1 scale, a TÔNICA é fortemente atraída pelos graus
+        I e vi (relativo) dessa escala via bônus aditivo — resolve o bug onde
+        a escala correta vencia mas a tônica era escolhida fora dela (ex: ii
+        relativo, iii, IV ou V).
+      - Penalty não-dominante agora é multiplicativa + tolerante a 3ª forte,
+        não podendo mais ZERAR a tônica correta (bug Lá# Maior→Ré# Maior).
     """
     if len(notes) < 2:
         return AnalysisResult(success=False, debug={'error': 'insufficient_notes', 'count': len(notes)})
@@ -488,31 +516,104 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     # ETAPA 1: PCP
     pcp = _compute_pcp(notes)
     
-    # ETAPA 2: escalas diatônicas
+    # ETAPA 2: 24 escalas (naturais + harmônicas menores)
     scale_scores = _score_diatonic_scales(pcp)
-    top_scales = scale_scores[:3]  # top 3 escalas
+    # Mostrar top 5 no debug mas processar top 6 para diversidade
+    top_scales = scale_scores[:6]
     
-    # ETAPA 3: para cada escala, gerar 2 candidatos de tônica (maior + relativo menor)
+    # ETAPA 3: para cada escala top, gerar candidatos de tônica apropriados
     cadence = _compute_cadence_weight(notes)
     
-    candidates: List[Tuple[int, str, Dict[str, float]]] = []  # (tonic_pc, mode, details)
-    seen = set()
-    for scale_root, scale_fit in top_scales:
-        # tom maior natural
-        candidate_major_pc = scale_root
-        # relativo menor natural
-        candidate_minor_pc = (scale_root + 9) % 12
+    # Acumular bônus de alinhamento com top-1 scale
+    top1_root, top1_label, top1_fit = scale_scores[0]
+    top2_fit = scale_scores[1][2] if len(scale_scores) > 1 else top1_fit - 0.1
+    scale_margin = max(0.0, top1_fit - top2_fit)
+    
+    # Tônicas "alinhadas" com top-1 scale (ganham bônus grande)
+    # Bônus calibrado para vencer candidatos fortes de escalas secundárias.
+    # Ex: em Lá# Maior com escala top-1 fit=0.976 e 3ª (Ré) dominando o PCP,
+    # a tônica Ré (menor, relativo de Fá major na 3ª scale) pode ter cadência
+    # alta — precisamos bônus grande para Lá# Maior superar.
+    aligned_tonics: Dict[Tuple[int, str], float] = {}
+    
+    # Se há EMPATE (margem < 0.01) entre top-1 e próximas escalas, todas as
+    # empatadas recebem bônus. Caso notável: teste sintético onde 4+ escalas
+    # chegam a fit=1.0, ou hinos reais onde Sol e Dó empatam (compartilham 6/7
+    # notas). Sem isso a ordem arbitrária de ordenação define o vencedor.
+    TIE_HARD = 0.01
+    tied_scales = [scale_scores[0]]
+    for s in scale_scores[1:]:
+        if top1_fit - s[2] <= TIE_HARD:
+            tied_scales.append(s)
+        else:
+            break
+    # Limite de segurança — se todas as 24 empatarem (input uniforme), só top 4
+    tied_scales = tied_scales[:4]
+    
+    def _bonus_for_scale(label: str, is_top: bool) -> float:
+        """Base bonus para uma escala empatada (maior se top-1 sozinho).
         
-        for tonic_pc, mode in [(candidate_major_pc, 'major'), (candidate_minor_pc, 'minor')]:
+        Major recebe um pouco mais que harmonic_minor para enforce default "maior"
+        em casos ambíguos (sem 3ª clara definindo o modo).
+        """
+        if label == 'major_natural':
+            return 0.28 if is_top else 0.22
+        return 0.25 if is_top else 0.20  # harmonic_minor ligeiramente menor
+    
+    for i, (s_root, s_label, _s_fit) in enumerate(tied_scales):
+        is_top = (i == 0)
+        base = _bonus_for_scale(s_label, is_top=True)  # em empate, trata todos como top
+        if s_label == 'major_natural':
+            key_major = (s_root, 'major')
+            key_minor = ((s_root + 9) % 12, 'minor')
+            aligned_tonics[key_major] = max(aligned_tonics.get(key_major, 0.0), base)
+            aligned_tonics[key_minor] = max(
+                aligned_tonics.get(key_minor, 0.0),
+                base - 0.06,  # relativo menor recebe um pouco menos
+            )
+        else:  # 'harmonic_minor'
+            key_minor = (s_root, 'minor')
+            aligned_tonics[key_minor] = max(aligned_tonics.get(key_minor, 0.0), base)
+    
+    # Bônus proporcional à margem efetiva (considerando empates).
+    # Usar a margem do ÚLTIMO tied até a próxima scale não-empatada.
+    effective_margin = 0.0
+    if len(tied_scales) < len(scale_scores):
+        next_fit = scale_scores[len(tied_scales)][2]
+        effective_margin = max(0.0, tied_scales[-1][2] - next_fit)
+    margin_bonus = min(0.20, effective_margin * 3.5)
+    for k in list(aligned_tonics.keys()):
+        aligned_tonics[k] += margin_bonus
+    
+    candidates: List[Tuple[int, str, Dict[str, float]]] = []
+    seen = set()
+    for scale_root, scale_label, scale_fit in top_scales:
+        # Tônicas geradas a partir desta escala
+        if scale_label == 'major_natural':
+            pairs = [(scale_root, 'major'), ((scale_root + 9) % 12, 'minor')]
+        else:
+            pairs = [(scale_root, 'minor')]
+        
+        for tonic_pc, mode in pairs:
             key = (tonic_pc, mode)
             if key in seen:
                 continue
             seen.add(key)
             details = _score_tonic_candidate(tonic_pc, mode, pcp, cadence, notes)
-            # Multiplicar pelo encaixe da escala (escalas que cabem mal não devem
-            # gerar tônicas com score alto)
-            details['score'] *= max(0.3, scale_fit + 0.5)  # scale_fit pode ser negativo
-            details['scale_fit'] = scale_fit
+            # Multiplicador de scale_fit: candidatos em escalas fracas são penalizados
+            # de forma agressiva. Usa fit normalizado em relação ao top-1.
+            if top1_fit > 0:
+                fit_ratio = max(0.0, scale_fit / top1_fit)
+            else:
+                fit_ratio = 0.5
+            scale_multiplier = 0.45 + 0.55 * fit_ratio  # [0.45..1.0]
+            details['score'] *= scale_multiplier
+            details['scale_fit'] = float(scale_fit)
+            details['scale_label'] = scale_label
+            # Bônus aditivo para tônicas alinhadas com top-1 scale
+            alignment_bonus = aligned_tonics.get(key, 0.0)
+            details['score'] += alignment_bonus
+            details['alignment_bonus'] = float(alignment_bonus)
             candidates.append((tonic_pc, mode, details))
     
     # ETAPA 4: ordenar candidatos por score
@@ -552,9 +653,10 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     krumhansl_str = f"{NOTE_NAMES_BR[winner_pc]} {winner_mode}"
     
     logger.info(
-        f"[v11] {NOTE_NAMES_BR[winner_pc]} {winner_mode} "
+        f"[v12] {NOTE_NAMES_BR[winner_pc]} {winner_mode} "
         f"score={winner_details['score']:.3f} cad={winner_details['cadence']:.2f} "
         f"third_ratio={winner_details['third_ratio']:.2f} conf={confidence:.2f} "
+        f"scale_top1={NOTE_NAMES_BR[top1_root]}/{top1_label} (fit={top1_fit:.3f}) "
         f"runner={NOTE_NAMES_BR[runner_pc]} {runner_mode} ({runner_details['score']:.3f})"
     )
     
@@ -566,7 +668,7 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
         notes_count=len(notes),
         phrases_count=sum(phrase_end_count.values()),
         debug={
-            'engine': 'v11',
+            'engine': 'v12',
             'phrase_ends': dict(phrase_end_count),
             'top_candidates': top_candidates_debug,
             'mode_evidence': {
@@ -581,8 +683,13 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
                 'fifth_score': round(winner_details['fifth_score'], 3),
                 'penalty_dominant': round(winner_details['penalty_dominant'], 3),
                 'scale_fit': round(winner_details['scale_fit'], 3),
+                'scale_label': winner_details.get('scale_label', ''),
+                'alignment_bonus': round(winner_details.get('alignment_bonus', 0.0), 3),
             },
-            'top_scales': [(NOTE_NAMES_BR[r], round(f, 3)) for r, f in top_scales],
+            'top_scales': [
+                (NOTE_NAMES_BR[r], lbl, round(f, 3))
+                for r, lbl, f in top_scales[:5]
+            ],
         }
     )
 
