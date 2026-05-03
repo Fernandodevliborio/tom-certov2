@@ -1584,6 +1584,19 @@ async def preview_landing_v2():
         },
     )
 
+
+@app.get("/api/preview/asset/{name}")
+async def preview_asset(name: str):
+    """Serve assets da landing preview (logo, favicons)."""
+    allowed = {"tom-certo-logo-clean.png", "favicon-256.png", "favicon.png", "favicon.ico"}
+    if name not in allowed:
+        raise HTTPException(404, "Asset não permitido")
+    asset_path = ROOT_DIR / "tom-certo-emergent-ready" / "standalone-html" / name
+    if not asset_path.exists():
+        raise HTTPException(404, "Asset não encontrado")
+    media = "image/x-icon" if name.endswith(".ico") else "image/png"
+    return FileResponse(str(asset_path), media_type=media)
+
 # ─── Landing Page Estática ────────────────────────────────────────────────
 LANDING_DIR = ROOT_DIR / "tom-certo-emergent-ready" / "standalone-html"
 

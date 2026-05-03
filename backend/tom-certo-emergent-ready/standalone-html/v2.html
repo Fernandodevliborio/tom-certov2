@@ -216,15 +216,18 @@ section { padding: clamp(72px, 10vw, 120px) 0; position: relative; }
 
 /* ═══════════════════════ HERO (DARK) ═══════════════════════ */
 .hero {
-  padding-top: clamp(60px, 8vw, 100px);
-  padding-bottom: clamp(60px, 9vw, 100px);
+  padding-top: clamp(60px, 8vw, 90px);
+  padding-bottom: clamp(80px, 11vw, 120px);
   position: relative;
+  min-height: 92vh;
+  display: flex; align-items: center;
   background:
     radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255,176,32,.09), transparent 70%),
     radial-gradient(ellipse 60% 40% at 20% 90%, rgba(255,176,32,.04), transparent 70%),
     var(--bg-dark);
   overflow: hidden;
 }
+.hero > .wrap { flex: 1; }
 .hero-grid {
   display: grid;
   grid-template-columns: 1.05fr .95fr;
@@ -910,15 +913,150 @@ section { padding: clamp(72px, 10vw, 120px) 0; position: relative; }
 .cta-final .btn { margin-top: 32px; padding: 18px 36px; font-size: 16px; }
 .cta-final-note { color: var(--text-on-dark-3); font-size: 13px; margin-top: 18px; font-weight: 500; }
 
-/* ═══════════════════════ FOOTER (LIGHT) ═══════════════════════ */
+/* ═══════════════════════ BTN HERO PRINCIPAL (único) ═══════════════════════ */
+.btn-hero-main {
+  display: inline-flex; align-items: center; gap: 14px;
+  padding: 18px 32px 18px 22px;
+  border-radius: 100px;
+  background: linear-gradient(135deg, var(--gold) 0%, #FFA500 100%);
+  color: #111;
+  font-family: 'Sora'; font-weight: 700;
+  position: relative;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.15) inset,
+    0 0 24px rgba(255,176,32,.35),
+    0 10px 32px -10px rgba(255,176,32,.6),
+    0 0 60px -10px rgba(255,176,32,.25);
+  transition: transform .25s cubic-bezier(.4,.0,.2,1), box-shadow .3s, filter .25s;
+  animation: heroBtnPulse 3.5s ease-in-out infinite;
+}
+@keyframes heroBtnPulse {
+  0%,100% { box-shadow: 0 0 0 1px rgba(255,255,255,.15) inset, 0 0 24px rgba(255,176,32,.35), 0 10px 32px -10px rgba(255,176,32,.6), 0 0 60px -10px rgba(255,176,32,.25); }
+  50%     { box-shadow: 0 0 0 1px rgba(255,255,255,.2) inset,  0 0 40px rgba(255,176,32,.5),  0 14px 44px -10px rgba(255,176,32,.75), 0 0 80px -8px rgba(255,176,32,.35); }
+}
+.btn-hero-main:hover {
+  transform: translateY(-3px) scale(1.03);
+  filter: brightness(1.08) saturate(1.1);
+}
+.btn-hero-icon {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(0,0,0,.12);
+  display: grid; place-items: center;
+  font-size: 15px; font-weight: 800;
+  color: #111;
+  transition: transform .3s;
+}
+.btn-hero-main:hover .btn-hero-icon { transform: translateX(3px); }
+.btn-hero-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.btn-hero-label { font-size: 16px; letter-spacing: -.01em; line-height: 1.1; }
+.btn-hero-main .btn-sub {
+  font-size: 11.5px;
+  color: rgba(0,0,0,.62);
+  opacity: 1;
+  margin-top: 0;
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+
+/* ═══════════════════════ LOGO TOM CERTO ═══════════════════════ */
+.tc-logo-img {
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(255,176,32,.3));
+}
+/* logo no header do mockup (dentro do celular) */
+.phone-logo-img {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  filter: drop-shadow(0 0 10px rgba(255,176,32,.4));
+}
+
+/* ═══════════════════════ SCROLL INDICATOR ═══════════════════════ */
+.scroll-indicator {
+  position: absolute;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  color: rgba(255,250,240,.65);
+  animation: scrollFade 2.8s ease-in-out infinite;
+  z-index: 3;
+  text-decoration: none;
+  transition: transform .25s, color .25s;
+}
+.scroll-indicator:hover { color: var(--gold); transform: translateX(-50%) translateY(-2px); }
+.scroll-indicator-label {
+  font-family: 'Sora'; font-weight: 600; font-size: 10px;
+  letter-spacing: .28em; text-transform: uppercase;
+}
+.scroll-indicator-arrow {
+  width: 22px; height: 36px;
+  border: 1.5px solid rgba(255,176,32,.45);
+  border-radius: 12px;
+  position: relative;
+  box-shadow: 0 0 12px rgba(255,176,32,.15);
+}
+.scroll-indicator-arrow::before {
+  content: '';
+  position: absolute; top: 6px; left: 50%;
+  transform: translateX(-50%);
+  width: 3px; height: 7px;
+  background: var(--gold);
+  border-radius: 100px;
+  box-shadow: 0 0 6px var(--gold);
+  animation: scrollDotDrop 2.2s ease-in-out infinite;
+}
+@keyframes scrollDotDrop {
+  0%   { transform: translate(-50%, 0);   opacity: 1; }
+  50%  { transform: translate(-50%, 12px); opacity: .3; }
+  100% { transform: translate(-50%, 0);   opacity: 1; }
+}
+.scroll-indicator-chev {
+  width: 10px; height: 10px;
+  border-right: 2px solid rgba(255,176,32,.7);
+  border-bottom: 2px solid rgba(255,176,32,.7);
+  transform: rotate(45deg);
+  animation: chevBounce 2.2s ease-in-out infinite;
+}
+@keyframes chevBounce {
+  0%,100% { transform: rotate(45deg) translate(0,0);    opacity: .5; }
+  50%     { transform: rotate(45deg) translate(3px,3px); opacity: 1; }
+}
+@keyframes scrollFade {
+  0%,100% { opacity: .75; }
+  50%     { opacity: 1; }
+}
+
+/* ═══════════════════════ FOOTER com logo ═══════════════════════ */
+.footer-logo-img {
+  width: 56px; height: 56px;
+  margin: 0 auto 14px;
+  display: block;
+  filter: drop-shadow(0 4px 14px rgba(255,176,32,.2));
+}
+.footer-brand-name {
+  font-family: 'Sora'; font-weight: 800; font-size: 18px;
+  color: var(--text-dark-1); letter-spacing: -.01em;
+  margin-bottom: 4px;
+}
+.footer-tagline {
+  font-size: 13px; color: var(--text-dark-2);
+  font-weight: 500; margin-bottom: 20px;
+}
+.footer-tagline strong { color: var(--gold); font-weight: 700; }
+.footer-divider {
+  width: 60px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  margin: 0 auto 20px;
+  opacity: .6;
+}
+
 footer {
-  padding: 40px 0;
+  padding: 48px 0 40px;
   background: var(--bg-white);
   border-top: 1px solid var(--border-on-light);
   text-align: center;
   font-size: 13px; color: var(--text-dark-3);
 }
-footer .logo { justify-content: center; margin-bottom: 12px; color: var(--text-dark-1); }
 footer p { margin: 4px 0; }
 
 /* ═══════════════════════ WA FLOAT ═══════════════════════ */
@@ -968,13 +1106,12 @@ footer p { margin: 4px 0; }
           Descubra o tom em segundos, acompanhe qualquer voz e toque com segurança no culto — sem depender de ninguém.
         </p>
         <div class="hero-ctas">
-          <a href="#planos" class="btn btn-primary btn-stack">
-            <span>Começar agora</span>
-            <span class="btn-sub">Sem errar o tom</span>
-          </a>
-          <a href="#como" class="btn btn-ghost btn-stack">
-            <span>Ver como funciona</span>
-            <span class="btn-sub">Na prática</span>
+          <a href="#como" class="btn btn-hero-main">
+            <span class="btn-hero-icon" aria-hidden="true">▸</span>
+            <span class="btn-hero-text">
+              <span class="btn-hero-label">Ver como funciona</span>
+              <span class="btn-sub">Veja o app funcionando na prática</span>
+            </span>
           </a>
         </div>
         <ul class="hero-bullets">
@@ -994,7 +1131,7 @@ footer p { margin: 4px 0; }
               <span class="phone-status-icons"><span></span><span></span><span></span></span>
             </div>
             <div class="phone-header">
-              <div class="phone-header-logo">T</div>
+              <img class="phone-logo-img" src="/api/preview/asset/tom-certo-logo-clean.png" alt="Tom Certo" />
               <div class="phone-header-text">
                 <div class="phone-header-title">Tom Certo</div>
                 <div class="phone-header-sub">DETECTOR DE TONALIDADE</div>
@@ -1070,6 +1207,12 @@ footer p { margin: 4px 0; }
       </div>
     </div>
   </div>
+  <!-- Scroll indicator: seta animada pra induzir scroll -->
+  <a href="#como" class="scroll-indicator" aria-label="Role para ver como funciona">
+    <span class="scroll-indicator-label">Role para descobrir</span>
+    <span class="scroll-indicator-arrow" aria-hidden="true"></span>
+    <span class="scroll-indicator-chev" aria-hidden="true"></span>
+  </a>
 </header>
 
 <!-- ═══════════════════ DOR (LIGHT / SOFT) ═══════════════════ -->
@@ -1302,12 +1445,11 @@ footer p { margin: 4px 0; }
 <!-- ═══════════════════ FOOTER (LIGHT) ═══════════════════ -->
 <footer>
   <div class="wrap">
-    <div class="logo">
-      <span class="logo-dot">T</span>
-      <span>Tom Certo</span>
-    </div>
+    <img class="footer-logo-img" src="/api/preview/asset/tom-certo-logo-clean.png" alt="Tom Certo" />
+    <div class="footer-brand-name">Tom Certo</div>
+    <div class="footer-tagline">Detector de tonalidade <strong>com IA</strong></div>
+    <div class="footer-divider"></div>
     <p>© 2026 Tom Certo. Todos os direitos reservados.</p>
-    <p>Detector de tonalidade · Afinador profissional · Feito para músicos</p>
   </div>
 </footer>
 
