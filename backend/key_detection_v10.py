@@ -913,15 +913,101 @@ class SessionAccumulator:
             and confidence_ok and no_relative and no_dominant and consensus_ok
         )
         
-        if all_ok:
-            # Travar o tom
-            if self.locked_tonic != result.tonic or self.locked_quality != result.quality:
-                self._lock(result.tonic, result.quality, result.confidence)
-                # tempo de detecção (elapsed no momento do lock)
-                self._detection_duration_s = round(elapsed, 1)
-            else:
+        # ─── STICKY LOCK (v14.2) ───
+        # Uma vez travado, só troca o tom se:
+        #   a) já houve um lock (self.locked_tonic != None)
+        #   b) o NOVO candidato supera o travado em MÚLTIPLOS critérios MUITO fortes
+        #   c) o consenso confirma o novo tom por >= 7 das últimas 10 análises
+        # Caso contrário, mantém o tom original.
+        already_locked = self.locked_tonic is not None
+        
+        if already_locked:
+            # Votos para o tom TRAVADO (não para o novo candidato)
+            votes_for_locked = sum(1 for v in self.vote_history[-10:] if v == self.locked_tonic)
+            same_as_locked = (
+                result.tonic == self.locked_tonic
+                and result.quality == self.locked_quality
+            )
+            
+            if same_as_locked:
+                # Resposta estável — apenas reforça confiança
                 self.locked_confidence = min(0.95, max(self.locked_confidence, result.confidence))
-            detection_s = getattr(self, '_detection_duration_s', round(elapsed, 1))
+                detection_s = self._detection_duration_s or round(elapsed, 1)
+                return {
+                    'success': True,
+                    'stage': 'confirmed',
+                    'stage_label': f'Tom confirmado em {int(round(detection_s))} segundos',
+                    'stage_hint': 'A IA identificou o centro tonal da música.',
+                    'show_key': True,
+                    'tonic': self.locked_tonic,
+                    'tonic_name': NOTE_NAMES_BR[self.locked_tonic],
+                    'quality': self.locked_quality,
+                    'key_name': f"{NOTE_NAMES_BR[self.locked_tonic]} {'Maior' if self.locked_quality == 'major' else 'menor'}",
+                    'confidence': self.locked_confidence,
+                    'locked': True,
+                    'locked_for': round(time.time() - self.locked_at, 1) if self.locked_at else 0,
+                    'detection_duration_s': detection_s,
+                    'elapsed_s': elapsed,
+                    'notes_count': result.notes_count,
+                    'method': 'v14-confirmed-sticky',
+                }
+            
+            # Novo candidato diferente do travado → só troca com evidência ESMAGADORA
+            new_consensus = sum(1 for v in self.vote_history[-10:] if v == result.tonic)
+            overwhelming_switch = (
+                all_ok
+                and new_consensus >= 7
+                and result.confidence >= 0.80
+                and ambiguity['margin_ratio'] >= 0.40
+                and votes_for_locked <= 2  # o tom antigo praticamente sumiu do histórico
+            )
+            if overwhelming_switch:
+                logger.info(
+                    f"[v14.2] TROCA DE TOM autorizada: "
+                    f"{NOTE_NAMES_BR[self.locked_tonic]} {self.locked_quality} → "
+                    f"{NOTE_NAMES_BR[result.tonic]} {result.quality} | "
+                    f"new_consensus={new_consensus}/10, conf={result.confidence:.2f}, "
+                    f"margin={ambiguity['margin_ratio']:.2f}, old_votes={votes_for_locked}"
+                )
+                self._lock(result.tonic, result.quality, result.confidence)
+                # não atualiza _detection_duration_s — mantém o tempo da PRIMEIRA detecção
+            else:
+                # Manter tom travado mesmo com novo candidato "all_ok" — é o comportamento desejado
+                if all_ok:
+                    logger.info(
+                        f"[v14.2] Tentativa de troca BLOQUEADA: "
+                        f"locked={NOTE_NAMES_BR[self.locked_tonic]} (votos={votes_for_locked}), "
+                        f"novo={NOTE_NAMES_BR[result.tonic]} (consenso={new_consensus}, "
+                        f"conf={result.confidence:.2f}, margem={ambiguity['margin_ratio']:.2f}) — "
+                        f"não atinge critério de troca"
+                    )
+            
+            # Sempre retornar o tom TRAVADO (independente do candidato atual)
+            detection_s = self._detection_duration_s or round(elapsed, 1)
+            return {
+                'success': True,
+                'stage': 'confirmed',
+                'stage_label': f'Tom confirmado em {int(round(detection_s))} segundos',
+                'stage_hint': 'A IA identificou o centro tonal da música.',
+                'show_key': True,
+                'tonic': self.locked_tonic,
+                'tonic_name': NOTE_NAMES_BR[self.locked_tonic],
+                'quality': self.locked_quality,
+                'key_name': f"{NOTE_NAMES_BR[self.locked_tonic]} {'Maior' if self.locked_quality == 'major' else 'menor'}",
+                'confidence': self.locked_confidence,
+                'locked': True,
+                'locked_for': round(time.time() - self.locked_at, 1) if self.locked_at else 0,
+                'detection_duration_s': detection_s,
+                'elapsed_s': elapsed,
+                'notes_count': result.notes_count,
+                'method': 'v14-confirmed-sticky-hold',
+            }
+        
+        if all_ok:
+            # Primeira travada
+            self._lock(result.tonic, result.quality, result.confidence)
+            self._detection_duration_s = round(elapsed, 1)
+            detection_s = self._detection_duration_s
             return {
                 'success': True,
                 'stage': 'confirmed',
