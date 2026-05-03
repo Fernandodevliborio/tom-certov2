@@ -1567,6 +1567,16 @@ async def download_landing_zip():
         filename="tom-certo-pagina-vendas.zip",
     )
 
+
+@app.get("/preview/landing", response_class=HTMLResponse)
+@app.get("/api/preview/landing", response_class=HTMLResponse)
+async def preview_landing_v2():
+    """Preview temporário da landing page v2 (redesign premium)."""
+    html_path = ROOT_DIR / "tom-certo-emergent-ready" / "standalone-html" / "v2.html"
+    if not html_path.exists():
+        raise HTTPException(404, "Preview não encontrado")
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+
 # ─── Landing Page Estática ────────────────────────────────────────────────
 LANDING_DIR = ROOT_DIR / "tom-certo-emergent-ready" / "standalone-html"
 
