@@ -1554,6 +1554,19 @@ async def download_apk_direct():
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url=APK_EXTERNAL_URL, status_code=302)
 
+
+@app.get("/download/pagina-vendas.zip")
+async def download_landing_zip():
+    """Serve o ZIP com o código-fonte estático da página de vendas."""
+    zip_path = DOWNLOADS_DIR / "pagina-vendas.zip"
+    if not zip_path.exists():
+        raise HTTPException(404, "Arquivo não encontrado")
+    return FileResponse(
+        str(zip_path),
+        media_type="application/zip",
+        filename="tom-certo-pagina-vendas.zip",
+    )
+
 # ─── Landing Page Estática ────────────────────────────────────────────────
 LANDING_DIR = ROOT_DIR / "tom-certo-emergent-ready" / "standalone-html"
 
