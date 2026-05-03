@@ -15,6 +15,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1762463901557600');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=1762463901557600&ev=PageView&noscript=1"/></noscript>
+  <!-- End Meta Pixel Code -->
+
 <style>
 /* ═══════════════════════════════════════════════════════════════
    TOM CERTO — LANDING V2 (cores originais, alternância light/dark)
@@ -1360,7 +1377,7 @@ footer p { margin: 4px 0; }
       </div>
     </div>
     <div class="plans-grid">
-      <article class="plan">
+      <article class="plan" data-plan="essencial">
         <h3 class="plan-name">Essencial</h3>
         <p class="plan-desc">Ideal para testar o app</p>
         <div class="plan-price">
@@ -1375,9 +1392,19 @@ footer p { margin: 4px 0; }
           <div class="plan-feature"><span class="plan-feature-check">✓</span> Afinador completo</div>
           <div class="plan-feature locked"><span class="plan-feature-check">✕</span> Acordes em tempo real</div>
         </div>
-        <a href="#" class="btn plan-cta secondary">Começar agora</a>
+        <a
+          href="https://checkout.ticto.app/ODBC8F242"
+          target="_blank" rel="noopener noreferrer"
+          class="btn plan-cta secondary plan-checkout"
+          data-plan-name="Essencial"
+          data-href-monthly="https://checkout.ticto.app/ODBC8F242"
+          data-href-yearly="https://checkout.ticto.app/O00510C45"
+          data-value-monthly="9.90"
+          data-value-yearly="95.04"
+        >Começar agora</a>
       </article>
-      <article class="plan featured">
+
+      <article class="plan featured" data-plan="profissional">
         <span class="plan-badge">MAIS ESCOLHIDO</span>
         <h3 class="plan-name">Profissional</h3>
         <p class="plan-desc">Desbloqueie o poder completo do app</p>
@@ -1393,8 +1420,17 @@ footer p { margin: 4px 0; }
           <div class="plan-feature"><span class="plan-feature-check">✓</span> Afinador completo</div>
           <div class="plan-feature" style="color: var(--gold); font-weight: 700;"><span class="plan-feature-check" style="background: var(--gold); color: #111;">★</span> Acordes em tempo real</div>
         </div>
-        <a href="#" class="btn plan-cta primary">Desbloquear agora</a>
-        <div class="plan-micro">Você já tem o tom. Agora tenha o acorde.</div>
+        <a
+          href="https://checkout.ticto.app/OF743CFCB"
+          target="_blank" rel="noopener noreferrer"
+          class="btn plan-cta primary plan-checkout"
+          data-plan-name="Profissional"
+          data-href-monthly="https://checkout.ticto.app/OF743CFCB"
+          data-href-yearly="https://checkout.ticto.app/O8CF52D17"
+          data-value-monthly="19.90"
+          data-value-yearly="191.04"
+        >Desbloquear agora</a>
+        <div class="plan-micro">Você já tem o tom. Agora tenha o controle.</div>
       </article>
     </div>
     <p class="plans-note">Pagamento seguro. Acesso liberado na hora após a confirmação.</p>
@@ -1444,7 +1480,9 @@ footer p { margin: 4px 0; }
 <!-- ═══════════════════ FOOTER (LIGHT) ═══════════════════ -->
 
 <script>
-/* Mockup: rotaciona entre 3 estados */
+/* ─────────────────────────────────────────────────────────────
+   Mockup interativo (loop entre 3 estados)
+   ───────────────────────────────────────────────────────────── */
 (function () {
   const states = document.querySelectorAll('.mock-state');
   if (!states.length) return;
@@ -1460,31 +1498,122 @@ footer p { margin: 4px 0; }
   setTimeout(cycle, 300);
 })();
 
-/* Toggle Mensal/Anual */
+/* ─────────────────────────────────────────────────────────────
+   Toggle Mensal / Anual (mensal ativo por padrão)
+   - troca preço, nota, href dos botões e dispara AddToWishlist
+   ───────────────────────────────────────────────────────────── */
 (function () {
   const btns = document.querySelectorAll('.plans-toggle button');
   const slider = document.getElementById('toggleSlider');
   if (!btns.length || !slider) return;
+  let currentPeriod = 'monthly';
+
   function updateSlider(activeBtn) {
     const r = activeBtn.getBoundingClientRect();
     const p = activeBtn.parentElement.getBoundingClientRect();
     slider.style.left = (r.left - p.left) + 'px';
     slider.style.width = r.width + 'px';
   }
-  function setPeriod(period) {
+
+  function setPeriod(period, fromUser) {
+    if (period === currentPeriod && fromUser) return;
+    currentPeriod = period;
     btns.forEach(b => b.classList.toggle('active', b.dataset.period === period));
     updateSlider(document.querySelector('.plans-toggle button.active'));
+    // Preços
     document.querySelectorAll('.plan-price-value').forEach(el => {
       el.textContent = el.dataset[period === 'yearly' ? 'priceYearly' : 'priceMonthly'];
     });
+    // Notas
     document.querySelectorAll('.plan-price-note').forEach(el => {
       el.textContent = el.dataset[period === 'yearly' ? 'noteYearly' : 'noteMonthly'];
     });
+    // Hrefs dos botões
+    document.querySelectorAll('.plan-checkout').forEach(el => {
+      const href = el.dataset[period === 'yearly' ? 'hrefYearly' : 'hrefMonthly'];
+      if (href) el.setAttribute('href', href);
+    });
+    // Evento de interesse (só quando o usuário troca, não na inicialização)
+    if (fromUser && window.fbq) {
+      fbq('track', 'AddToWishlist', {
+        content_name: 'Plano Tom Certo',
+        content_category: 'Assinatura'
+      });
+    }
   }
-  btns.forEach(b => b.addEventListener('click', () => setPeriod(b.dataset.period)));
+
+  btns.forEach(b => b.addEventListener('click', () => setPeriod(b.dataset.period, true)));
   window.addEventListener('load', () => updateSlider(document.querySelector('.plans-toggle button.active')));
   window.addEventListener('resize', () => updateSlider(document.querySelector('.plans-toggle button.active')));
   setTimeout(() => updateSlider(document.querySelector('.plans-toggle button.active')), 100);
+
+  // expor pra outros handlers consultarem o período atual
+  window.__tomcertoCurrentPeriod = () => currentPeriod;
+})();
+
+/* ─────────────────────────────────────────────────────────────
+   Pixel: ViewContent quando seção de planos entra na viewport
+   ───────────────────────────────────────────────────────────── */
+(function () {
+  const planosSection = document.getElementById('planos');
+  if (!planosSection || !window.IntersectionObserver) return;
+  let fired = false;
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting && !fired) {
+        fired = true;
+        if (window.fbq) {
+          fbq('track', 'ViewContent', { content_name: 'Planos Tom Certo' });
+        }
+        obs.disconnect();
+      }
+    });
+  }, { threshold: 0.25 });
+  obs.observe(planosSection);
+})();
+
+/* ─────────────────────────────────────────────────────────────
+   Pixel: AddToWishlist em hover/clique inicial no card de plano
+   (intenção antes do clique no CTA)
+   ───────────────────────────────────────────────────────────── */
+(function () {
+  const cards = document.querySelectorAll('.plan');
+  let fired = false;
+  cards.forEach(card => {
+    card.addEventListener('click', () => {
+      if (fired || !window.fbq) return;
+      fired = true;
+      fbq('track', 'AddToWishlist', {
+        content_name: 'Plano Tom Certo',
+        content_category: 'Assinatura'
+      });
+    }, { passive: true });
+  });
+})();
+
+/* ─────────────────────────────────────────────────────────────
+   Pixel: AddToCart no clique do botão de checkout
+   - dispara antes de abrir o checkout (que abre em nova aba)
+   ───────────────────────────────────────────────────────────── */
+(function () {
+  const buttons = document.querySelectorAll('.plan-checkout');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!window.fbq) return;
+      const period = (window.__tomcertoCurrentPeriod && window.__tomcertoCurrentPeriod()) || 'monthly';
+      const valueAttr = period === 'yearly' ? btn.dataset.valueYearly : btn.dataset.valueMonthly;
+      const value = parseFloat(valueAttr || '0');
+      const planName = btn.dataset.planName || 'Plano Tom Certo';
+      try {
+        fbq('track', 'AddToCart', {
+          content_name: 'Plano Tom Certo',
+          content_category: 'Assinatura',
+          value: value,
+          currency: 'BRL'
+        });
+      } catch (e) { /* silently */ }
+    }, { passive: true });
+  });
 })();
 </script>
 
