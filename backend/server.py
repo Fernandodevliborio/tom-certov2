@@ -1575,7 +1575,14 @@ async def preview_landing_v2():
     html_path = ROOT_DIR / "tom-certo-emergent-ready" / "standalone-html" / "v2.html"
     if not html_path.exists():
         raise HTTPException(404, "Preview não encontrado")
-    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+    return HTMLResponse(
+        content=html_path.read_text(encoding="utf-8"),
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 # ─── Landing Page Estática ────────────────────────────────────────────────
 LANDING_DIR = ROOT_DIR / "tom-certo-emergent-ready" / "standalone-html"
