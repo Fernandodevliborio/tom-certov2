@@ -286,9 +286,11 @@ export function useTuner() {
       }
       
       // 1. Initialize Pitchy with configuration
+      // minVolume aumentado de -60 → -42 dBFS para rejeitar ruído ambiente
+      // (ventilador, voz distante, silêncio microfônico) antes da análise.
       const config = {
-        bufferSize: 4096,  // Larger buffer = better accuracy
-        minVolume: -60,    // dB threshold (more sensitive)
+        bufferSize: 4096,
+        minVolume: -42,
       };
       
       console.log('[useTuner] Initializing Pitchy with config:', config);

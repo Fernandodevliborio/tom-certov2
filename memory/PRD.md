@@ -235,3 +235,16 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - Badge "Em breve" dourado/amarelo (#FFB020) estilo pill minimalista — percepção positiva (benefícios futuros já inclusos)
   - Microcopy: "Você garante acesso a todas as futuras atualizações sem custo adicional."
   - Bloco secundário com divisor dashed dourado, hierarquia preservada abaixo das features principais
+
+- ✅ **Afinador Inteligente v2 (Feb 2026)** — refator completo para experiência profissional:
+  - **Root cause fix:** microfone NÃO abre mais automaticamente ao entrar na tela. `tuner.start()` só é chamado quando o usuário seleciona uma corda.
+  - **Máquina de estados explícita:** `no_string → starting_mic → awaiting_attack → listening → guiding → tuned` (+ `out_of_range` + `error`)
+  - **Cordas são tocáveis** (`TouchableOpacity`) — selecionada fica destacada em âmbar com scale 1.05
+  - **Gate duplo:** energia (`noise >= 0.15`) + janela de ±400¢ (±4 semitons) relativa à corda-alvo — rejeita voz, ventilador, outra corda
+  - **Harmônicos de oitava** são clampados para a mesma nota (freq*2 ou freq/2 → mesma corda)
+  - **Estabilidade:** mediana de 8 leituras + desvio padrão <22¢ por 250ms antes de orientar; afinado exige |cents|≤5 mantido por 400ms
+  - **Silêncio de 900ms** reseta para "Toque a corda selecionada" (nunca mantém orientação residual)
+  - **Cents relativos à corda-alvo**, não à nota cromática mais próxima — orientação é sempre contextual
+  - **`useTuner.ts`:** `minVolume` do Pitchy native elevado de −60 → −42 dBFS para rejeitar ambiente
+  - **Validação:** 7 cenários pytest-like em `/tmp/test_tuner_logic.mjs` — todos passando (silêncio, ruído baixo, corda errada, desafinada, afinada, silêncio pós-afinado, harmônico)
+  - **Arquivos:** `/app/frontend/app/tuner.tsx` (rewrite completo) + `/app/frontend/src/hooks/useTuner.ts` (minVolume)
