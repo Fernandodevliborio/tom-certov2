@@ -229,3 +229,9 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - Favicon Tom Certo (logo dourado em fundo preto) servido em `/favicon.ico`, `/favicon.png`, `/favicon-256.png`, `/apple-touch-icon.png`
   - Tags `<link rel="icon">` adicionadas em landing, admin UI e página de download
   - Email de credenciais com URL de download corrigida para `https://tomcerto.online/download`
+- ✅ **Plano Profissional — Atualizações Inclusas (Feb 2026)**:
+  - "Afinador completo" renomeado para "Afinador Inteligente com IA" (apenas no plano Profissional)
+  - Nova seção "Atualizações Inclusas" com 2 itens (Modo Ensaio, Acordes Sofisticados & Rearmonização)
+  - Badge "Em breve" dourado/amarelo (#FFB020) estilo pill minimalista — percepção positiva (benefícios futuros já inclusos)
+  - Microcopy: "Você garante acesso a todas as futuras atualizações sem custo adicional."
+  - Bloco secundário com divisor dashed dourado, hierarquia preservada abaixo das features principais

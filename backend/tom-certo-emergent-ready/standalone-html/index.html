@@ -863,6 +863,33 @@ section { padding: clamp(72px, 10vw, 120px) 0; position: relative; }
 }
 .plan-feature.locked { color: var(--text-dark-3); }
 .plan-feature.locked .plan-feature-check { background: #F4F4F5; color: var(--text-dark-3); }
+.plan-updates {
+  margin-top: 4px;
+  margin-bottom: 24px;
+  padding-top: 18px;
+  border-top: 1px dashed rgba(255,176,32,.28);
+}
+.plan-updates-title {
+  font-family: 'Sora'; font-weight: 700; font-size: 11.5px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-dark-2); margin-bottom: 12px;
+}
+.plan-feature-upcoming .plan-feature-label { flex: 1; }
+.plan-upcoming-badge {
+  font-family: 'Sora'; font-size: 10px; font-weight: 700;
+  letter-spacing: .04em;
+  background: rgba(255,176,32,.14);
+  color: #A06800;
+  border: 1px solid rgba(255,176,32,.38);
+  padding: 3px 9px;
+  border-radius: 100px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.plan-updates-micro {
+  font-size: 11.5px; color: var(--text-dark-3);
+  margin-top: 14px; line-height: 1.5;
+}
 .plan-cta {
   width: 100%; padding: 15px 20px;
   border-radius: 100px;
@@ -1423,8 +1450,22 @@ footer p { margin: 4px 0; }
         <div class="plan-features">
           <div class="plan-feature"><span class="plan-feature-check">✓</span> Detector de tom</div>
           <div class="plan-feature"><span class="plan-feature-check">✓</span> Campo harmônico</div>
-          <div class="plan-feature"><span class="plan-feature-check">✓</span> Afinador completo</div>
+          <div class="plan-feature"><span class="plan-feature-check">✓</span> Afinador Inteligente com IA</div>
           <div class="plan-feature" style="color: var(--gold); font-weight: 700;"><span class="plan-feature-check" style="background: var(--gold); color: #111;">★</span> Acordes em tempo real</div>
+        </div>
+        <div class="plan-updates">
+          <div class="plan-updates-title">Atualizações Inclusas</div>
+          <div class="plan-feature plan-feature-upcoming">
+            <span class="plan-feature-check">✓</span>
+            <span class="plan-feature-label">Modo Ensaio</span>
+            <span class="plan-upcoming-badge">Em breve</span>
+          </div>
+          <div class="plan-feature plan-feature-upcoming">
+            <span class="plan-feature-check">✓</span>
+            <span class="plan-feature-label">Acordes Sofisticados &amp; Rearmonização</span>
+            <span class="plan-upcoming-badge">Em breve</span>
+          </div>
+          <p class="plan-updates-micro">Você garante acesso a todas as futuras atualizações sem custo adicional.</p>
         </div>
         <a
           href="https://checkout.ticto.app/OF743CFCB"
