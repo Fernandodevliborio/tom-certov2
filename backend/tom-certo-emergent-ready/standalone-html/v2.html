@@ -1382,10 +1382,10 @@ footer p { margin: 4px 0; }
         <p class="plan-desc">Ideal para testar o app</p>
         <div class="plan-price">
           <span class="plan-price-currency">R$</span>
-          <span class="plan-price-value" data-price-monthly="9,90" data-price-yearly="7,92">9,90</span>
+          <span class="plan-price-value" data-price-monthly="9,90" data-price-yearly="3,33">9,90</span>
           <span class="plan-price-period">/mês</span>
         </div>
-        <div class="plan-price-note" data-note-monthly="Sem compromisso" data-note-yearly="Cobrado como R$ 95,04/ano">Sem compromisso</div>
+        <div class="plan-price-note" data-note-monthly="Sem compromisso" data-note-yearly="Cobrado como R$ 39,90/ano">Sem compromisso</div>
         <div class="plan-features">
           <div class="plan-feature"><span class="plan-feature-check">✓</span> Detector de tom</div>
           <div class="plan-feature"><span class="plan-feature-check">✓</span> Campo harmônico</div>
@@ -1396,11 +1396,17 @@ footer p { margin: 4px 0; }
           href="https://checkout.ticto.app/ODBC8F242"
           target="_blank" rel="noopener noreferrer"
           class="btn plan-cta secondary plan-checkout"
-          data-plan-name="Essencial"
+          data-plan="Essencial Mensal"
+          data-value="9.90"
+          data-content-id="plano_essencial_mensal"
           data-href-monthly="https://checkout.ticto.app/ODBC8F242"
           data-href-yearly="https://checkout.ticto.app/O00510C45"
+          data-plan-monthly="Essencial Mensal"
+          data-plan-yearly="Essencial Anual"
           data-value-monthly="9.90"
-          data-value-yearly="95.04"
+          data-value-yearly="39.90"
+          data-content-id-monthly="plano_essencial_mensal"
+          data-content-id-yearly="plano_essencial_anual"
         >Começar agora</a>
       </article>
 
@@ -1410,10 +1416,10 @@ footer p { margin: 4px 0; }
         <p class="plan-desc">Desbloqueie o poder completo do app</p>
         <div class="plan-price">
           <span class="plan-price-currency">R$</span>
-          <span class="plan-price-value" data-price-monthly="19,90" data-price-yearly="15,92">19,90</span>
+          <span class="plan-price-value" data-price-monthly="19,90" data-price-yearly="6,66">19,90</span>
           <span class="plan-price-period">/mês</span>
         </div>
-        <div class="plan-price-note highlight" data-note-monthly="Todos os recursos liberados" data-note-yearly="Cobrado como R$ 191,04/ano">Todos os recursos liberados</div>
+        <div class="plan-price-note highlight" data-note-monthly="Todos os recursos liberados" data-note-yearly="Cobrado como R$ 79,90/ano">Todos os recursos liberados</div>
         <div class="plan-features">
           <div class="plan-feature"><span class="plan-feature-check">✓</span> Detector de tom</div>
           <div class="plan-feature"><span class="plan-feature-check">✓</span> Campo harmônico</div>
@@ -1424,11 +1430,17 @@ footer p { margin: 4px 0; }
           href="https://checkout.ticto.app/OF743CFCB"
           target="_blank" rel="noopener noreferrer"
           class="btn plan-cta primary plan-checkout"
-          data-plan-name="Profissional"
+          data-plan="Profissional Mensal"
+          data-value="19.90"
+          data-content-id="plano_profissional_mensal"
           data-href-monthly="https://checkout.ticto.app/OF743CFCB"
           data-href-yearly="https://checkout.ticto.app/O8CF52D17"
+          data-plan-monthly="Profissional Mensal"
+          data-plan-yearly="Profissional Anual"
           data-value-monthly="19.90"
-          data-value-yearly="191.04"
+          data-value-yearly="79.90"
+          data-content-id-monthly="plano_profissional_mensal"
+          data-content-id-yearly="plano_profissional_anual"
         >Desbloquear agora</a>
         <div class="plan-micro">Você já tem o tom. Agora tenha o controle.</div>
       </article>
@@ -1528,10 +1540,17 @@ footer p { margin: 4px 0; }
     document.querySelectorAll('.plan-price-note').forEach(el => {
       el.textContent = el.dataset[period === 'yearly' ? 'noteYearly' : 'noteMonthly'];
     });
-    // Hrefs dos botões
+    // Atualizar TODOS os atributos do botão (href, plan, value, content-id)
     document.querySelectorAll('.plan-checkout').forEach(el => {
-      const href = el.dataset[period === 'yearly' ? 'hrefYearly' : 'hrefMonthly'];
+      const isYear = period === 'yearly';
+      const href = el.dataset[isYear ? 'hrefYearly' : 'hrefMonthly'];
+      const plan = el.dataset[isYear ? 'planYearly' : 'planMonthly'];
+      const value = el.dataset[isYear ? 'valueYearly' : 'valueMonthly'];
+      const cid = el.dataset[isYear ? 'contentIdYearly' : 'contentIdMonthly'];
       if (href) el.setAttribute('href', href);
+      if (plan) el.setAttribute('data-plan', plan);
+      if (value) el.setAttribute('data-value', value);
+      if (cid) el.setAttribute('data-content-id', cid);
     });
     // Evento de interesse (só quando o usuário troca, não na inicialização)
     if (fromUser && window.fbq) {
@@ -1573,43 +1592,42 @@ footer p { margin: 4px 0; }
 })();
 
 /* ─────────────────────────────────────────────────────────────
-   Pixel: AddToWishlist em hover/clique inicial no card de plano
-   (intenção antes do clique no CTA)
+   Pixel: AddToWishlist — APENAS no toggle mensal/anual
+   (removido o handler de clique no card para evitar duplicação
+   com AddToCart. A intenção pré-clique vem do toggle.)
    ───────────────────────────────────────────────────────────── */
-(function () {
-  const cards = document.querySelectorAll('.plan');
-  let fired = false;
-  cards.forEach(card => {
-    card.addEventListener('click', () => {
-      if (fired || !window.fbq) return;
-      fired = true;
-      fbq('track', 'AddToWishlist', {
-        content_name: 'Plano Tom Certo',
-        content_category: 'Assinatura'
-      });
-    }, { passive: true });
-  });
-})();
 
 /* ─────────────────────────────────────────────────────────────
    Pixel: AddToCart no clique do botão de checkout
-   - dispara antes de abrir o checkout (que abre em nova aba)
+   - Cada botão dispara seu PRÓPRIO evento com seus PRÓPRIOS valores
+   - Lock por clique pra impedir duplicação (mesmo se houver bubbling)
+   - Payload completo: value + currency + content_name + content_type + content_ids
    ───────────────────────────────────────────────────────────── */
 (function () {
   const buttons = document.querySelectorAll('.plan-checkout');
+  let lastFiredAt = 0;
   buttons.forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (ev) => {
+      // Lock anti-duplicação: ignora cliques redundantes em < 800ms
+      const now = Date.now();
+      if (now - lastFiredAt < 800) return;
+      lastFiredAt = now;
+
       if (!window.fbq) return;
-      const period = (window.__tomcertoCurrentPeriod && window.__tomcertoCurrentPeriod()) || 'monthly';
-      const valueAttr = period === 'yearly' ? btn.dataset.valueYearly : btn.dataset.valueMonthly;
-      const value = parseFloat(valueAttr || '0');
-      const planName = btn.dataset.planName || 'Plano Tom Certo';
+      // Lê SEMPRE os atributos atuais (que o toggle mantém atualizados)
+      const planName = btn.getAttribute('data-plan') || 'Plano Tom Certo';
+      const valueRaw = btn.getAttribute('data-value');
+      const contentId = btn.getAttribute('data-content-id') || '';
+      const value = parseFloat(valueRaw);
+      if (!value || isNaN(value)) return; // não dispara se valor inválido
+
       try {
         fbq('track', 'AddToCart', {
-          content_name: 'Plano Tom Certo',
-          content_category: 'Assinatura',
           value: value,
-          currency: 'BRL'
+          currency: 'BRL',
+          content_name: planName,
+          content_type: 'product',
+          content_ids: contentId ? [contentId] : []
         });
       } catch (e) { /* silently */ }
     }, { passive: true });
