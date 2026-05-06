@@ -1,0 +1,2810 @@
+[
+  {
+    "reported": "Sol Maior",
+    "detected": "R\u00e9# Maior",
+    "timestamp": "2026-05-06 00:32:32.765000",
+    "correct": {
+      "tonic_pc": 7,
+      "quality": "major",
+      "key_name": "Sol Maior"
+    },
+    "notes_summary": [
+      {
+        "pc": 3,
+        "dur_ms": 540,
+        "conf": 0.722,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 100,
+        "conf": 0.18,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 60,
+        "conf": 0.422,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 420,
+        "conf": 0.781,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 210,
+        "conf": 0.782,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 70,
+        "conf": 0.455,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.651,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 5,
+        "dur_ms": 140,
+        "conf": 0.768,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 470,
+        "conf": 0.684,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 880,
+        "conf": 0.72,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 130,
+        "conf": 0.593,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 110,
+        "conf": 0.745,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 150,
+        "conf": 0.466,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 0,
+        "dur_ms": 160,
+        "conf": 0.588,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 140,
+        "conf": 0.716,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 110,
+        "conf": 0.554,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 70,
+        "conf": 0.614,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.651,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 60,
+        "conf": 0.784,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 60,
+        "conf": 0.756,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 380,
+        "conf": 0.708,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 160,
+        "conf": 0.437,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 190,
+        "conf": 0.569,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 200,
+        "conf": 0.8,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 160,
+        "conf": 0.437,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 280,
+        "conf": 0.458,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 390,
+        "conf": 0.734,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 5,
+        "dur_ms": 80,
+        "conf": 0.623,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.578,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 170,
+        "conf": 0.832,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 190,
+        "conf": 0.81,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 60,
+        "conf": 0.865,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 70,
+        "conf": 0.779,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 140,
+        "conf": 0.701,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 160,
+        "conf": 0.7,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 110,
+        "conf": 0.662,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 110,
+        "conf": 0.782,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.684,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 230,
+        "conf": 0.844,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 300,
+        "conf": 0.725,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 3,
+        "dur_ms": 240,
+        "conf": 0.844,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 280,
+        "conf": 0.739,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 240,
+        "conf": 0.853,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 560,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 170,
+        "conf": 0.838,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.605,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 150,
+        "conf": 0.252,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 250,
+        "conf": 0.423,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 290,
+        "conf": 0.627,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 290,
+        "conf": 0.757,
+        "is_phrase_end": false
+      }
+    ]
+  },
+  {
+    "reported": "L\u00e1 Maior",
+    "detected": "D\u00f3# menor",
+    "timestamp": "2026-05-03 00:12:51.374000",
+    "correct": {
+      "tonic_pc": 9,
+      "quality": "major",
+      "key_name": "L\u00e1 Maior"
+    },
+    "notes_summary": [
+      {
+        "pc": 1,
+        "dur_ms": 880,
+        "conf": 0.536,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 180,
+        "conf": 0.449,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 60,
+        "conf": 0.569,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 170,
+        "conf": 0.685,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 290,
+        "conf": 0.77,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 90,
+        "conf": 0.749,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 250,
+        "conf": 0.68,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 130,
+        "conf": 0.512,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 70,
+        "conf": 0.486,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 11,
+        "dur_ms": 680,
+        "conf": 0.858,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 80,
+        "conf": 0.772,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 750,
+        "conf": 0.803,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 200,
+        "conf": 0.619,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 340,
+        "conf": 0.806,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 210,
+        "conf": 0.617,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 11,
+        "dur_ms": 350,
+        "conf": 0.378,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 420,
+        "conf": 0.733,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 80,
+        "conf": 0.73,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 240,
+        "conf": 0.866,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 130,
+        "conf": 0.791,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 340,
+        "conf": 0.339,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 520,
+        "conf": 0.733,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.712,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 80,
+        "conf": 0.717,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 120,
+        "conf": 0.694,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 120,
+        "conf": 0.705,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 180,
+        "conf": 0.738,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 340,
+        "conf": 0.585,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 80,
+        "conf": 0.658,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 4,
+        "dur_ms": 380,
+        "conf": 0.388,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 250,
+        "conf": 0.41,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 250,
+        "conf": 0.272,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 340,
+        "conf": 0.741,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 110,
+        "conf": 0.629,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 4,
+        "dur_ms": 340,
+        "conf": 0.741,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 100,
+        "conf": 0.646,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 300,
+        "conf": 0.787,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.74,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 200,
+        "conf": 0.394,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 520,
+        "conf": 0.885,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 3,
+        "dur_ms": 60,
+        "conf": 0.835,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.641,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 200,
+        "conf": 0.86,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 340,
+        "conf": 0.915,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 90,
+        "conf": 0.718,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 360,
+        "conf": 0.848,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 170,
+        "conf": 0.918,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 90,
+        "conf": 0.718,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 400,
+        "conf": 0.846,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.755,
+        "is_phrase_end": false
+      }
+    ]
+  },
+  {
+    "reported": "D\u00f3# Maior",
+    "detected": "Sol# Maior",
+    "timestamp": "2026-05-02 15:58:11.528000",
+    "correct": {
+      "tonic_pc": 1,
+      "quality": "major",
+      "key_name": "D\u00f3# Maior"
+    },
+    "notes_summary": [
+      {
+        "pc": 3,
+        "dur_ms": 100,
+        "conf": 0.689,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.654,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 300,
+        "conf": 0.601,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.707,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 360,
+        "conf": 0.804,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 370,
+        "conf": 0.281,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 6,
+        "dur_ms": 60,
+        "conf": 0.484,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 310,
+        "conf": 0.839,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 90,
+        "conf": 0.791,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.667,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 290,
+        "conf": 0.817,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 390,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 80,
+        "conf": 0.696,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 280,
+        "conf": 0.824,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 390,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 170,
+        "conf": 0.76,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 170,
+        "conf": 0.815,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 190,
+        "conf": 0.839,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 250,
+        "conf": 0.58,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 220,
+        "conf": 0.781,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 100,
+        "conf": 0.87,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 0,
+        "dur_ms": 130,
+        "conf": 0.797,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 100,
+        "conf": 0.828,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 90,
+        "conf": 0.846,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 60,
+        "conf": 0.869,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 800,
+        "conf": 0.57,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 230,
+        "conf": 0.793,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 100,
+        "conf": 0.822,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.771,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 130,
+        "conf": 0.768,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 80,
+        "conf": 0.76,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 150,
+        "conf": 0.733,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 110,
+        "conf": 0.758,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 90,
+        "conf": 0.809,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 70,
+        "conf": 0.534,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 8,
+        "dur_ms": 110,
+        "conf": 0.77,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 110,
+        "conf": 0.774,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 150,
+        "conf": 0.751,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 70,
+        "conf": 0.588,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 110,
+        "conf": 0.734,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 100,
+        "conf": 0.724,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 0,
+        "dur_ms": 100,
+        "conf": 0.731,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 0,
+        "dur_ms": 110,
+        "conf": 0.863,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 320,
+        "conf": 0.885,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 90,
+        "conf": 0.818,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 80,
+        "conf": 0.594,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 90,
+        "conf": 0.745,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 540,
+        "conf": 0.789,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 60,
+        "conf": 0.554,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 80,
+        "conf": 0.745,
+        "is_phrase_end": false
+      }
+    ]
+  },
+  {
+    "reported": "R\u00e9# Maior",
+    "detected": "D\u00f3 menor",
+    "timestamp": "2026-05-02 15:56:09.182000",
+    "correct": {
+      "tonic_pc": 3,
+      "quality": "major",
+      "key_name": "R\u00e9# Maior"
+    },
+    "notes_summary": [
+      {
+        "pc": 9,
+        "dur_ms": 580,
+        "conf": 0.829,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 3,
+        "dur_ms": 110,
+        "conf": 0.812,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 240,
+        "conf": 0.724,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 60,
+        "conf": 0.722,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 330,
+        "conf": 0.862,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 80,
+        "conf": 0.753,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 380,
+        "conf": 0.695,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 160,
+        "conf": 0.789,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.744,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 210,
+        "conf": 0.734,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 11,
+        "dur_ms": 70,
+        "conf": 0.799,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 90,
+        "conf": 0.746,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 500,
+        "conf": 0.822,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 590,
+        "conf": 0.84,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.75,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.645,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.772,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 230,
+        "conf": 0.822,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 130,
+        "conf": 0.797,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 150,
+        "conf": 0.849,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 120,
+        "conf": 0.749,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 250,
+        "conf": 0.724,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 410,
+        "conf": 0.761,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 90,
+        "conf": 0.806,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 130,
+        "conf": 0.844,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 110,
+        "conf": 0.64,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 180,
+        "conf": 0.429,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 310,
+        "conf": 0.676,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 80,
+        "conf": 0.83,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 70,
+        "conf": 0.763,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 70,
+        "conf": 0.601,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 100,
+        "conf": 0.829,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 200,
+        "conf": 0.802,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 110,
+        "conf": 0.571,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 70,
+        "conf": 0.779,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 160,
+        "conf": 0.805,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 290,
+        "conf": 0.723,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 110,
+        "conf": 0.884,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 90,
+        "conf": 0.769,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 120,
+        "conf": 0.666,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 60,
+        "conf": 0.634,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 140,
+        "conf": 0.748,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 170,
+        "conf": 0.531,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 250,
+        "conf": 0.821,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 320,
+        "conf": 0.766,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 160,
+        "conf": 0.842,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 100,
+        "conf": 0.567,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 170,
+        "conf": 0.732,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.825,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 380,
+        "conf": 0.834,
+        "is_phrase_end": false
+      }
+    ]
+  },
+  {
+    "reported": "L\u00e1 menor",
+    "detected": "R\u00e9# menor",
+    "timestamp": "2026-05-02 15:18:31.638000",
+    "correct": {
+      "tonic_pc": 9,
+      "quality": "minor",
+      "key_name": "L\u00e1 menor"
+    },
+    "notes_summary": [
+      {
+        "pc": 8,
+        "dur_ms": 90,
+        "conf": 0.654,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.698,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.741,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 90,
+        "conf": 0.663,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 8,
+        "dur_ms": 390,
+        "conf": 0.666,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 80,
+        "conf": 0.633,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 70,
+        "conf": 0.805,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 70,
+        "conf": 0.834,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.818,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.751,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 250,
+        "conf": 0.409,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.644,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 140,
+        "conf": 0.823,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 110,
+        "conf": 0.819,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.722,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 250,
+        "conf": 0.409,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.592,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 90,
+        "conf": 0.711,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 180,
+        "conf": 0.631,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 60,
+        "conf": 0.762,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 220,
+        "conf": 0.342,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 80,
+        "conf": 0.849,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.534,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 80,
+        "conf": 0.828,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 60,
+        "conf": 0.732,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 90,
+        "conf": 0.823,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.592,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 300,
+        "conf": 0.745,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 60,
+        "conf": 0.564,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 60,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 300,
+        "conf": 0.664,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 140,
+        "conf": 0.861,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 80,
+        "conf": 0.852,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 200,
+        "conf": 0.842,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 4,
+        "dur_ms": 150,
+        "conf": 0.799,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.849,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 250,
+        "conf": 0.859,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 220,
+        "conf": 0.86,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.848,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.852,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 350,
+        "conf": 0.862,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 80,
+        "conf": 0.833,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 90,
+        "conf": 0.794,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 90,
+        "conf": 0.832,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 80,
+        "conf": 0.787,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 90,
+        "conf": 0.834,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.808,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 110,
+        "conf": 0.84,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 120,
+        "conf": 0.83,
+        "is_phrase_end": false
+      }
+    ]
+  },
+  {
+    "reported": "L\u00e1# Maior",
+    "detected": "R\u00e9# Maior",
+    "timestamp": "2026-05-02 15:17:10.485000",
+    "correct": {
+      "tonic_pc": 10,
+      "quality": "major",
+      "key_name": "L\u00e1# Maior"
+    },
+    "notes_summary": [
+      {
+        "pc": 7,
+        "dur_ms": 120,
+        "conf": 0.864,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 710,
+        "conf": 0.846,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 80,
+        "conf": 0.527,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 70,
+        "conf": 0.496,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 80,
+        "conf": 0.628,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.76,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 220,
+        "conf": 0.854,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 140,
+        "conf": 0.772,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 1720,
+        "conf": 0.893,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 700,
+        "conf": 0.869,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 370,
+        "conf": 0.85,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 430,
+        "conf": 0.855,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 90,
+        "conf": 0.878,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 420,
+        "conf": 0.865,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 70,
+        "conf": 0.876,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 130,
+        "conf": 0.825,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 1040,
+        "conf": 0.839,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 5,
+        "dur_ms": 60,
+        "conf": 0.394,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 5,
+        "dur_ms": 60,
+        "conf": 0.374,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 80,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 240,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 100,
+        "conf": 0.776,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 130,
+        "conf": 0.829,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 260,
+        "conf": 0.845,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 90,
+        "conf": 0.784,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 230,
+        "conf": 0.801,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 250,
+        "conf": 0.841,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 70,
+        "conf": 0.484,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 90,
+        "conf": 0.784,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 230,
+        "conf": 0.801,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 450,
+        "conf": 0.854,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 140,
+        "conf": 0.883,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 130,
+        "conf": 0.768,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 550,
+        "conf": 0.82,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 0,
+        "dur_ms": 130,
+        "conf": 0.775,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 190,
+        "conf": 0.806,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 840,
+        "conf": 0.8,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 70,
+        "conf": 0.823,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 100,
+        "conf": 0.724,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 80,
+        "conf": 0.718,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.888,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 130,
+        "conf": 0.84,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.671,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 430,
+        "conf": 0.813,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 340,
+        "conf": 0.821,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 620,
+        "conf": 0.848,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 1080,
+        "conf": 0.858,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 10,
+        "dur_ms": 240,
+        "conf": 0.699,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 100,
+        "conf": 0.723,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 160,
+        "conf": 0.847,
+        "is_phrase_end": true
+      }
+    ]
+  },
+  {
+    "reported": "Si Maior",
+    "detected": "D\u00f3# menor",
+    "timestamp": "2026-05-02 15:16:24.312000",
+    "correct": {
+      "tonic_pc": 11,
+      "quality": "major",
+      "key_name": "Si Maior"
+    },
+    "notes_summary": [
+      {
+        "pc": 8,
+        "dur_ms": 60,
+        "conf": 0.707,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 180,
+        "conf": 0.705,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 190,
+        "conf": 0.266,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 170,
+        "conf": 0.351,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 60,
+        "conf": 0.588,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 180,
+        "conf": 0.705,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 190,
+        "conf": 0.266,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 320,
+        "conf": 0.541,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 60,
+        "conf": 0.647,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 460,
+        "conf": 0.595,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.423,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 70,
+        "conf": 0.75,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 170,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 150,
+        "conf": 0.676,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 130,
+        "conf": 0.611,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 80,
+        "conf": 0.598,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.422,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 70,
+        "conf": 0.75,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 170,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 150,
+        "conf": 0.676,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 60,
+        "conf": 0.558,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 390,
+        "conf": 0.65,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 80,
+        "conf": 0.704,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 100,
+        "conf": 0.14,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 150,
+        "conf": 0.634,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 6,
+        "dur_ms": 180,
+        "conf": 0.651,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 430,
+        "conf": 0.712,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 150,
+        "conf": 0.282,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 140,
+        "conf": 0.193,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 110,
+        "conf": 0.368,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.474,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 120,
+        "conf": 0.385,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.476,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 260,
+        "conf": 0.18,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 3,
+        "dur_ms": 70,
+        "conf": 0.743,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 360,
+        "conf": 0.646,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 80,
+        "conf": 0.774,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 80,
+        "conf": 0.535,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 6,
+        "dur_ms": 370,
+        "conf": 0.648,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 90,
+        "conf": 0.77,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 90,
+        "conf": 0.526,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 90,
+        "conf": 0.476,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 60,
+        "conf": 0.637,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 770,
+        "conf": 0.834,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 8,
+        "dur_ms": 70,
+        "conf": 0.616,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 130,
+        "conf": 0.706,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 5,
+        "dur_ms": 70,
+        "conf": 0.171,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 6,
+        "dur_ms": 110,
+        "conf": 0.609,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 510,
+        "conf": 0.697,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 70,
+        "conf": 0.792,
+        "is_phrase_end": false
+      }
+    ]
+  },
+  {
+    "reported": "Sol Maior",
+    "detected": "Si menor",
+    "timestamp": "2026-05-02 15:13:17.021000",
+    "correct": {
+      "tonic_pc": 7,
+      "quality": "major",
+      "key_name": "Sol Maior"
+    },
+    "notes_summary": [
+      {
+        "pc": 9,
+        "dur_ms": 440,
+        "conf": 0.615,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 70,
+        "conf": 0.708,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 450,
+        "conf": 0.649,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 370,
+        "conf": 0.598,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 340,
+        "conf": 0.867,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 70,
+        "conf": 0.764,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.797,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 160,
+        "conf": 0.796,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 500,
+        "conf": 0.776,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 11,
+        "dur_ms": 350,
+        "conf": 0.831,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.849,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 70,
+        "conf": 0.73,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 2,
+        "dur_ms": 950,
+        "conf": 0.691,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 490,
+        "conf": 0.734,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 2,
+        "dur_ms": 100,
+        "conf": 0.475,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 710,
+        "conf": 0.69,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 1030,
+        "conf": 0.86,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 240,
+        "conf": 0.614,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 150,
+        "conf": 0.821,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 270,
+        "conf": 0.818,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 80,
+        "conf": 0.78,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 330,
+        "conf": 0.844,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 450,
+        "conf": 0.82,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.713,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 170,
+        "conf": 0.792,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 11,
+        "dur_ms": 310,
+        "conf": 0.806,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 120,
+        "conf": 0.735,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.84,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.777,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 70,
+        "conf": 0.684,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 300,
+        "conf": 0.701,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 520,
+        "conf": 0.581,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 530,
+        "conf": 0.578,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 7,
+        "dur_ms": 340,
+        "conf": 0.398,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.661,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.346,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 110,
+        "conf": 0.635,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.642,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 70,
+        "conf": 0.784,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 180,
+        "conf": 0.184,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 230,
+        "conf": 0.395,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.846,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 140,
+        "conf": 0.758,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 120,
+        "conf": 0.34,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 9,
+        "dur_ms": 200,
+        "conf": 0.389,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 110,
+        "conf": 0.846,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 100,
+        "conf": 0.862,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 70,
+        "conf": 0.435,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 250,
+        "conf": 0.835,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 90,
+        "conf": 0.287,
+        "is_phrase_end": false
+      }
+    ]
+  },
+  {
+    "reported": "Sol Maior",
+    "detected": "Sol# menor",
+    "timestamp": "2026-05-02 14:57:25.019000",
+    "correct": {
+      "tonic_pc": 7,
+      "quality": "major",
+      "key_name": "Sol Maior"
+    },
+    "notes_summary": [
+      {
+        "pc": 4,
+        "dur_ms": 180,
+        "conf": 0.85,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 540,
+        "conf": 0.682,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 5,
+        "dur_ms": 180,
+        "conf": 0.785,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 60,
+        "conf": 0.568,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 80,
+        "conf": 0.859,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 160,
+        "conf": 0.9,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 230,
+        "conf": 0.872,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 170,
+        "conf": 0.843,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 300,
+        "conf": 0.864,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 110,
+        "conf": 0.68,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 790,
+        "conf": 0.823,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 170,
+        "conf": 0.424,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 60,
+        "conf": 0.816,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.808,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 90,
+        "conf": 0.769,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 380,
+        "conf": 0.835,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.813,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 7,
+        "dur_ms": 70,
+        "conf": 0.85,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 120,
+        "conf": 0.818,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 540,
+        "conf": 0.686,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.826,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 160,
+        "conf": 0.853,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 100,
+        "conf": 0.856,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 410,
+        "conf": 0.819,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.822,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 200,
+        "conf": 0.797,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 370,
+        "conf": 0.833,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 130,
+        "conf": 0.646,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 9,
+        "dur_ms": 470,
+        "conf": 0.865,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 8,
+        "dur_ms": 320,
+        "conf": 0.812,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 400,
+        "conf": 0.668,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 150,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 60,
+        "conf": 0.864,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 110,
+        "conf": 0.83,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 70,
+        "conf": 0.87,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 100,
+        "conf": 0.807,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 10,
+        "dur_ms": 90,
+        "conf": 0.836,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 160,
+        "conf": 0.786,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 110,
+        "conf": 0.841,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.852,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 210,
+        "conf": 0.875,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 280,
+        "conf": 0.866,
+        "is_phrase_end": true
+      },
+      {
+        "pc": 1,
+        "dur_ms": 80,
+        "conf": 0.856,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 70,
+        "conf": 0.662,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 3,
+        "dur_ms": 180,
+        "conf": 0.814,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 240,
+        "conf": 0.844,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 4,
+        "dur_ms": 180,
+        "conf": 0.842,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 11,
+        "dur_ms": 130,
+        "conf": 0.781,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 1,
+        "dur_ms": 80,
+        "conf": 0.858,
+        "is_phrase_end": false
+      },
+      {
+        "pc": 0,
+        "dur_ms": 60,
+        "conf": 0.882,
+        "is_phrase_end": false
+      }
+    ]
+  }
+]

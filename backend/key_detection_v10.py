@@ -612,6 +612,14 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
             details['scale_label'] = scale_label
             # Bônus aditivo para tônicas alinhadas com top-1 scale
             alignment_bonus = aligned_tonics.get(key, 0.0)
+            # v13: bônus para tônicas MENORES é reduzido se elas não têm
+            # cadência clara. Casos reais mostraram tônicas menores com
+            # cadence~0 vencendo por align+third (Sol Maior → Sol# menor;
+            # Ré# Maior → Sol menor). LEI 1: tônica é onde a música repousa.
+            cad_t = float(cadence[tonic_pc])
+            if mode == 'minor' and cad_t < 0.05 and alignment_bonus > 0:
+                # Cap minor sem repouso a 50% do bônus
+                alignment_bonus *= 0.5
             details['score'] += alignment_bonus
             details['alignment_bonus'] = float(alignment_bonus)
             candidates.append((tonic_pc, mode, details))
