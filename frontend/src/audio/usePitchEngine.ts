@@ -16,12 +16,14 @@ import {
 import { yinPitch } from './yin';
 import { frequencyToMidi, midiToPitchClass } from '../utils/noteUtils';
 import * as storage from '../auth/storage';
+import { audioLog } from './audioLogger';
 import type {
   PitchCallback,
   ErrorCallback,
   PitchEngineHandle,
   PitchErrorReason,
   CapturedClip,
+  AudioEngineHealth,
 } from './types';
 
 const SAMPLE_RATE = 16000;
@@ -77,6 +79,18 @@ export function usePitchEngine(): PitchEngineHandle {
   const captureRingRef = useRef(new Float32Array(CAPTURE_RING_CAPACITY));
   const captureRingPosRef = useRef(0);    // índice de escrita
   const captureRingFilledRef = useRef(0); // total de samples escritos (até CAPACITY)
+
+  // ── Audio Health Watchdog (frame-level) ──────────────────────────
+  // Estes refs são monitorados para detectar quando o recorder morre
+  // silenciosamente (Android pausando a sessão, app perdendo foco, etc).
+  const lastFrameAtRef = useRef<number>(0);
+  const lastRmsRef = useRef<number>(0);
+  // Para medir framesPerSec ao longo de uma janela de 1s
+  const fpsWindowStartRef = useRef<number>(0);
+  const fpsWindowFramesRef = useRef<number>(0);
+  const fpsLastMeasuredRef = useRef<number>(0);
+  // Watchdog interno do engine — só observa, não age (a ação é da camada hook)
+  const engineWatchdogTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Pitch analysis per frame ─────────────────────────────────────
   const runYinOnFrame = useCallback((frame: Float32Array, sampleRate: number) => {
@@ -144,11 +158,42 @@ export function usePitchEngine(): PitchEngineHandle {
 
       if (!data || data.length === 0) return;
 
+      // ── Audio Health: timestamp + framesPerSec + RMS amostrado ────────
+      const nowMs = Date.now();
+      lastFrameAtRef.current = nowMs;
+      // Calcula RMS do frame (cheap — sample 1 a cada 4)
+      let acc = 0;
+      const stride = 4;
+      let count = 0;
+      for (let i = 0; i < data.length; i += stride) {
+        acc += data[i] * data[i];
+        count++;
+      }
+      lastRmsRef.current = count > 0 ? Math.sqrt(acc / count) : 0;
+      // Janela móvel de 1s para framesPerSec
+      if (fpsWindowStartRef.current === 0) {
+        fpsWindowStartRef.current = nowMs;
+        fpsWindowFramesRef.current = 1;
+      } else {
+        fpsWindowFramesRef.current++;
+        const elapsed = nowMs - fpsWindowStartRef.current;
+        if (elapsed >= 1000) {
+          fpsLastMeasuredRef.current = (fpsWindowFramesRef.current * 1000) / elapsed;
+          fpsWindowStartRef.current = nowMs;
+          fpsWindowFramesRef.current = 0;
+        }
+      }
+
       // Counter for diagnostic (logged every ~100 frames = 10s)
       streamFrameCountRef.current++;
       if (streamFrameCountRef.current % 100 === 0) {
-        // eslint-disable-next-line no-console
-        console.log(`[AudioStream] ${streamFrameCountRef.current} frames processados. Ring cheio: ${captureRingFilledRef.current}/${captureRingRef.current.length} samples`);
+        audioLog.info('audio_frame_received', {
+          totalFrames: streamFrameCountRef.current,
+          ringFilled: captureRingFilledRef.current,
+          ringCapacity: captureRingRef.current.length,
+          fps: Math.round(fpsLastMeasuredRef.current * 10) / 10,
+          rms: Math.round(lastRmsRef.current * 1000) / 1000,
+        });
       }
 
       // Capture to continuous ring buffer (writer always on) ──────
@@ -206,13 +251,20 @@ export function usePitchEngine(): PitchEngineHandle {
     if (!activeRef.current && !isStartingRef.current) return;
     activeRef.current = false;
     ringLenRef.current = 0;
+    // Reset health metrics
+    lastFrameAtRef.current = 0;
+    lastRmsRef.current = 0;
+    fpsWindowStartRef.current = 0;
+    fpsWindowFramesRef.current = 0;
+    fpsLastMeasuredRef.current = 0;
     try {
       const rec: any = recorderRef.current;
       if (rec?.stopRecording) {
         await rec.stopRecording();
       }
+      audioLog.info('recorder_stopped');
     } catch (e: any) {
-      console.warn('[AudioEngine][STOP] stopRecording() falhou:', String(e?.message || e));
+      audioLog.warn('recorder_stop_error', { msg: String(e?.message || e) });
     }
     await new Promise(resolve => setTimeout(resolve, 200));
   }, []);
@@ -227,6 +279,13 @@ export function usePitchEngine(): PitchEngineHandle {
       onPitchRef.current = onPitch;
       onErrorRef.current = onError;
       ringLenRef.current = 0;
+      // Reset frame counters/health
+      streamFrameCountRef.current = 0;
+      lastFrameAtRef.current = 0;
+      lastRmsRef.current = 0;
+      fpsWindowStartRef.current = 0;
+      fpsWindowFramesRef.current = 0;
+      fpsLastMeasuredRef.current = 0;
 
       try {
         // 1) Permission (shows OS prompt if needed)
@@ -249,9 +308,9 @@ export function usePitchEngine(): PitchEngineHandle {
         const rec: any = recorderRef.current;
         if (!rec || typeof rec.startRecording !== 'function') {
           isStartingRef.current = false;
-          console.error('[AudioEngine] useAudioRecorder did not return startRecording()', {
+          audioLog.error('recorder_handle_missing', {
             hasRec: !!rec,
-            keys: rec ? Object.keys(rec) : [],
+            keys: rec ? Object.keys(rec).join(',') : '',
             platform: Platform.OS,
           });
           onError(
@@ -275,12 +334,15 @@ export function usePitchEngine(): PitchEngineHandle {
 
         activeRef.current = true;
         isStartingRef.current = false;
+        // Marca início — primeiro frame deve chegar em <500ms
+        lastFrameAtRef.current = Date.now();
+        audioLog.info('recorder_started', { sampleRate: SAMPLE_RATE, intervalMs: STREAM_INTERVAL_MS });
         return true;
       } catch (err: any) {
         activeRef.current = false;
         isStartingRef.current = false;
         const msg = String(err?.message || err || '');
-        console.error('[AudioEngine][START] exception:', msg);
+        audioLog.error('recorder_start_exception', { msg });
 
         let reason: PitchErrorReason = 'unknown';
         let userMsg = 'Não foi possível iniciar o microfone.';
@@ -302,6 +364,70 @@ export function usePitchEngine(): PitchEngineHandle {
     },
     [stop, handleAudioStream]
   );
+
+  // ── Restart (destrói e recria do zero) ──────────────────────────
+  // Chamado pelo Pipeline Health Watchdog quando detecta recorder morto.
+  // Mantém os mesmos callbacks (onPitch/onError) registrados antes.
+  const restart = useCallback(async (): Promise<boolean> => {
+    audioLog.warn('recorder_restart', { framesBeforeRestart: streamFrameCountRef.current });
+    const onPitch = onPitchRef.current;
+    const onError = onErrorRef.current;
+    if (!onPitch || !onError) {
+      audioLog.warn('recorder_restart_skipped', { reason: 'no_callbacks_registered' });
+      return false;
+    }
+    try {
+      await stop();
+      // Pequena espera para o sistema liberar a sessão de áudio
+      await new Promise(r => setTimeout(r, 300));
+      const ok = await start(onPitch, onError);
+      audioLog.info('recorder_restart_done', { ok });
+      return ok;
+    } catch (e: any) {
+      audioLog.error('recorder_restart_failed', { msg: String(e?.message || e) });
+      return false;
+    }
+  }, [stop, start]);
+
+  // ── getHealth (snapshot da saúde do recorder) ────────────────────
+  const getHealth = useCallback((): AudioEngineHealth => {
+    const now = Date.now();
+    const last = lastFrameAtRef.current;
+    const ageMs = last === 0 ? Number.POSITIVE_INFINITY : (now - last);
+    return {
+      alive: activeRef.current && ageMs < 5000,
+      active: activeRef.current,
+      lastFrameAgeMs: Number.isFinite(ageMs) ? ageMs : 999999,
+      framesPerSec: fpsLastMeasuredRef.current,
+      totalFrames: streamFrameCountRef.current,
+      lastRms: lastRmsRef.current,
+      ringFilledSamples: captureRingFilledRef.current,
+    };
+  }, []);
+
+  // ── Watchdog interno (apenas observação — log de aviso) ─────────
+  // A ação real (restart) é decidida pelo Pipeline Health Watchdog do hook,
+  // que tem visão completa do estado (audio + pitch + ML + UI).
+  useEffect(() => {
+    engineWatchdogTimerRef.current = setInterval(() => {
+      if (!activeRef.current) return;
+      const last = lastFrameAtRef.current;
+      if (last === 0) return; // recém-iniciado
+      const ageMs = Date.now() - last;
+      if (ageMs > 5000) {
+        audioLog.warn('audio_frame_timeout', {
+          ageMs,
+          totalFrames: streamFrameCountRef.current,
+        });
+      }
+    }, 2500);
+    return () => {
+      if (engineWatchdogTimerRef.current) {
+        clearInterval(engineWatchdogTimerRef.current);
+        engineWatchdogTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Misc helpers ─────────────────────────────────────────────────
   const setSoftInfoHandler = useCallback((handler: (msg: string) => void) => {
@@ -363,5 +489,7 @@ export function usePitchEngine(): PitchEngineHandle {
     setSoftInfoHandler,
     captureClip,
     isCapturing,
+    getHealth,
+    restart,
   };
 }

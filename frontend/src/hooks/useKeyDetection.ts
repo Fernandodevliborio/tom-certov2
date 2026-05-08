@@ -31,6 +31,15 @@ import type { NoiseStage } from '../utils/mlKeyAnalyzer';
 import type { PitchEvent, PitchErrorReason } from '../audio/types';
 import { frequencyToMidi, midiToPitchClass } from '../utils/noteUtils';
 import { getDeviceId } from '../auth/deviceId';
+import { audioLog } from '../audio/audioLogger';
+
+// ─── Pipeline Health Watchdog (timeouts aprovados pelo usuário) ───
+const WATCHDOG_TICK_MS = 1000;                // verificação a cada 1s
+const AUDIO_FRAME_TIMEOUT_MS = 5000;          // 5s sem frame → restart engine
+const PITCH_VALID_TIMEOUT_MS = 10000;         // 10s sem pitch válido → soft reset
+const NO_PROGRESS_HARD_RESET_MS = 30000;      // 30s sem progresso real → hard reset
+const ML_ANALYZING_STUCK_MS = 18000;          // 18s preso em 'analyzing' → forçar waiting
+const POST_RESTART_GRACE_MS = 3000;           // após restart, dar 3s antes de checar de novo
 
 // ─── Filtros de frame ─────────────────────────────────────
 const MIN_RMS = 0.010;
@@ -81,6 +90,12 @@ export interface UseKeyDetectionReturn {
   stop: () => void;
   reset: () => void;
   softReset: () => Promise<void>;
+  /**
+   * NOVO — Hard reset definitivo. Cancela request ML em voo, destrói o recorder,
+   * limpa todos os buffers/locks/timeouts, e recria a sessão de áudio do zero.
+   * Substituto correto para o botão "Nova Detecção".
+   */
+  hardReset: () => Promise<void>;
   mlState: 'idle' | 'waiting' | 'listening' | 'analyzing' | 'done' | 'error';
   mlResult: MLAnalysisResult | null;
   mlProgress: number;
@@ -90,6 +105,15 @@ export interface UseKeyDetectionReturn {
   // Usado pela UI para mostrar mensagens como "Ambiente com ruído" sem flicker.
   noiseStage: NoiseStage;
   noiseDisplay: NoiseStageDisplay;
+  /**
+   * NOVO — Status de recuperação automática do pipeline.
+   *   'idle'         : tudo normal
+   *   'restarting'   : Audio Health Watchdog está reiniciando o recorder
+   *   'soft_reset'   : Pipeline limpando buffers (sem matar áudio)
+   *   'hard_reset'   : Hard reset em curso (programático ou via botão)
+   * O UI pode mostrar "Reiniciando escuta..." quando isso for diferente de 'idle'.
+   */
+  recoveryStatus: 'idle' | 'restarting' | 'soft_reset' | 'hard_reset';
 }
 
 export function useKeyDetection(): UseKeyDetectionReturn {
@@ -102,6 +126,10 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const [softInfo, setSoftInfo] = useState<string | null>(null);
   const [keyState, setKeyState] = useState(createInitialState());
   const [agreementMul, setAgreementMul] = useState(1.0);
+  // NOVO — status de recuperação (UI pode exibir "Reiniciando escuta...")
+  const [recoveryStatus, setRecoveryStatus] = useState<
+    'idle' | 'restarting' | 'soft_reset' | 'hard_reset'
+  >('idle');
 
   const engine = usePitchEngine();
 
@@ -118,6 +146,28 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const phraseNotesRef = useRef<DetectedNoteEvent[]>([]);
   const phraseStartTimeRef = useRef(0);
   const tempBufferRef = useRef(new TemporalBuffer(8000));
+
+  // ─── Pipeline Health refs ───────────────────────────────────────────────
+  // Timestamps autoritativos para os watchdogs:
+  //   lastAudioFrameAtRef  → atualizado em cada onPitch (sinal de vida do recorder)
+  //   lastValidPitchAtRef  → atualizado quando ev.clarity passa o limiar
+  //   lastBackendProgressAtRef → atualizado quando backend responde com sucesso E avança o estado
+  //   lastWatchdogActionAtRef → último restart/reset automático (para grace period)
+  const lastAudioFrameAtRef = useRef<number>(0);
+  const lastValidPitchAtRef = useRef<number>(0);
+  const lastBackendProgressAtRef = useRef<number>(0);
+  const lastWatchdogActionAtRef = useRef<number>(0);
+
+  // ─── Anti-concorrência ML ───────────────────────────────────────────────
+  // Lock booleano + AbortController para cancelar request em voo (stop/reset).
+  const mlInFlightRef = useRef<boolean>(false);
+  const mlAbortControllerRef = useRef<AbortController | null>(null);
+
+  // ─── AppState recovery ──────────────────────────────────────────────────
+  const wasRunningBeforeBackgroundRef = useRef<boolean>(false);
+
+  // ─── Watchdog timer ─────────────────────────────────────────────────────
+  const watchdogIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const addRecentNote = useCallback((pc: number) => {
     setRecentNotes(prev => {
@@ -204,11 +254,19 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     const now = Date.now();
     setAudioLevel(Math.min(1, ev.rms * 8));
 
+    // ── Pipeline Health: registra recebimento de frame (sinal de vida) ──
+    lastAudioFrameAtRef.current = now;
+
     const isVoiced =
       ev.rms >= MIN_RMS &&
       ev.clarity >= MIN_CLARITY &&
       ev.frequency >= 65 &&
       ev.frequency <= 2000;
+
+    if (isVoiced) {
+      // Pitch válido detectado — atualiza timestamp para watchdog de pitch
+      lastValidPitchAtRef.current = now;
+    }
 
     if (!isVoiced) {
       if (lastVoicedTimeRef.current > 0) {
@@ -324,13 +382,34 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     // Reset do debouncer de noise stage
     noiseDebouncerRef.current.reset();
     setNoiseStage('clean');
-    
+
+    // ── Pipeline Health: zera timestamps + lock + abort controller ───
+    const startNow = Date.now();
+    lastAudioFrameAtRef.current = startNow;          // dá grace period inicial
+    lastValidPitchAtRef.current = startNow;
+    lastBackendProgressAtRef.current = startNow;
+    lastWatchdogActionAtRef.current = startNow;
+    mlInFlightRef.current = false;
+    if (mlAbortControllerRef.current) {
+      try { mlAbortControllerRef.current.abort(); } catch { /* noop */ }
+    }
+    mlAbortControllerRef.current = null;
+    setRecoveryStatus('idle');
+
     // Reset PCP em background — NÃO aguarda para não bloquear o start do microfone
     resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
-    
+
     try {
       const ok = await engine.start(onPitch, onError);
-      if (ok) setIsRunning(true);
+      if (ok) {
+        setIsRunning(true);
+        // Reset os timestamps DE NOVO após start bem-sucedido (start pode demorar)
+        const t = Date.now();
+        lastAudioFrameAtRef.current = t;
+        lastValidPitchAtRef.current = t;
+        lastBackendProgressAtRef.current = t;
+        lastWatchdogActionAtRef.current = t;
+      }
       return ok;
     } finally {
       // Libera o flag após conclusão (sucesso ou erro)
@@ -339,10 +418,19 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   }, [engine, isRunning, onError, onPitch]);
 
   const stop = useCallback(() => {
+    // Cancela request ML em voo (importante para não chegar resposta tardia
+    // após stop e contaminar o estado da próxima sessão)
+    if (mlAbortControllerRef.current) {
+      try { mlAbortControllerRef.current.abort(); } catch { /* noop */ }
+      audioLog.info('backend_request_cancelled', { reason: 'stop' });
+      mlAbortControllerRef.current = null;
+    }
+    mlInFlightRef.current = false;
     engine.stop().catch(() => {});
     setIsRunning(false);
     setCurrentNote(null);
     setAudioLevel(0);
+    setRecoveryStatus('idle');
   }, [engine]);
 
   // ═══ ML Analysis ═════════════════════════════════════════
@@ -382,97 +470,114 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const runMLAnalysis = useCallback(async () => {
     // Usar ref para ler estado atual (evita stale closure)
     const currentMlState = mlStateRef.current;
-    
-    // eslint-disable-next-line no-console
-    console.log(`[ML] runMLAnalysis chamado. isRunning=${isRunning} mlState=${currentMlState} hasCaptureClip=${!!engine.captureClip}`);
-    
-    if (!isRunning) {
-      // eslint-disable-next-line no-console
-      console.log('[ML] Abortando: não está rodando');
-      return;
-    }
+
+    if (!isRunning) return;
     if (!engine.captureClip) {
-      // eslint-disable-next-line no-console
-      console.warn('[ML] ERRO CRÍTICO: engine.captureClip não existe! Plataforma web?');
+      audioLog.warn('engine_capture_clip_missing');
       return;
     }
     if (currentMlState === 'listening' || currentMlState === 'analyzing') {
-      // eslint-disable-next-line no-console
-      console.log(`[ML] Abortando: já em ${currentMlState}`);
+      // já em curso — ignora silenciosamente
       return;
     }
+    // ── LOCK anti-concorrência ────────────────────────────────────
+    // Mesmo com o guard de mlState acima, watchdog + loop podem disparar
+    // em paralelo. Este lock booleano garante exclusividade absoluta.
+    if (mlInFlightRef.current) {
+      audioLog.info('ml_analysis_skipped_lock_held');
+      return;
+    }
+    mlInFlightRef.current = true;
+
+    // AbortController criado FORA do try para poder cancelar via stop/reset
+    const controller = new AbortController();
+    mlAbortControllerRef.current = controller;
+
+    let progTimer: ReturnType<typeof setInterval> | null = null;
 
     try {
       setMlState('listening');
       setMlProgress(0);
       const startT = Date.now();
-      const progTimer = setInterval(() => {
+      progTimer = setInterval(() => {
         const elapsed = Date.now() - startT;
         setMlProgress(Math.min(1, elapsed / ML_CAPTURE_DURATION_MS));
       }, 100);
 
-      // eslint-disable-next-line no-console
-      console.log('[ML] Iniciando captura...');
       const clip = await engine.captureClip(ML_CAPTURE_DURATION_MS);
-      clearInterval(progTimer);
+      if (progTimer) { clearInterval(progTimer); progTimer = null; }
       setMlProgress(1);
 
+      if (controller.signal.aborted) {
+        audioLog.info('backend_request_cancelled', { phase: 'pre_capture' });
+        setMlState('waiting');
+        return;
+      }
+
       if (!clip) {
-        // Ring buffer ainda enchendo — aguarda antes de tentar novamente
-        // eslint-disable-next-line no-console
-        console.log('[ML] Aguardando ring buffer encher...');
+        audioLog.info('ml_clip_unavailable', { reason: 'ring_buffer_empty' });
         setMlState('waiting');
         return;
       }
       const durS = clip.samples.length / (clip.sampleRate || 16000);
-      // eslint-disable-next-line no-console
-      console.log(`[ML] Clip capturado: ${clip.samples.length} samples (${durS.toFixed(1)}s)`);
 
       if (clip.samples.length < ML_MIN_CLIP_SAMPLES) {
-        // Clip ainda curto — aguarda mais áudio
-        // eslint-disable-next-line no-console
-        console.log(`[ML] Clip curto (${durS.toFixed(1)}s) — aguardando mais áudio`);
+        audioLog.info('ml_clip_too_short', { durMs: Math.round(durS * 1000) });
         setMlState('waiting');
         return;
       }
 
       setMlState('analyzing');
-      // eslint-disable-next-line no-console
-      console.log('[ML] Enviando pro backend...');
-      const result = await analyzeKeyML(clip, undefined, deviceIdRef.current ?? undefined);
-      // eslint-disable-next-line no-console
-      console.log('[ML] Resposta do backend:', JSON.stringify(result).slice(0, 300));
+      audioLog.info('backend_request_start', { samples: clip.samples.length, durSec: Math.round(durS * 10) / 10 });
+
+      const result = await analyzeKeyML(
+        clip,
+        undefined,
+        deviceIdRef.current ?? undefined,
+        controller.signal,
+      );
+
+      if (controller.signal.aborted || result.error === 'cancelled') {
+        audioLog.info('backend_request_cancelled', { phase: 'post_send' });
+        setMlState('waiting');
+        return;
+      }
 
       // Atualiza estado de ruído (debouciado) — vale para sucesso E rejeição
       ingestNoiseStage(result.noise_rejection?.stage);
 
       if (result.success) {
-        // Logging melhorado para Tribunal v8
-        const locked = result.locked ? '🔒TRAVADO' : '⏳pendente';
-        const cadences = result.cadences_found?.map(c => c.type).join(', ') || 'nenhuma';
-        const thirdReason = result.third_evidence?.decision_reason || '?';
-        // eslint-disable-next-line no-console
-        console.log(
-          `[ML] ✓ ${locked} ${result.key_name} conf=${(result.confidence ?? 0).toFixed(2)} ` +
-          `cadências=[${cadences}] 3ª=${thirdReason} flags=${result.flags?.join(',') ?? ''}`
-        );
+        audioLog.info('backend_request_success', {
+          stage: (result as any).stage,
+          locked: !!result.locked,
+          key: result.key_name,
+          confidence: result.confidence,
+          noiseStage: result.noise_rejection?.stage,
+        });
+        // Atualiza watchdog de progresso (qualquer resposta success conta)
+        lastBackendProgressAtRef.current = Date.now();
         setMlResult(result);
         setMlState('done');
       } else {
-        // eslint-disable-next-line no-console
-        console.warn(`[ML] ✗ Backend rejeitou: ${result.error} — ${result.message}`);
+        audioLog.warn('backend_request_error', { error: result.error, message: result.message });
         setMlState('waiting');
       }
     } catch (e: any) {
-      // eslint-disable-next-line no-console
-      console.warn('[ML] Exceção na análise:', e?.message || e);
+      audioLog.warn('backend_request_exception', { msg: String(e?.message || e) });
       setMlState('waiting');
+    } finally {
+      // CRÍTICO: liberar lock SEMPRE — mesmo em caso de exception ou abort
+      if (progTimer) clearInterval(progTimer);
+      mlInFlightRef.current = false;
+      // Só limpa o controller se ainda for o mesmo (não foi substituído por reset)
+      if (mlAbortControllerRef.current === controller) {
+        mlAbortControllerRef.current = null;
+      }
+      audioLog.info('lock_released', { lock: 'ml_in_flight' });
     }
   // CRÍTICO: NÃO incluir mlState nas dependências!
-  // Isso causa stale closures que capturam valores antigos do estado
-  // e fazem o loop abortar antes de enviar ao backend.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning, engine]);
+  }, [isRunning, engine, ingestNoiseStage]);
 
   const dismissMlResult = useCallback(() => {
     setMlState('idle');
@@ -493,9 +598,107 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     setNoiseStage('clean');
   }, [stop]);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // HARD RESET — destrói tudo e recria do zero
+  // ═══════════════════════════════════════════════════════════════════════
+  // Sequência fixa (não pode pular passos):
+  //   1. Cancela request ML em voo (AbortController.abort)
+  //   2. Limpa locks (mlInFlightRef = false)
+  //   3. Para o recorder via engine.stop()
+  //   4. Limpa TODOS os buffers/refs/state visual
+  //   5. engine.restart() — destrói e recria o handle do recorder
+  //   6. Re-inicia o loop ML do zero
+  // Botão "Nova Detecção" no UI deve chamar este método.
+  const hardReset = useCallback(async () => {
+    audioLog.warn('hard_reset_detection', { phase: 'begin' });
+    setRecoveryStatus('hard_reset');
+
+    // 1. Cancela request ML em voo
+    if (mlAbortControllerRef.current) {
+      try { mlAbortControllerRef.current.abort(); } catch { /* noop */ }
+      audioLog.info('backend_request_cancelled', { reason: 'hard_reset' });
+      mlAbortControllerRef.current = null;
+    }
+
+    // 2. Libera locks
+    mlInFlightRef.current = false;
+
+    // 3. Para o recorder
+    try {
+      await engine.stop();
+    } catch (e: any) {
+      audioLog.warn('hard_reset_stop_error', { msg: String(e?.message || e) });
+    }
+
+    // 4. Limpa TUDO (state + refs)
+    setKeyState(createInitialState());
+    setRecentNotes([]);
+    setCurrentNote(null);
+    setAudioLevel(0);
+    setErrorMessage(null);
+    setErrorReason(null);
+    setSoftInfo(null);
+    setMlResult(null);
+    setMlState('idle');
+    setMlProgress(0);
+    setAgreementMul(1.0);
+    noiseDebouncerRef.current.reset();
+    setNoiseStage('clean');
+    medianBufRef.current = [];
+    lastStableMidiRef.current = null;
+    curPcRef.current = null;
+    curFramesRef.current = 0;
+    curCommittedRef.current = false;
+    lastVoicedTimeRef.current = 0;
+    phraseNotesRef.current = [];
+    phraseStartTimeRef.current = 0;
+    tempBufferRef.current.clear();
+    // Reseta timestamps de health para AGORA (grace period inicial)
+    const t = Date.now();
+    lastAudioFrameAtRef.current = t;
+    lastValidPitchAtRef.current = t;
+    lastBackendProgressAtRef.current = t;
+    lastWatchdogActionAtRef.current = t;
+    startTimeRef.current = t;
+
+    // 5. Restart engine completo (destrói + recria recorder + re-pede permissão se necessário)
+    setIsRunning(false);
+    isStartingRef.current = false;
+    let restartOk = false;
+    if (engine.restart) {
+      restartOk = await engine.restart();
+    } else {
+      // Fallback: usa start() normal se restart() não existir (ex.: web)
+      restartOk = await engine.start(onPitch, onError);
+    }
+    if (restartOk) {
+      setIsRunning(true);
+      // Reseta timestamps de novo após start (start pode demorar)
+      const t2 = Date.now();
+      lastAudioFrameAtRef.current = t2;
+      lastValidPitchAtRef.current = t2;
+      lastBackendProgressAtRef.current = t2;
+      lastWatchdogActionAtRef.current = t2;
+    }
+
+    // 6. Reset PCP no backend (não bloqueia)
+    resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
+
+    setRecoveryStatus('idle');
+    audioLog.info('hard_reset_detection', { phase: 'done', restartOk });
+  }, [engine, onPitch, onError]);
+
   // Soft reset — limpa estado de análise SEM parar o microfone.
   // Usado pelo botão "Detectar novo tom" no UI.
   const softReset = useCallback(async () => {
+    setRecoveryStatus('soft_reset');
+    // Cancela request ML em voo (não queremos resposta tardia contaminando)
+    if (mlAbortControllerRef.current) {
+      try { mlAbortControllerRef.current.abort(); } catch { /* noop */ }
+      audioLog.info('backend_request_cancelled', { reason: 'soft_reset' });
+      mlAbortControllerRef.current = null;
+    }
+    mlInFlightRef.current = false;
     setKeyState(createInitialState());
     setRecentNotes([]);
     setSoftInfo(null);
@@ -508,35 +711,25 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     tempBufferRef.current.clear();
     noiseDebouncerRef.current.reset();
     setNoiseStage('clean');
+    // Reseta timestamps para grace period
+    const t = Date.now();
+    lastValidPitchAtRef.current = t;
+    lastBackendProgressAtRef.current = t;
     // Zera o acumulador PCP no backend em background (não bloqueia UI)
     resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
+    setRecoveryStatus('idle');
   }, []);
 
-  // ─── Watchdog anti-travamento ─────────────────────────────────────────────
-  // Se mlState ficar preso em 'analyzing' por mais de 18s, força reset para 'waiting'
-  // Isso previne o bug "1 minuto analisando" causado por backend lento ou timeout silencioso
+  // ─── Watchdog antigo (legacy) ─────────────────────────────────────────────
+  // Mantido apenas o ref de timestamp porque o Pipeline Health Watchdog acima
+  // o consulta para detectar "ML preso em analyzing". A ação foi movida pra lá.
   const mlAnalysisStartRef = useRef<number>(0);
-  
+
   useEffect(() => {
     if (mlState === 'analyzing') {
       mlAnalysisStartRef.current = Date.now();
     }
   }, [mlState]);
-
-  useEffect(() => {
-    if (!isRunning) return;
-    const watchdog = setInterval(() => {
-      if (mlStateRef.current === 'analyzing') {
-        const elapsed = Date.now() - mlAnalysisStartRef.current;
-        if (elapsed > 18000) {
-          // eslint-disable-next-line no-console
-          console.warn(`[ML-WATCHDOG] Preso em 'analyzing' por ${(elapsed/1000).toFixed(0)}s — forçando reset`);
-          setMlState('waiting');
-        }
-      }
-    }, 3000);
-    return () => clearInterval(watchdog);
-  }, [isRunning]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Ref para mlResult (evita stale closure no loop)
@@ -604,12 +797,162 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     return () => clearInterval(interval);
   }, [isRunning]); // Só depende de isRunning para iniciar/parar
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // PIPELINE HEALTH WATCHDOG (escalonado)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Verifica a cada WATCHDOG_TICK_MS o estado do pipeline e age progressivamente:
+  //   1. >5s sem frame de áudio  → engine.restart() (recorder pode ter morrido)
+  //   2. >10s sem pitch válido    → soft reset (limpa buffers, força nova captura)
+  //   3. >30s sem progresso real  → hard reset completo (UI + recorder + backend)
+  //
+  // Também faz unstuck do mlState 'analyzing' preso por >18s (backend lento).
+  //
+  // Cada ação respeita um POST_RESTART_GRACE_MS para não disparar em cascata.
+  // Refs são usadas para evitar stale closures dentro do interval.
+  const hardResetRef = useRef(hardReset);
+  const softResetRef = useRef(softReset);
+  useEffect(() => { hardResetRef.current = hardReset; }, [hardReset]);
+  useEffect(() => { softResetRef.current = softReset; }, [softReset]);
+
+  useEffect(() => {
+    if (!isRunning) {
+      if (watchdogIntervalRef.current) {
+        clearInterval(watchdogIntervalRef.current);
+        watchdogIntervalRef.current = null;
+      }
+      return;
+    }
+
+    watchdogIntervalRef.current = setInterval(() => {
+      if (!isRunningRef.current) return;
+      const now = Date.now();
+      // Grace period após qualquer ação do watchdog (evita restart em cascata)
+      if (now - lastWatchdogActionAtRef.current < POST_RESTART_GRACE_MS) return;
+
+      // ── Camada A: ML 'analyzing' preso ────────────────────────────
+      if (mlStateRef.current === 'analyzing') {
+        const elapsed = now - mlAnalysisStartRef.current;
+        if (elapsed > ML_ANALYZING_STUCK_MS) {
+          audioLog.warn('watchdog_ml_stuck', { elapsedMs: elapsed });
+          // Aborta a request e libera o lock
+          if (mlAbortControllerRef.current) {
+            try { mlAbortControllerRef.current.abort(); } catch { /* noop */ }
+          }
+          mlInFlightRef.current = false;
+          setMlState('waiting');
+          lastWatchdogActionAtRef.current = now;
+          return;
+        }
+      }
+
+      // ── Camada B: 5s sem frame de áudio ───────────────────────────
+      const lastFrame = lastAudioFrameAtRef.current;
+      if (lastFrame > 0) {
+        const ageFrame = now - lastFrame;
+        if (ageFrame > AUDIO_FRAME_TIMEOUT_MS) {
+          audioLog.warn('audio_frame_timeout', { ageMs: ageFrame });
+          audioLog.warn('watchdog_restart', { reason: 'no_audio_frame', ageMs: ageFrame });
+          setRecoveryStatus('restarting');
+          lastWatchdogActionAtRef.current = now;
+          // Restart engine — não bloqueia o watchdog
+          (async () => {
+            const ok = engine.restart ? await engine.restart() : false;
+            if (ok) {
+              const t = Date.now();
+              lastAudioFrameAtRef.current = t;
+              lastValidPitchAtRef.current = t;
+              audioLog.info('watchdog_restart_ok');
+            } else {
+              audioLog.error('watchdog_restart_failed_doing_hard_reset');
+              await hardResetRef.current?.();
+            }
+            setRecoveryStatus('idle');
+          })();
+          return;
+        }
+      }
+
+      // ── Camada C: 10s sem pitch válido (recorder vivo, mas usuário em silêncio
+      //              OU sinal degradado) — soft reset não é restart de áudio,
+      //              é só limpar buffers ML que talvez estejam contaminados.
+      const lastPitch = lastValidPitchAtRef.current;
+      if (lastPitch > 0) {
+        const agePitch = now - lastPitch;
+        if (agePitch > PITCH_VALID_TIMEOUT_MS) {
+          audioLog.warn('pitch_timeout', { ageMs: agePitch });
+          // Não é necessariamente um problema (usuário pode estar em silêncio).
+          // Só faz soft_reset se o pipeline ML também estiver parado, pra não
+          // descartar análise em andamento.
+          if (mlStateRef.current !== 'analyzing' && mlStateRef.current !== 'listening') {
+            audioLog.info('pitch_timeout_soft_reset');
+            // Não chama softReset() completo — apenas reseta os timestamps
+            // pra dar nova chance. O áudio continua escutando.
+            lastValidPitchAtRef.current = now;
+            lastWatchdogActionAtRef.current = now;
+          }
+        }
+      }
+
+      // ── Camada D: 30s sem progresso real → hard reset ──────────────
+      const lastProgress = lastBackendProgressAtRef.current;
+      if (lastProgress > 0) {
+        const ageProgress = now - lastProgress;
+        if (ageProgress > NO_PROGRESS_HARD_RESET_MS) {
+          audioLog.error('no_progress_hard_reset', { ageMs: ageProgress });
+          lastWatchdogActionAtRef.current = now;
+          (async () => {
+            await hardResetRef.current?.();
+          })();
+        }
+      }
+    }, WATCHDOG_TICK_MS);
+
+    return () => {
+      if (watchdogIntervalRef.current) {
+        clearInterval(watchdogIntervalRef.current);
+        watchdogIntervalRef.current = null;
+      }
+    };
+  }, [isRunning, engine]);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // APP STATE recovery (background → active)
+  // ═══════════════════════════════════════════════════════════════════════
+  // Antes: ao ir pra background, fazia stop() mas NUNCA religava ao voltar.
+  // Agora: marca a flag, e ao voltar pra 'active' restart automático.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next !== 'active' && isRunning) stop();
+      audioLog.info('app_state_changed', { state: next, isRunning: isRunningRef.current });
+      if (next !== 'active') {
+        // Indo pro background ou inactive
+        if (isRunningRef.current) {
+          wasRunningBeforeBackgroundRef.current = true;
+          // Cancela request ML em voo (não pode chegar resposta com app em bg)
+          if (mlAbortControllerRef.current) {
+            try { mlAbortControllerRef.current.abort(); } catch { /* noop */ }
+          }
+          mlInFlightRef.current = false;
+          // Para o recorder (Android pausaria de qualquer forma)
+          stop();
+        }
+      } else {
+        // Voltou pra active
+        if (wasRunningBeforeBackgroundRef.current && !isRunningRef.current) {
+          wasRunningBeforeBackgroundRef.current = false;
+          audioLog.info('app_state_recovery_restart');
+          setRecoveryStatus('restarting');
+          (async () => {
+            // start() do hook já cuida de tudo (permissão + recorder + reset state)
+            const ok = await start();
+            audioLog.info('app_state_recovery_done', { ok });
+            setRecoveryStatus('idle');
+          })();
+        }
+      }
     });
     return () => sub.remove();
-  }, [isRunning, stop]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stop, start]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -695,6 +1038,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     stop,
     reset,
     softReset,
+    hardReset,
     mlState,
     mlResult,
     mlProgress,
@@ -702,5 +1046,6 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     smartStatus,
     noiseStage,
     noiseDisplay: describeStage(noiseStage),
+    recoveryStatus,
   };
 }

@@ -124,11 +124,26 @@ export function usePitchEngine(): PitchEngineHandle {
     return null;
   }, []);
 
+  // Stubs do Audio Health para paridade com a versão nativa.
+  // No web, o pipeline ML é simplificado e os watchdogs não são críticos.
+  const getHealth = useCallback(() => ({
+    alive: false,
+    active: false,
+    lastFrameAgeMs: 999999,
+    framesPerSec: 0,
+    totalFrames: 0,
+    lastRms: 0,
+    ringFilledSamples: 0,
+  }), []);
+  const restart = useCallback(async () => false, []);
+
   return {
     isSupported: true,
     start,
     stop,
     setSoftInfoHandler,
     captureClip,
+    getHealth,
+    restart,
   };
 }

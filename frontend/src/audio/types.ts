@@ -22,6 +22,17 @@ export interface CapturedClip {
   durationMs: number;
 }
 
+// Saúde do recorder em tempo real — usado pelo Pipeline Health Watchdog
+export interface AudioEngineHealth {
+  alive: boolean;            // recorder rodando E recebendo frames recentes (<5s)
+  active: boolean;           // recorder está ATIVO (start chamado, sem stop)
+  lastFrameAgeMs: number;    // ms desde o último frame de áudio recebido
+  framesPerSec: number;      // taxa medida na última janela
+  totalFrames: number;       // contador acumulado (diagnóstico)
+  lastRms: number;           // RMS do último frame (0 se silêncio)
+  ringFilledSamples: number; // samples disponíveis no ring contínuo
+}
+
 export interface PitchEngineHandle {
   isSupported: boolean;
   start: (onPitch: PitchCallback, onError: ErrorCallback) => Promise<boolean>;
@@ -30,4 +41,7 @@ export interface PitchEngineHandle {
   // ─── Captura em paralelo (pra análise ML no backend) ────────────────
   captureClip?: (durationMs: number) => Promise<CapturedClip | null>;
   isCapturing?: () => boolean;
+  // ─── NOVO: Audio Health Watchdog ─────────────────────────────────────
+  getHealth?: () => AudioEngineHealth;
+  restart?: () => Promise<boolean>;  // destrói + recria o recorder do zero
 }

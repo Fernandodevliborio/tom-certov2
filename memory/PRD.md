@@ -4,7 +4,70 @@
 App mobile (Expo) para detecção de tonalidade de voz a capela em tempo real.
 Backend Python com CREPE (torchcrepe) para extração F0 e lógica tonal madura portada do frontend TS.
 
-## Vocal Focus / Noise Rejection (NOVO — 2026-02-08)
+## Pipeline Health Watchdog (NOVO — 2026-02-08, segunda iteração)
+
+Sistema completo de auto-recuperação para impedir o estado zumbi "Ouvindo..." infinito.
+
+### Camadas
+1. **Audio Health (engine layer)** — `usePitchEngine.ts`
+   - Refs: `lastFrameAtRef`, `lastRmsRef`, `framesPerSec`
+   - `getHealth()` → `{alive, active, lastFrameAgeMs, framesPerSec, totalFrames, lastRms, ringFilledSamples}`
+   - `restart()` — destrói + recria recorder do zero (chamado pelo Pipeline Health)
+   - Watchdog interno (apenas log) em `audio_frame_timeout` >5s
+
+2. **Pipeline Health (hook layer)** — `useKeyDetection.ts`
+   - Refs: `lastAudioFrameAtRef`, `lastValidPitchAtRef`, `lastBackendProgressAtRef`, `lastWatchdogActionAtRef`
+   - Lock anti-concorrência: `mlInFlightRef` + `mlAbortControllerRef`
+   - Watchdog escalonado a cada 1s:
+     - **5s** sem frame de áudio → `engine.restart()` (silencioso) → fallback hardReset
+     - **10s** sem pitch válido → reset de timestamp (não mata áudio)
+     - **18s** ML preso em `analyzing` → abort + `setMlState('waiting')`
+     - **30s** sem progresso real → `hardReset()` automático
+   - Grace period após cada ação: 3s
+
+3. **Hard Reset real** (`hardReset`)
+   - Cancela request ML em voo via `AbortController.abort()`
+   - Libera lock `mlInFlightRef = false`
+   - `engine.stop()` + `engine.restart()` (recria recorder)
+   - Limpa todos os state, refs, buffers, debouncer
+   - Reseta timestamps com grace period
+   - Reset PCP no backend (idempotente)
+   - Estado `recoveryStatus = 'hard_reset'` durante a operação
+
+4. **AppState recovery**
+   - `wasRunningBeforeBackgroundRef` rastreia estado pré-background
+   - Background → cancela ML em voo + `stop()`
+   - Active de volta → `start()` automático se estava rodando antes
+   - Log: `app_state_changed`, `app_state_recovery_restart/done`
+
+5. **Cancelamento de requests ML**
+   - `analyzeKeyML` aceita `externalSignal?: AbortSignal`
+   - `stop()`, `softReset()`, `hardReset()`, `AppState→background` chamam `controller.abort()`
+   - Distingue `error: 'cancelled'` de `error: 'timeout'`
+   - Resposta tardia após cancelamento NUNCA contamina estado novo
+
+6. **Lock anti-concorrência ML**
+   - `mlInFlightRef` booleano + `try/finally` garante release sempre
+   - Mesmo com guard de `mlState`, watchdog + loop podem disparar em paralelo
+   - `lock_released` logado no `finally`
+
+### Botão "Nova Detecção"
+Agora chama `hardReset()` (era `reset()` que não destruía o recorder).
+
+### Logs estruturados (`[AudioHealth]` prefix)
+`audio_frame_received` (1/100 sample), `audio_frame_timeout`, `recorder_started`, `recorder_stopped`, `recorder_restart`, `watchdog_restart`, `watchdog_ml_stuck`, `pitch_timeout`, `no_progress_hard_reset`, `hard_reset_detection`, `backend_request_start`, `backend_request_cancelled`, `backend_request_success`, `backend_request_error`, `lock_released`, `app_state_changed`, `app_state_recovery_restart/done`, `recorder_handle_missing`, `recorder_start_exception`.
+
+### Critério de aceite (validação manual)
+1. ✓ Detectar normalmente
+2. ✓ Minimizar e voltar (recovery automático)
+3. ✓ Bloquear/desbloquear tela (AppState handler)
+4. ✓ Múltiplos cliques em "Nova Detecção" (hardReset idempotente + lock)
+5. ✓ Silêncio prolongado (10s pitch_timeout não restarta áudio)
+6. ✓ Cantar depois de silêncio (timestamps são atualizados em tempo real)
+7. ✓ Backend lento (>18s analyzing → unstuck automático)
+8. ✓ Nunca trava em "Ouvindo..." por mais de 30s sem progresso real
+
+## Vocal Focus / Noise Rejection (2026-02-08)
 
 Camada de **pré-processamento** antes do motor tonal CREPE.
 Objetivo: proteger a detecção de tom contra ruído ambiente, percussão, notas curtas e pitch instável.

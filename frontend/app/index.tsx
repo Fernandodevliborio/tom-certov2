@@ -387,9 +387,10 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const {
     detectionState, currentKey, keyTier, liveConfidence, changeSuggestion,
     currentNote, recentNotes, audioLevel, isRunning,
-    softInfo, reset, phraseStage, phrasesAnalyzed,
+    softInfo, reset, hardReset, phraseStage, phrasesAnalyzed,
     smartStatus, mlResult,
     noiseStage, noiseDisplay,
+    recoveryStatus,
   } = det;
 
   // v3.17 — device ID para feedback de tom errado
@@ -446,44 +447,53 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
   const [recentKeyChange, setRecentKeyChange] = useState(false);
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // FUNÇÃO: NOVA DETECÇÃO (Reset completo da sessão)
+  // FUNÇÃO: NOVA DETECÇÃO (Hard Reset real — destrói + recria recorder)
   // ═══════════════════════════════════════════════════════════════════════════
+  // Substituímos o reset "leve" anterior por um hard reset definitivo:
+  //   - cancela request ML em voo
+  //   - destrói o recorder
+  //   - limpa todos os buffers e locks
+  //   - recria a sessão de áudio do zero
+  //   - reinicia o loop de análise
+  // Garantia: o app nunca pode ficar zumbi após apertar "Nova Detecção".
   const resetDetectionSession = useCallback(async () => {
     if (isResetting) return;
-    
+
     setIsResetting(true);
-    
+
     try {
-      // 1. Limpar estado visual local
+      // 1. Limpar estado visual local imediatamente
       setStableState(createStableKeyState());
       setRecentKeyChange(false);
       setShowSmartChords(false);
-      
-      // 2. Chamar reset do hook useKeyDetection (limpa buffers, notas, etc)
-      reset();
-      
-      // 3. Chamar endpoint do backend para limpar sessão
+
+      // 2. Hard reset no hook (cancela ML em voo + restart do recorder + limpa tudo)
+      await hardReset();
+
+      // 3. Reset PCP no backend (idempotente — hardReset já faz isso, mas garantimos)
       try {
         const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-        await fetch(`${backendUrl}/api/analyze-key/reset`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
+        if (backendUrl) {
+          await fetch(`${backendUrl}/api/analyze-key/reset`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
       } catch (err) {
-        // Ignorar erros de rede — o reset local já foi feito
+        // Ignorar — o hardReset já limpou o estado local
         console.log('[NovaDetecção] Backend reset opcional falhou:', err);
       }
-      
+
       // 4. Feedback visual
       setTimeout(() => {
         setIsResetting(false);
       }, 1500);
-      
+
     } catch (err) {
       console.error('[NovaDetecção] Erro:', err);
       setIsResetting(false);
     }
-  }, [reset, isResetting]);
+  }, [hardReset, isResetting]);
   
   // Processar novas análises ML — v13: backend controla stage via tempo decorrido
   useEffect(() => {

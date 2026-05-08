@@ -228,6 +228,7 @@ export async function analyzeKeyML(
   clip: CapturedClip,
   timeoutMs: number = 12000,  // FIX: 30s era longo demais — CREPE tiny deve responder em <10s
   deviceId?: string,
+  externalSignal?: AbortSignal,
 ): Promise<MLAnalysisResult> {
   const wav = float32ToWav(clip.samples, clip.sampleRate);
   const base = getBackendUrl();
@@ -237,6 +238,17 @@ export async function analyzeKeyML(
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  // Encadeia o sinal externo (pra cancelar de fora — em stop/reset)
+  let externalListener: (() => void) | null = null;
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      clearTimeout(timer);
+      return { success: false, error: 'cancelled', message: 'Análise cancelada antes do envio.' };
+    }
+    externalListener = () => controller.abort();
+    externalSignal.addEventListener('abort', externalListener);
+  }
 
   const headers: Record<string, string> = { 'Content-Type': 'audio/wav' };
   if (deviceId) headers['X-Device-Id'] = deviceId;
@@ -249,6 +261,9 @@ export async function analyzeKeyML(
       signal: controller.signal,
     });
     clearTimeout(timer);
+    if (externalListener && externalSignal) {
+      externalSignal.removeEventListener('abort', externalListener);
+    }
     const data: MLAnalysisResult = await res.json();
     if (!res.ok) {
       return { success: false, error: 'http_error', message: data?.message || `HTTP ${res.status}` };
@@ -256,7 +271,14 @@ export async function analyzeKeyML(
     return data;
   } catch (err: any) {
     clearTimeout(timer);
+    if (externalListener && externalSignal) {
+      externalSignal.removeEventListener('abort', externalListener);
+    }
     if (err?.name === 'AbortError') {
+      // Distingue cancelamento externo de timeout interno
+      if (externalSignal?.aborted) {
+        return { success: false, error: 'cancelled', message: 'Análise cancelada.' };
+      }
       return { success: false, error: 'timeout', message: 'Tempo esgotado. Tente novamente.' };
     }
     return { success: false, error: 'network', message: err?.message || 'Erro de rede.' };
