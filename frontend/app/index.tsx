@@ -389,6 +389,7 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
     currentNote, recentNotes, audioLevel, isRunning,
     softInfo, reset, phraseStage, phrasesAnalyzed,
     smartStatus, mlResult,
+    noiseStage, noiseDisplay,
   } = det;
 
   // v3.17 — device ID para feedback de tom errado
@@ -921,6 +922,48 @@ function ActiveScreen({ det }: { det: ReturnType<typeof useKeyDetection> }) {
                   ? 'Cante ou toque por alguns segundos.'
                   : 'Confirmando detecção…'}
               </Text>
+              {/* ── Indicador de qualidade de áudio (vocal_focus) ── */}
+              {/* Só aparece quando há ruído detectado (debounciado >1.5s).        */}
+              {/* É puramente informativo — a decisão real continua no backend.    */}
+              {isRunning && noiseStage !== 'clean' && (
+                <View
+                  testID={`noise-indicator-${noiseStage}`}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    alignSelf: 'center',
+                    marginTop: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(245, 158, 11, 0.35)',
+                    gap: 6,
+                  }}
+                >
+                  <Ionicons
+                    name={
+                      noiseStage === 'percussion' ? 'pulse' :
+                      noiseStage === 'silence' ? 'mic-off' :
+                      'volume-high'
+                    }
+                    size={12}
+                    color={C.amber}
+                  />
+                  <Text
+                    testID="noise-indicator-label"
+                    style={{
+                      fontFamily: 'Manrope_600SemiBold',
+                      fontSize: 11,
+                      letterSpacing: 0.3,
+                      color: C.amber,
+                    }}
+                  >
+                    {noiseDisplay.label}
+                  </Text>
+                </View>
+              )}
               {(() => {
                 // v14: barra de progresso baseada em window_progress do backend
                 const wp = (mlResult as any)?.window_progress;

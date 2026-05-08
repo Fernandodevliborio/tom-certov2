@@ -40,7 +40,21 @@ import librosa
 import torch
 import torchcrepe
 
+from vocal_focus import (
+    apply_vocal_focus,
+    VocalFocusConfig,
+    VocalFocusResult,
+)
+
 logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CAMADA VOCAL FOCUS / NOISE REJECTION (rollback fácil)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Para desativar completamente o filtro: VOCAL_FOCUS_ENABLED = False
+# Para ajustar agressividade sem mexer no código: editar VOCAL_FOCUS_CONFIG.
+VOCAL_FOCUS_ENABLED: bool = True
+VOCAL_FOCUS_CONFIG: VocalFocusConfig = VocalFocusConfig(enabled=VOCAL_FOCUS_ENABLED)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONSTANTES
@@ -1248,6 +1262,42 @@ def reset_session(device_id: str):
 # FUNÇÃO PÚBLICA
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _build_noise_rejection_payload(vf: Optional[VocalFocusResult]) -> Dict[str, Any]:
+    """Monta o payload `noise_rejection` que vai na resposta da API.
+
+    Sempre retorna um dicionário (mesmo quando vocal_focus está desabilitado),
+    para que o frontend possa confiar na presença do campo.
+    """
+    if vf is None:
+        return {
+            'enabled': False,
+            'stage': 'clean',
+            'passed': True,
+            'quality_score': 1.0,
+            'valid_ratio': 1.0,
+            'rejection_reason': None,
+            'total_frames': 0,
+            'valid_frames': 0,
+            'rejected_frames': 0,
+            'rejection_counts': {},
+            'processing_ms': 0.0,
+        }
+    valid_ratio = (vf.valid_frames / vf.total_frames) if vf.total_frames else 0.0
+    return {
+        'enabled': True,
+        'stage': vf.noise_stage,                       # clean | noisy | percussion | silence
+        'passed': bool(vf.passed),
+        'quality_score': round(float(vf.audio_quality_score), 3),
+        'valid_ratio': round(float(valid_ratio), 3),
+        'rejection_reason': vf.rejection_reason,
+        'total_frames': int(vf.total_frames),
+        'valid_frames': int(vf.valid_frames),
+        'rejected_frames': int(vf.rejected_frames),
+        'rejection_counts': {k: int(v) for k, v in vf.rejection_counts.items()},
+        'processing_ms': float(vf.processing_ms),
+    }
+
+
 def analyze_audio_bytes_v10(
     audio_bytes: bytes,
     device_id: str = 'anon',
@@ -1259,23 +1309,88 @@ def analyze_audio_bytes_v10(
     duration_s = len(audio) / SAMPLE_RATE
     
     if duration_s < 1.0:
-        return {'success': False, 'error': 'too_short', 'duration_s': duration_s}
+        return {
+            'success': False, 'error': 'too_short', 'duration_s': duration_s,
+            'noise_rejection': _build_noise_rejection_payload(None),
+        }
     
     if not has_audio:
-        return {'success': False, 'error': 'silence', 'duration_s': duration_s}
+        # Áudio é praticamente silêncio — informa noise_stage='silence'
+        silence_payload = {
+            'enabled': VOCAL_FOCUS_ENABLED,
+            'stage': 'silence',
+            'passed': False,
+            'quality_score': 0.0,
+            'valid_ratio': 0.0,
+            'rejection_reason': 'no_audio',
+            'total_frames': 0,
+            'valid_frames': 0,
+            'rejected_frames': 0,
+            'rejection_counts': {},
+            'processing_ms': 0.0,
+        }
+        return {
+            'success': False, 'error': 'silence', 'duration_s': duration_s,
+            'noise_rejection': silence_payload,
+        }
     
     # Extrair pitch
     f0, conf = extract_pitch(audio)
-    valid_frames = int(np.sum(~np.isnan(f0)))
+    valid_frames_raw = int(np.sum(~np.isnan(f0)))
     
-    if valid_frames < 20:
-        return {'success': False, 'error': 'no_pitch', 'valid_frames': valid_frames}
+    # ─── CAMADA VOCAL FOCUS / NOISE REJECTION ────────────────────────────────
+    vf_result: Optional[VocalFocusResult] = None
+    f0_for_notes = f0
+    conf_for_notes = conf
+    if VOCAL_FOCUS_ENABLED:
+        try:
+            vf_result = apply_vocal_focus(
+                audio=audio,
+                f0=f0,
+                conf=conf,
+                sample_rate=SAMPLE_RATE,
+                hop_ms=HOP_MS,
+                config=VOCAL_FOCUS_CONFIG,
+            )
+            if vf_result.passed and vf_result.filtered_f0 is not None:
+                f0_for_notes = vf_result.filtered_f0
+                conf_for_notes = vf_result.filtered_conf
+            else:
+                # Filtro rejeitou o clip — não enviar ao motor tonal.
+                # Mas continuamos respondendo "uncertain" do session para manter
+                # o stage temporal (listening/analyzing/uncertain/confirmed).
+                logger.info(
+                    f"[v10] Clip rejeitado por VocalFocus: stage={vf_result.noise_stage} "
+                    f"motivo={vf_result.rejection_reason}"
+                )
+                session = get_session(device_id)
+                # Atualiza apenas o "last_activity_time" sem injetar notas ruins
+                session.last_activity_time = time.time()
+                result = session.get_result()
+                result['duration_s'] = round(duration_s, 2)
+                result['clip_notes'] = 0
+                result['clip_rejected'] = True
+                result['noise_rejection'] = _build_noise_rejection_payload(vf_result)
+                return result
+        except Exception as exc:
+            # Falha no filtro NUNCA pode quebrar a análise — fallback transparente.
+            logger.warning(f"[v10] VocalFocus falhou ({exc}) — usando f0/conf brutos")
+            vf_result = None
     
-    # Converter para notas
-    notes = pitch_to_notes(f0, conf)
+    if valid_frames_raw < 20:
+        return {
+            'success': False, 'error': 'no_pitch', 'valid_frames': valid_frames_raw,
+            'noise_rejection': _build_noise_rejection_payload(vf_result),
+        }
+    
+    # Converter para notas (usando f0/conf possivelmente filtrados)
+    notes = pitch_to_notes(f0_for_notes, conf_for_notes)
     
     if len(notes) < 2:
-        return {'success': False, 'error': 'no_notes', 'notes': len(notes)}
+        return {
+            'success': False, 'error': 'no_notes', 'notes': len(notes),
+            'noise_rejection': _build_noise_rejection_payload(vf_result),
+        }
     
     # Log das notas detectadas
     logger.info(f"[v10] Notas: {[(NOTE_NAMES_BR[n.pitch_class], f'{n.dur_ms:.0f}ms', 'END' if n.is_phrase_end else '') for n in notes]}")
@@ -1287,6 +1402,7 @@ def analyze_audio_bytes_v10(
     result = session.get_result()
     result['duration_s'] = round(duration_s, 2)
     result['clip_notes'] = len(notes)
+    result['noise_rejection'] = _build_noise_rejection_payload(vf_result)
     
     return result
 

@@ -55,6 +55,36 @@ function writeString(view: DataView, offset: number, str: string) {
 }
 
 /**
+ * NOVO — Estado de filtragem de ruído reportado pela camada vocal_focus
+ * (aplicada antes do motor tonal CREPE).
+ *
+ *   stage:
+ *     'clean'      → áudio limpo, evidência tonal forte
+ *     'noisy'      → ruído ambiente prejudicando, mas com voz residual
+ *     'percussion' → percussão / cliques / impulsos sem pitch sustentado
+ *     'silence'    → microfone praticamente mudo
+ *
+ *   passed:
+ *     true  → o clip alimentou o motor tonal
+ *     false → o clip foi descartado (sem efeito no resultado acumulado)
+ */
+export type NoiseStage = 'clean' | 'noisy' | 'percussion' | 'silence';
+
+export interface NoiseRejectionState {
+  enabled: boolean;
+  stage: NoiseStage;
+  passed: boolean;
+  quality_score: number;     // 0..1 — válidos × confiança média
+  valid_ratio: number;       // 0..1 — frames válidos / total
+  rejection_reason: string | null;
+  total_frames: number;
+  valid_frames: number;
+  rejected_frames: number;
+  rejection_counts: Record<string, number>;
+  processing_ms: number;
+}
+
+/**
  * Resultado da análise ML com Tribunal de Evidências v8
  */
 export interface MLAnalysisResult {
@@ -70,6 +100,10 @@ export interface MLAnalysisResult {
   quality?: 'major' | 'minor';
   key_name?: string;
   confidence?: number;
+
+  // NOVO — estado da camada vocal_focus / noise_rejection
+  noise_rejection?: NoiseRejectionState;
+  clip_rejected?: boolean;
   
   // NOVO v8: Estado de travamento (histerese)
   locked?: boolean;

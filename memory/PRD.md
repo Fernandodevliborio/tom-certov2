@@ -4,6 +4,50 @@
 App mobile (Expo) para detecção de tonalidade de voz a capela em tempo real.
 Backend Python com CREPE (torchcrepe) para extração F0 e lógica tonal madura portada do frontend TS.
 
+## Vocal Focus / Noise Rejection (NOVO — 2026-02-08)
+
+Camada de **pré-processamento** antes do motor tonal CREPE.
+Objetivo: proteger a detecção de tom contra ruído ambiente, percussão, notas curtas e pitch instável.
+
+### Arquivos
+- `/app/backend/vocal_focus.py` — implementação (configurável, com bypass global)
+- `/app/backend/key_detection_v10.py` — integração via flag `VOCAL_FOCUS_ENABLED`
+- `/app/backend/tests/test_vocal_focus.py` — 10 testes unitários (silêncio, ruído, percussão, voz limpa, nota curta, pitch instável, bypass)
+- `/app/frontend/src/utils/noiseStageDebouncer.ts` — histerese para o `noise_stage` (≥1.5s no novo estado antes de trocar)
+- `/app/frontend/src/hooks/useKeyDetection.ts` — expõe `noiseStage` e `noiseDisplay` debounciados
+- `/app/frontend/app/index.tsx` — badge informativo "Ambiente com ruído" / "Percussão detectada" / "Aguardando voz"
+
+### Rollback rápido
+Em `key_detection_v10.py`:
+```python
+VOCAL_FOCUS_ENABLED = False  # camada totalmente bypassada
+```
+Ou ajustar agressividade sem refatorar:
+```python
+VOCAL_FOCUS_CONFIG = VocalFocusConfig(min_frame_confidence=0.30, min_note_duration_ms=80)
+```
+
+### Contrato API (`POST /api/analyze-key`)
+A resposta agora SEMPRE contém:
+```json
+{
+  "noise_rejection": {
+    "enabled": true,
+    "stage": "clean | noisy | percussion | silence",
+    "passed": true,
+    "quality_score": 0.83,
+    "valid_ratio": 0.99,
+    "rejection_reason": null,
+    "total_frames": 200,
+    "valid_frames": 198,
+    "rejected_frames": 2,
+    "rejection_counts": {"low_confidence": 2},
+    "processing_ms": 4.5
+  },
+  "clip_rejected": false   // true quando o filtro descartou o clip antes do motor tonal
+}
+```
+
 ## Core Features
 1. **Ativação via token** (TEST-DEV2026 para devs)
 2. **Gravação contínua** com visualização de pitch

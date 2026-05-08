@@ -22,6 +22,12 @@ import {
 } from '../utils/tonalScorer';
 import { usePitchEngine } from '../audio/usePitchEngine';
 import { analyzeKeyML, MLAnalysisResult, resetKeyAnalysisSession } from '../utils/mlKeyAnalyzer';
+import {
+  createNoiseStageDebouncer,
+  describeStage,
+  NoiseStageDisplay,
+} from '../utils/noiseStageDebouncer';
+import type { NoiseStage } from '../utils/mlKeyAnalyzer';
 import type { PitchEvent, PitchErrorReason } from '../audio/types';
 import { frequencyToMidi, midiToPitchClass } from '../utils/noteUtils';
 import { getDeviceId } from '../auth/deviceId';
@@ -80,6 +86,10 @@ export interface UseKeyDetectionReturn {
   mlProgress: number;
   dismissMlResult: () => void;
   smartStatus: 'idle' | 'warming' | 'listening' | 'analyzing' | 'confirmed';
+  // NOVO — Estado de ruído debounciado, vindo da camada vocal_focus do backend.
+  // Usado pela UI para mostrar mensagens como "Ambiente com ruído" sem flicker.
+  noiseStage: NoiseStage;
+  noiseDisplay: NoiseStageDisplay;
 }
 
 export function useKeyDetection(): UseKeyDetectionReturn {
@@ -311,6 +321,9 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     setMlState('idle');
     setMlResult(null);
     setMlProgress(0);
+    // Reset do debouncer de noise stage
+    noiseDebouncerRef.current.reset();
+    setNoiseStage('clean');
     
     // Reset PCP em background — NÃO aguarda para não bloquear o start do microfone
     resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
@@ -337,6 +350,19 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const [mlResult, setMlResult] = useState<MLAnalysisResult | null>(null);
   const [mlProgress, setMlProgress] = useState(0);
   const deviceIdRef = useRef<string | null>(null);
+
+  // ─── Noise stage com debounce/histerese ─────────────────────────────────
+  // Sempre que o backend responder (sucesso OU rejeição), alimentamos o
+  // debouncer. O debouncer só "publica" um estado novo se ele se manteve
+  // estável por ~1.5s — isso evita flicker visual.
+  const noiseDebouncerRef = useRef(createNoiseStageDebouncer());
+  const [noiseStage, setNoiseStage] = useState<NoiseStage>('clean');
+
+  const ingestNoiseStage = useCallback((stage: NoiseStage | undefined) => {
+    if (!stage) return;
+    const stable = noiseDebouncerRef.current.update(stage, Date.now());
+    setNoiseStage(prev => (prev === stable ? prev : stable));
+  }, []);
   
   // Ref para evitar stale closures no guard de mlState
   const mlStateRef = useRef(mlState);
@@ -416,7 +442,10 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       const result = await analyzeKeyML(clip, undefined, deviceIdRef.current ?? undefined);
       // eslint-disable-next-line no-console
       console.log('[ML] Resposta do backend:', JSON.stringify(result).slice(0, 300));
-      
+
+      // Atualiza estado de ruído (debouciado) — vale para sucesso E rejeição
+      ingestNoiseStage(result.noise_rejection?.stage);
+
       if (result.success) {
         // Logging melhorado para Tribunal v8
         const locked = result.locked ? '🔒TRAVADO' : '⏳pendente';
@@ -460,6 +489,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     setSoftInfo(null);
     setMlResult(null);
     setMlState('idle');
+    noiseDebouncerRef.current.reset();
+    setNoiseStage('clean');
   }, [stop]);
 
   // Soft reset — limpa estado de análise SEM parar o microfone.
@@ -475,6 +506,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     phraseNotesRef.current = [];
     phraseStartTimeRef.current = 0;
     tempBufferRef.current.clear();
+    noiseDebouncerRef.current.reset();
+    setNoiseStage('clean');
     // Zera o acumulador PCP no backend em background (não bloqueia UI)
     resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
   }, []);
@@ -667,5 +700,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     mlProgress,
     dismissMlResult,
     smartStatus,
+    noiseStage,
+    noiseDisplay: describeStage(noiseStage),
   };
 }
