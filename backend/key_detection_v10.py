@@ -288,39 +288,65 @@ def _score_diatonic_scales(pcp: np.ndarray) -> List[Tuple[int, str, float]]:
 
 
 def _compute_cadence_weight(notes: List[Note]) -> np.ndarray:
-    """Calcula peso de CADÊNCIA: onde a música REPOUSA no final.
+    """Calcula peso de CADÊNCIA: onde a música REPOUSA.
+    
+    v13: combina sinal LOCAL (final do áudio) com sinal GLOBAL (todos os
+    phrase-ends ao longo da música ponderados por duração).
+    
+    Antes (v12): só olhava últimas 8 notas + últimos 3 phrase-ends.
+    Bug observado em casos reais: música de 50 notas com 4 phrase-ends em Sol
+    espalhados pela música — mas os últimos 3 phrase-ends caíam em outra nota
+    (modulação no fim), e o algoritmo ignorava os 4 phrase-ends de Sol.
     
     Combina:
-      - últimas 8 notas com peso por recência (mais recente pesa mais)
-      - últimos 3 phrase ends com peso por recência
-      - última nota do áudio (peso especial)
+      A) GLOBAL: todos phrase-ends ponderados por duração (50% do peso)
+      B) LOCAL final: últimas 8 notas + últimos 3 phrase-ends + última nota
+         com pesos por recência (50% do peso)
     """
     cadence = np.zeros(12, dtype=np.float64)
     if not notes:
         return cadence
     
-    # Últimas 8 notas, peso por recência
+    # ─── A) SINAL GLOBAL: phrase-ends ao longo de toda a música ──────────
+    cadence_global = np.zeros(12, dtype=np.float64)
+    for n in notes:
+        if n.is_phrase_end:
+            cadence_global[n.pitch_class] += n.dur_ms * n.confidence * 1.5
+        # Notas LONGAS (>=300ms) também são pontos de repouso parcial,
+        # mesmo sem ser phrase_end formal
+        if n.dur_ms >= 300:
+            cadence_global[n.pitch_class] += (n.dur_ms - 200) * n.confidence * 0.5
+    g_total = cadence_global.sum()
+    if g_total > 0:
+        cadence_global = cadence_global / g_total
+
+    # ─── B) SINAL LOCAL: últimas 8 notas com peso por recência ───────────
+    cadence_local = np.zeros(12, dtype=np.float64)
     last_n = min(8, len(notes))
     for rank, n in enumerate(notes[-last_n:]):
-        # rank 0 = mais antiga; last_n-1 = última
         recency = (rank + 1) ** 1.3
         weight = n.dur_ms * n.confidence * recency
         if n.is_phrase_end:
             weight *= 2.0
-        cadence[n.pitch_class] += weight
+        cadence_local[n.pitch_class] += weight
     
-    # Últimos 3 phrase ends explícitos
     pe_indices = [i for i, n in enumerate(notes) if n.is_phrase_end]
     for rank, idx in enumerate(pe_indices[-3:]):
         n = notes[idx]
         recency = (len(pe_indices[-3:]) - rank) ** 1.2
-        cadence[n.pitch_class] += n.dur_ms * n.confidence * recency * 1.5
+        cadence_local[n.pitch_class] += n.dur_ms * n.confidence * recency * 1.5
     
-    # ÚLTIMA NOTA do áudio: peso decisivo (a tônica é onde a música acaba)
     last_note = notes[-1]
-    cadence[last_note.pitch_class] += last_note.dur_ms * last_note.confidence * 5.0
+    cadence_local[last_note.pitch_class] += last_note.dur_ms * last_note.confidence * 5.0
     
-    # Normalizar
+    l_total = cadence_local.sum()
+    if l_total > 0:
+        cadence_local = cadence_local / l_total
+
+    # ─── COMBINAR: 50% global + 50% local ──────────────────────────────
+    cadence = 0.5 * cadence_global + 0.5 * cadence_local
+    
+    # Renormalizar
     total = cadence.sum()
     if total > 0:
         cadence = cadence / total
@@ -617,7 +643,7 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
             # cadence~0 vencendo por align+third (Sol Maior → Sol# menor;
             # Ré# Maior → Sol menor). LEI 1: tônica é onde a música repousa.
             cad_t = float(cadence[tonic_pc])
-            if mode == 'minor' and cad_t < 0.05 and alignment_bonus > 0:
+            if mode == 'minor' and cad_t < 0.10 and alignment_bonus > 0:
                 # Cap minor sem repouso a 50% do bônus
                 alignment_bonus *= 0.5
             details['score'] += alignment_bonus
