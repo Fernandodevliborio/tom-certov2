@@ -32,6 +32,11 @@ import type { PitchEvent, PitchErrorReason } from '../audio/types';
 import { frequencyToMidi, midiToPitchClass } from '../utils/noteUtils';
 import { getDeviceId } from '../auth/deviceId';
 import { audioLog } from '../audio/audioLogger';
+import {
+  loadDetectionMode,
+  saveDetectionMode,
+  type DetectionMode,
+} from '../utils/detectionMode';
 
 // ─── Pipeline Health Watchdog (timeouts aprovados pelo usuário) ───
 const WATCHDOG_TICK_MS = 1000;                // verificação a cada 1s
@@ -114,6 +119,14 @@ export interface UseKeyDetectionReturn {
    * O UI pode mostrar "Reiniciando escuta..." quando isso for diferente de 'idle'.
    */
   recoveryStatus: 'idle' | 'restarting' | 'soft_reset' | 'hard_reset';
+  /**
+   * NOVO — Modo de detecção ativo.
+   *   'vocal'             → Voz / A capela (padrão, comportamento preservado)
+   *   'vocal_instrument'  → Voz + Instrumento (acordes/baixo viram evidência)
+   * Persistido em AsyncStorage. Trocar de modo dispara hardReset automático.
+   */
+  detectionMode: DetectionMode;
+  setDetectionMode: (mode: DetectionMode) => Promise<void>;
 }
 
 export function useKeyDetection(): UseKeyDetectionReturn {
@@ -130,6 +143,23 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   const [recoveryStatus, setRecoveryStatus] = useState<
     'idle' | 'restarting' | 'soft_reset' | 'hard_reset'
   >('idle');
+
+  // ─── Modo de detecção (persistido em AsyncStorage) ────────────────────
+  const [detectionMode, _setDetectionMode] = useState<DetectionMode>('vocal');
+  const detectionModeRef = useRef<DetectionMode>('vocal');
+  useEffect(() => { detectionModeRef.current = detectionMode; }, [detectionMode]);
+
+  // Carrega o modo persistido no boot (1x). Default = 'vocal'.
+  useEffect(() => {
+    let cancelled = false;
+    loadDetectionMode().then(m => {
+      if (!cancelled) {
+        _setDetectionMode(m);
+        audioLog.info('detection_mode_loaded', { mode: m });
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const engine = usePitchEngine();
 
@@ -397,7 +427,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     setRecoveryStatus('idle');
 
     // Reset PCP em background — NÃO aguarda para não bloquear o start do microfone
-    resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
+    resetKeyAnalysisSession(deviceIdRef.current ?? undefined, detectionModeRef.current).catch(() => {});
 
     try {
       const ok = await engine.start(onPitch, onError);
@@ -535,6 +565,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
         undefined,
         deviceIdRef.current ?? undefined,
         controller.signal,
+        detectionModeRef.current,
       );
 
       if (controller.signal.aborted || result.error === 'cancelled') {
@@ -682,11 +713,36 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     }
 
     // 6. Reset PCP no backend (não bloqueia)
-    resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
+    resetKeyAnalysisSession(deviceIdRef.current ?? undefined, detectionModeRef.current).catch(() => {});
 
     setRecoveryStatus('idle');
     audioLog.info('hard_reset_detection', { phase: 'done', restartOk });
   }, [engine, onPitch, onError]);
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // setDetectionMode — troca o modo e dispara hardReset automático
+  // ═══════════════════════════════════════════════════════════════════════
+  // Trocar de modo afeta a calibração do focus (vocal vs instrumento) e
+  // a sessão acumulada no backend. Para evitar análise híbrida confusa,
+  // descartamos a sessão atual e iniciamos uma nova em modo diferente.
+  // - Se NÃO estava rodando: só atualiza o state + persiste.
+  // - Se ESTAVA rodando: hardReset limpa tudo + restart do recorder.
+  const setDetectionMode = useCallback(async (next: DetectionMode) => {
+    if (next !== 'vocal' && next !== 'vocal_instrument') return;
+    if (next === detectionModeRef.current) return;
+    audioLog.info('detection_mode_changing', {
+      from: detectionModeRef.current, to: next, isRunning: isRunningRef.current,
+    });
+    // Atualiza imediatamente o state + ref + persistência
+    detectionModeRef.current = next;
+    _setDetectionMode(next);
+    saveDetectionMode(next).catch(() => {});
+    // Se estava rodando, faz hardReset (descarta sessão + restart engine)
+    if (isRunningRef.current) {
+      await hardReset();
+    }
+    audioLog.info('detection_mode_changed', { mode: next });
+  }, [hardReset]);
 
   // Soft reset — limpa estado de análise SEM parar o microfone.
   // Usado pelo botão "Detectar novo tom" no UI.
@@ -716,7 +772,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     lastValidPitchAtRef.current = t;
     lastBackendProgressAtRef.current = t;
     // Zera o acumulador PCP no backend em background (não bloqueia UI)
-    resetKeyAnalysisSession(deviceIdRef.current ?? undefined).catch(() => {});
+    resetKeyAnalysisSession(deviceIdRef.current ?? undefined, detectionModeRef.current).catch(() => {});
     setRecoveryStatus('idle');
   }, []);
 
@@ -1047,5 +1103,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     noiseStage,
     noiseDisplay: describeStage(noiseStage),
     recoveryStatus,
+    detectionMode,
+    setDetectionMode,
   };
 }

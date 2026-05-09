@@ -101,6 +101,26 @@ export interface MLAnalysisResult {
   key_name?: string;
   confidence?: number;
 
+  // NOVO — modo ativo (echo do header X-Detection-Mode enviado)
+  mode?: 'vocal' | 'vocal_instrument';
+
+  // NOVO — evidência instrumental (apenas presente quando mode='vocal_instrument')
+  instrument_evidence?: {
+    chords: Array<{
+      pc: number;
+      quality: 'major' | 'minor';
+      dur_ms: number;
+      strength: number;
+      start_s: number;
+    }>;
+    bass_notes: Array<{
+      pc: number;
+      dur_ms: number;
+      strength: number;
+      start_s: number;
+    }>;
+  };
+
   // NOVO — estado da camada vocal_focus / noise_rejection
   noise_rejection?: NoiseRejectionState;
   clip_rejected?: boolean;
@@ -226,9 +246,10 @@ export interface MLAnalysisResult {
 
 export async function analyzeKeyML(
   clip: CapturedClip,
-  timeoutMs: number = 12000,  // FIX: 30s era longo demais — CREPE tiny deve responder em <10s
+  timeoutMs: number = 12000,
   deviceId?: string,
   externalSignal?: AbortSignal,
+  mode?: 'vocal' | 'vocal_instrument',
 ): Promise<MLAnalysisResult> {
   const wav = float32ToWav(clip.samples, clip.sampleRate);
   const base = getBackendUrl();
@@ -252,6 +273,9 @@ export async function analyzeKeyML(
 
   const headers: Record<string, string> = { 'Content-Type': 'audio/wav' };
   if (deviceId) headers['X-Device-Id'] = deviceId;
+  if (mode === 'vocal' || mode === 'vocal_instrument') {
+    headers['X-Detection-Mode'] = mode;
+  }
 
   try {
     const res = await fetch(`${base}/api/analyze-key`, {
@@ -290,7 +314,10 @@ export async function analyzeKeyML(
  * Reseta o acumulador de PCP da sessão atual no backend.
  * Chamado quando usuário inicia nova captura (botão START).
  */
-export async function resetKeyAnalysisSession(deviceId?: string): Promise<boolean> {
+export async function resetKeyAnalysisSession(
+  deviceId?: string,
+  mode?: 'vocal' | 'vocal_instrument',
+): Promise<boolean> {
   const base = getBackendUrl();
   if (!base) return false;
   const controller = new AbortController();
@@ -298,6 +325,10 @@ export async function resetKeyAnalysisSession(deviceId?: string): Promise<boolea
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (deviceId) headers['X-Device-Id'] = deviceId;
+    // Sem X-Detection-Mode: backend reseta TODAS as sessões do device
+    if (mode === 'vocal' || mode === 'vocal_instrument') {
+      headers['X-Detection-Mode'] = mode;
+    }
     const res = await fetch(`${base}/api/analyze-key/reset`, {
       method: 'POST',
       headers,

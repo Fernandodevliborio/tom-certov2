@@ -457,11 +457,19 @@ from key_detection_v10 import (
 
 @api_router.post("/analyze-key/reset")
 async def reset_key_session(request: Request):
-    """Zera o acumulador de sessão — chamado quando usuário inicia nova análise."""
+    """Zera o acumulador de sessão — chamado quando usuário inicia nova análise.
+
+    Aceita header opcional X-Detection-Mode ('vocal' | 'vocal_instrument').
+    Se não vier, reseta TODAS as sessões do device (qualquer modo).
+    """
     device_id = request.headers.get('X-Device-Id', 'anon')
-    reset_session(device_id)
-    logger.info(f"[AnalyzeKey v10] sessão resetada dev={device_id[:8]}")
-    return {'reset': True, 'device': device_id[:8], 'version': 'v10-definitivo'}
+    mode_header = request.headers.get('X-Detection-Mode')
+    mode_norm: Optional[str] = None
+    if mode_header in ('vocal', 'vocal_instrument'):
+        mode_norm = mode_header
+    reset_session(device_id, mode_norm)
+    logger.info(f"[AnalyzeKey v10] sessão resetada dev={device_id[:8]} mode={mode_norm or 'all'}")
+    return {'reset': True, 'device': device_id[:8], 'mode': mode_norm or 'all', 'version': 'v10-definitivo'}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -733,42 +741,54 @@ async def analyze_key_diagnostic(request: Request):
 
 @api_router.post("/analyze-key")
 async def analyze_key(request: Request):
-    """DETECÇÃO DE TONALIDADE v10 — VERSÃO DEFINITIVA"""
+    """DETECÇÃO DE TONALIDADE v10 — VERSÃO DEFINITIVA
+
+    Aceita header `X-Detection-Mode`:
+      - 'vocal' (padrão)            → modo voz / a capela
+      - 'vocal_instrument'          → modo voz + instrumento
+    Qualquer outro valor cai no modo 'vocal' (rollback seguro).
+    """
     audio_bytes = await request.body()
     device_id = request.headers.get('X-Device-Id', 'anon')
-    logger.info(f"[AnalyzeKey v10] recebeu {len(audio_bytes)} bytes dev={device_id[:8]}")
-    
+    mode_header = request.headers.get('X-Detection-Mode', 'vocal')
+    mode = mode_header if mode_header in ('vocal', 'vocal_instrument') else 'vocal'
+    logger.info(f"[AnalyzeKey v10] recebeu {len(audio_bytes)} bytes dev={device_id[:8]} mode={mode}")
+
     if not audio_bytes or len(audio_bytes) < 500:
         return JSONResponse({
             "success": False, "error": "audio_too_short",
-            "message": "Áudio muito curto ou vazio."
+            "message": "Áudio muito curto ou vazio.",
+            "mode": mode,
         }, status_code=400)
 
     try:
         result = analyze_audio_bytes_v10(
             audio_bytes=audio_bytes,
             device_id=device_id,
+            mode=mode,
         )
-        
+
         if result.get('success'):
             locked_str = '🔒TRAVADO' if result.get('locked') else '⏳analisando'
             logger.info(
-                f"[AnalyzeKey v10] ✓ {locked_str} key={result.get('key_name', '?')} "
+                f"[AnalyzeKey v10] ✓ {locked_str} mode={result.get('mode', mode)} "
+                f"key={result.get('key_name', '?')} "
                 f"conf={result.get('confidence', 0):.2f} "
                 f"analyses={result.get('analyses', 0)} "
                 f"notes={result.get('clip_notes', 0)}"
             )
         else:
-            logger.warning(f"[AnalyzeKey v10] ✗ error={result.get('error')}")
+            logger.warning(f"[AnalyzeKey v10] ✗ mode={mode} error={result.get('error')}")
 
         return JSONResponse(result)
-        
+
     except Exception as e:
         logger.error(f"[AnalyzeKey v10] Erro: {e}", exc_info=True)
         return JSONResponse({
             "success": False,
             "error": "internal_error",
             "message": str(e),
+            "mode": mode,
         }, status_code=500)
 
 

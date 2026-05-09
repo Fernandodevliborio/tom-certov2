@@ -17,6 +17,7 @@ import AudioVisualizer from '../src/components/AudioVisualizer';
 import SmartChordsMode from '../src/components/SmartChordsMode';
 import UpgradeModal from '../src/components/UpgradeModal';
 import { WrongKeyFeedback } from '../src/components/WrongKeyFeedback';
+import { DetectionModeSelector } from '../src/components/DetectionModeSelector';
 import { getDeviceId } from '../src/auth/deviceId';
 import {
   StableKeyState,
@@ -64,7 +65,13 @@ export default function HomeScreen() {
   return (
     <SafeAreaView testID="home-screen" style={ss.safe}>
       {screen === 'initial'
-        ? <InitialScreen onStart={det.start} errorMessage={det.errorMessage} errorReason={det.errorReason} />
+        ? <InitialScreen
+            onStart={det.start}
+            errorMessage={det.errorMessage}
+            errorReason={det.errorReason}
+            detectionMode={det.detectionMode}
+            setDetectionMode={det.setDetectionMode}
+          />
         : <ActiveScreen det={det} />
       }
     </SafeAreaView>
@@ -75,11 +82,13 @@ export default function HomeScreen() {
 // INITIAL SCREEN — REFATORADA COM HIERARQUIA CLARA
 // ═══════════════════════════════════════════════════════════════════════════
 function InitialScreen({
-  onStart, errorMessage, errorReason,
+  onStart, errorMessage, errorReason, detectionMode, setDetectionMode,
 }: {
   onStart: () => void;
   errorMessage: string | null;
   errorReason: 'permission_denied' | 'permission_blocked' | 'platform_limit' | 'unknown' | null;
+  detectionMode: 'vocal' | 'vocal_instrument';
+  setDetectionMode: (mode: 'vocal' | 'vocal_instrument') => Promise<void>;
 }) {
   const { logout, session } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
@@ -286,6 +295,14 @@ function InitialScreen({
           <View style={ss.ctaDot} />
           <Text style={ss.ctaSub}>IA ouvindo em tempo real</Text>
         </View>
+      </View>
+
+      {/* ═══ SELETOR DE MODO (discreto, expansível) ═══ */}
+      <View style={{ paddingHorizontal: 24, marginTop: 16, marginBottom: 4 }}>
+        <DetectionModeSelector
+          value={detectionMode}
+          onChange={(m) => { setDetectionMode(m).catch(() => {}); }}
+        />
       </View>
 
       {/* ═══ FERRAMENTAS ═══ */}

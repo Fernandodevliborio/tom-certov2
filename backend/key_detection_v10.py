@@ -45,6 +45,8 @@ from vocal_focus import (
     VocalFocusConfig,
     VocalFocusResult,
 )
+from vocal_instrument_focus import INSTRUMENT_CONFIG
+from instrument_chord_detector import detect_chords_and_bass
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,16 @@ logger = logging.getLogger(__name__)
 # Para ajustar agressividade sem mexer no código: editar VOCAL_FOCUS_CONFIG.
 VOCAL_FOCUS_ENABLED: bool = True
 VOCAL_FOCUS_CONFIG: VocalFocusConfig = VocalFocusConfig(enabled=VOCAL_FOCUS_ENABLED)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MODO VOZ + INSTRUMENTO (rollback fácil)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Setar False desliga o modo: o servidor passa a ignorar o header X-Detection-Mode
+# e força mode='vocal' em todas as requisições. Usado em emergência.
+INSTRUMENT_MODE_ENABLED: bool = True
+
+# Logar como [InstrMode] para diferenciar do log do modo vocal puro.
+_instr_logger = logging.getLogger('tom_certo.instr_mode')
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONSTANTES
@@ -1243,19 +1255,33 @@ class SessionAccumulator:
         self.locked_at = time.time()
 
 
-# Armazenamento de sessões
+# Armazenamento de sessões — chave: f"{device_id}::{mode}" para ISOLAR sessões
+# por modo (vocal vs vocal_instrument). Trocar de modo cria nova sessão limpa.
 _sessions: Dict[str, SessionAccumulator] = {}
 
 
-def get_session(device_id: str) -> SessionAccumulator:
-    if device_id not in _sessions:
-        _sessions[device_id] = SessionAccumulator()
-    return _sessions[device_id]
+def _session_key(device_id: str, mode: str) -> str:
+    return f"{device_id}::{mode}"
 
 
-def reset_session(device_id: str):
-    if device_id in _sessions:
-        _sessions[device_id].reset()
+def get_session(device_id: str, mode: str = 'vocal') -> SessionAccumulator:
+    key = _session_key(device_id, mode)
+    if key not in _sessions:
+        _sessions[key] = SessionAccumulator()
+    return _sessions[key]
+
+
+def reset_session(device_id: str, mode: Optional[str] = None):
+    """Reseta a sessão. Se `mode` for None, reseta TODAS as sessões do device."""
+    if mode is not None:
+        key = _session_key(device_id, mode)
+        if key in _sessions:
+            _sessions[key].reset()
+        return
+    # Reset todas as sessões do device (qualquer modo)
+    for k in list(_sessions.keys()):
+        if k.startswith(f"{device_id}::"):
+            _sessions[k].reset()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1301,19 +1327,30 @@ def _build_noise_rejection_payload(vf: Optional[VocalFocusResult]) -> Dict[str, 
 def analyze_audio_bytes_v10(
     audio_bytes: bytes,
     device_id: str = 'anon',
+    mode: str = 'vocal',
 ) -> Dict[str, Any]:
-    """Análise de tonalidade v10 — Versão Definitiva."""
-    
+    """Análise de tonalidade v10 — Versão Definitiva.
+
+    Args:
+        mode: 'vocal' (padrão — comportamento atual preservado) ou
+              'vocal_instrument' (nova camada que aceita instrumentos harmônicos).
+              Se INSTRUMENT_MODE_ENABLED=False, qualquer valor cai em 'vocal'.
+    """
+    # ─── Normalização do modo (rollback seguro) ───────────────────────────
+    if not INSTRUMENT_MODE_ENABLED or mode not in ('vocal', 'vocal_instrument'):
+        mode = 'vocal'
+
     # Carregar áudio
     audio, has_audio = load_audio(audio_bytes)
     duration_s = len(audio) / SAMPLE_RATE
-    
+
     if duration_s < 1.0:
         return {
             'success': False, 'error': 'too_short', 'duration_s': duration_s,
             'noise_rejection': _build_noise_rejection_payload(None),
+            'mode': mode,
         }
-    
+
     if not has_audio:
         # Áudio é praticamente silêncio — informa noise_stage='silence'
         silence_payload = {
@@ -1332,16 +1369,20 @@ def analyze_audio_bytes_v10(
         return {
             'success': False, 'error': 'silence', 'duration_s': duration_s,
             'noise_rejection': silence_payload,
+            'mode': mode,
         }
-    
+
     # Extrair pitch
     f0, conf = extract_pitch(audio)
     valid_frames_raw = int(np.sum(~np.isnan(f0)))
-    
+
     # ─── CAMADA VOCAL FOCUS / NOISE REJECTION ────────────────────────────────
+    # Para mode='vocal_instrument', usa INSTRUMENT_CONFIG (mais permissivo
+    # com instrumentos, mantém rejeição de percussão).
     vf_result: Optional[VocalFocusResult] = None
     f0_for_notes = f0
     conf_for_notes = conf
+    active_focus_config = INSTRUMENT_CONFIG if mode == 'vocal_instrument' else VOCAL_FOCUS_CONFIG
     if VOCAL_FOCUS_ENABLED:
         try:
             vf_result = apply_vocal_focus(
@@ -1350,60 +1391,174 @@ def analyze_audio_bytes_v10(
                 conf=conf,
                 sample_rate=SAMPLE_RATE,
                 hop_ms=HOP_MS,
-                config=VOCAL_FOCUS_CONFIG,
+                config=active_focus_config,
             )
             if vf_result.passed and vf_result.filtered_f0 is not None:
                 f0_for_notes = vf_result.filtered_f0
                 conf_for_notes = vf_result.filtered_conf
             else:
                 # Filtro rejeitou o clip — não enviar ao motor tonal.
-                # Mas continuamos respondendo "uncertain" do session para manter
-                # o stage temporal (listening/analyzing/uncertain/confirmed).
                 logger.info(
-                    f"[v10] Clip rejeitado por VocalFocus: stage={vf_result.noise_stage} "
+                    f"[v10/{mode}] Clip rejeitado por focus: stage={vf_result.noise_stage} "
                     f"motivo={vf_result.rejection_reason}"
                 )
-                session = get_session(device_id)
-                # Atualiza apenas o "last_activity_time" sem injetar notas ruins
+                if mode == 'vocal_instrument':
+                    _instr_logger.info(
+                        f"[InstrMode] modo_ativo=vocal_instrument "
+                        f"frames_rejeitados_ruido={vf_result.rejected_frames} "
+                        f"motivo_rejeicao={vf_result.rejection_reason}"
+                    )
+                session = get_session(device_id, mode)
                 session.last_activity_time = time.time()
                 result = session.get_result()
                 result['duration_s'] = round(duration_s, 2)
                 result['clip_notes'] = 0
                 result['clip_rejected'] = True
                 result['noise_rejection'] = _build_noise_rejection_payload(vf_result)
+                result['mode'] = mode
                 return result
         except Exception as exc:
-            # Falha no filtro NUNCA pode quebrar a análise — fallback transparente.
-            logger.warning(f"[v10] VocalFocus falhou ({exc}) — usando f0/conf brutos")
+            logger.warning(f"[v10/{mode}] focus falhou ({exc}) — usando f0/conf brutos")
             vf_result = None
-    
+
     if valid_frames_raw < 20:
         return {
             'success': False, 'error': 'no_pitch', 'valid_frames': valid_frames_raw,
             'noise_rejection': _build_noise_rejection_payload(vf_result),
+            'mode': mode,
         }
-    
+
     # Converter para notas (usando f0/conf possivelmente filtrados)
     notes = pitch_to_notes(f0_for_notes, conf_for_notes)
-    
+
+    # ─── EVIDÊNCIA INSTRUMENTAL EXTRA (apenas no modo vocal_instrument) ───
+    chord_evidence: List[Dict[str, Any]] = []
+    bass_evidence: List[Dict[str, Any]] = []
+    if mode == 'vocal_instrument':
+        try:
+            detections = detect_chords_and_bass(
+                audio=audio.astype(np.float32),
+                sample_rate=SAMPLE_RATE,
+                window_ms=500.0,
+                hop_ms=250.0,
+                min_chord_strength=0.55,
+            )
+        except Exception as exc:
+            logger.warning(f"[v10/instrument] chord_detector falhou ({exc})")
+            detections = []
+
+        # Aceita acordes únicos consecutivos como notas de alto peso
+        # (root e bass viram Note objetos com duração proporcional à
+        #  consistência da detecção).
+        # Estratégia: agrupar detecções consecutivas com o mesmo chord_pc,
+        # criar uma Note com duração igual ao tempo total e confiança = strength.
+        if detections:
+            i = 0
+            while i < len(detections):
+                root_pc = detections[i]['chord_pc']
+                quality_chord = detections[i]['chord_quality']
+                start_t = float(detections[i]['time_s'])
+                strength_sum = float(detections[i]['chord_strength'])
+                count = 1
+                j = i + 1
+                while j < len(detections) and detections[j]['chord_pc'] == root_pc:
+                    strength_sum += float(detections[j]['chord_strength'])
+                    count += 1
+                    j += 1
+                end_t = float(detections[j - 1]['time_s']) + 0.5  # janela = 500ms
+                dur_ms = max(200.0, (end_t - start_t) * 1000.0)
+                avg_strength = strength_sum / count
+                # Cria Note "sintética" do chord root com peso reforçado
+                notes.append(Note(
+                    pitch_class=int(root_pc),
+                    midi=60.0 + float(root_pc),  # MIDI do octave 4 (uso só PCP)
+                    dur_ms=dur_ms,
+                    start_ms=start_t * 1000.0,
+                    confidence=min(0.95, avg_strength * 1.1),
+                    is_phrase_end=False,
+                ))
+                chord_evidence.append({
+                    'pc': int(root_pc),
+                    'quality': str(quality_chord),
+                    'dur_ms': round(dur_ms, 1),
+                    'strength': round(avg_strength, 3),
+                    'start_s': round(start_t, 3),
+                })
+                # Bass do primeiro grupo (mais provável de ser a fundamental)
+                bass_pc = detections[i].get('bass_pc')
+                bass_strength = float(detections[i].get('bass_strength', 0.0))
+                if bass_pc is not None and bass_strength > 0.15:
+                    notes.append(Note(
+                        pitch_class=int(bass_pc),
+                        midi=36.0 + float(bass_pc),  # 2ª oitava
+                        dur_ms=dur_ms * 0.7,
+                        start_ms=start_t * 1000.0,
+                        confidence=min(0.90, bass_strength * 1.0 + 0.30),
+                        is_phrase_end=False,
+                    ))
+                    bass_evidence.append({
+                        'pc': int(bass_pc),
+                        'dur_ms': round(dur_ms * 0.7, 1),
+                        'strength': round(bass_strength, 3),
+                        'start_s': round(start_t, 3),
+                    })
+                i = j
+        _instr_logger.info(
+            f"[InstrMode] modo_ativo=vocal_instrument "
+            f"frames_vocais_aceitos={int(np.sum(~np.isnan(f0_for_notes)))} "
+            f"frames_instrumentais_aceitos={len(chord_evidence) + len(bass_evidence)} "
+            f"frames_rejeitados_ruido={vf_result.rejected_frames if vf_result else 0} "
+            f"acordes_detectados={len(chord_evidence)} "
+            f"notas_baixo_detectadas={len(bass_evidence)}"
+        )
+
     if len(notes) < 2:
         return {
             'success': False, 'error': 'no_notes', 'notes': len(notes),
             'noise_rejection': _build_noise_rejection_payload(vf_result),
+            'mode': mode,
         }
-    
+
     # Log das notas detectadas
-    logger.info(f"[v10] Notas: {[(NOTE_NAMES_BR[n.pitch_class], f'{n.dur_ms:.0f}ms', 'END' if n.is_phrase_end else '') for n in notes]}")
-    
-    # Acumular e analisar
-    session = get_session(device_id)
+    logger.info(f"[v10/{mode}] Notas: {[(NOTE_NAMES_BR[n.pitch_class], f'{n.dur_ms:.0f}ms', 'END' if n.is_phrase_end else '') for n in notes]}")
+
+    # Acumular e analisar (sessões SEPARADAS por modo)
+    session = get_session(device_id, mode)
+
+    # ─── HYSTERESIS REFORÇADA NO MODO INSTRUMENTO ────────────────────────
+    # Salvamos snapshot pra detectar se houve troca de tom protegida.
+    locked_before = session.locked_tonic
     session.add_analysis(notes)
-    
     result = session.get_result()
+    locked_after = session.locked_tonic
+
+    # Logs específicos do modo instrumento
+    if mode == 'vocal_instrument':
+        if locked_before is not None and locked_after == locked_before:
+            _instr_logger.info(
+                f"[InstrMode] tom_protegido_por_hysteresis tonic={NOTE_NAMES_BR[locked_before]} "
+                f"clip_notes={len(notes)}"
+            )
+        elif locked_before is not None and locked_after != locked_before:
+            _instr_logger.info(
+                f"[InstrMode] troca_de_tonalidade: {NOTE_NAMES_BR[locked_before]} -> "
+                f"{NOTE_NAMES_BR[locked_after] if locked_after is not None else '?'}"
+            )
+        if result.get('show_key'):
+            _instr_logger.info(
+                f"[InstrMode] tonalidade_final={result.get('key_name')} "
+                f"confianca_final={result.get('confidence', 0):.2f}"
+            )
+
     result['duration_s'] = round(duration_s, 2)
     result['clip_notes'] = len(notes)
     result['noise_rejection'] = _build_noise_rejection_payload(vf_result)
-    
+    result['mode'] = mode
+    if mode == 'vocal_instrument':
+        result['instrument_evidence'] = {
+            'chords': chord_evidence,
+            'bass_notes': bass_evidence,
+        }
     return result
 
 

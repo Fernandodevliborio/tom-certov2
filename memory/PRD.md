@@ -4,7 +4,55 @@
 App mobile (Expo) para detecção de tonalidade de voz a capela em tempo real.
 Backend Python com CREPE (torchcrepe) para extração F0 e lógica tonal madura portada do frontend TS.
 
-## Pipeline Health Watchdog (NOVO — 2026-02-08, segunda iteração)
+## Modo Voz + Instrumento (NOVO — 2026-02-09)
+
+Segundo modo de detecção, **adicionado sem alterar o modo Voz/A capela**.
+
+### Arquitetura
+- `/app/backend/vocal_instrument_focus.py` — `INSTRUMENT_CONFIG` (variante mais permissiva: F0 50–1500Hz, min_rms menor, mantém rejeição de percussão idêntica)
+- `/app/backend/instrument_chord_detector.py` — chroma CQT + 24 templates (12 maj + 12 min) + bass-note via FFT banda 50-200Hz
+- `/app/backend/key_detection_v10.py` — parâmetro `mode='vocal'|'vocal_instrument'`; sessões isoladas via chave `f"{device}::{mode}"`; rollback via `INSTRUMENT_MODE_ENABLED`
+- `/app/backend/server.py` — header `X-Detection-Mode` (default `vocal`); valor inválido cai em `vocal`
+- `/app/frontend/src/utils/detectionMode.ts` — persistência AsyncStorage
+- `/app/frontend/src/components/DetectionModeSelector.tsx` — card colapsado expansível, posicionado abaixo do CTA
+- `/app/frontend/src/hooks/useKeyDetection.ts` — `detectionMode` + `setDetectionMode` (dispara hardReset automático)
+- `/app/frontend/src/utils/mlKeyAnalyzer.ts` — envia header + tipa `instrument_evidence` na resposta
+
+### Fluxo do modo vocal_instrument
+1. `apply_vocal_focus(config=INSTRUMENT_CONFIG)` → aceita instrumentos sem perder rejeição de percussão
+2. `detect_chords_and_bass(audio)` → lista de detecções (chord_pc, chord_quality, bass_pc, strength) por janela de 500ms
+3. Acordes consecutivos com mesmo root viram **Note sintética** (PC root + duração proporcional + alta confiança)
+4. Bass dominante vira outra Note (oitava 2)
+5. Tudo alimenta o motor tonal existente (`pitch_to_notes` → `session.add_analysis`)
+6. Hysteresis do `SessionAccumulator` já existente protege troca de tom
+
+### Rollback
+```python
+# /app/backend/key_detection_v10.py
+INSTRUMENT_MODE_ENABLED: bool = False  # ⇒ servidor força mode='vocal' em tudo
+```
+
+### Resposta API (modo `vocal_instrument`)
+```json
+{
+  "mode": "vocal_instrument",
+  "noise_rejection": {...},
+  "instrument_evidence": {
+    "chords": [{"pc": 0, "quality": "major", "dur_ms": 1500, "strength": 0.83, "start_s": 0.5}],
+    "bass_notes": [{"pc": 0, "dur_ms": 1050, "strength": 0.42, "start_s": 0.5}]
+  }
+}
+```
+
+### Logs estruturados (`[InstrMode]`)
+`modo_ativo`, `frames_vocais_aceitos`, `frames_instrumentais_aceitos`, `frames_rejeitados_ruido`, `acordes_detectados`, `notas_baixo_detectadas`, `motivo_rejeicao`, `tonalidade_final`, `confianca_final`, `tom_protegido_por_hysteresis`, `troca_de_tonalidade`.
+
+### Testes (22/22 passando)
+- `tests/test_vocal_focus.py` (10) — regressão modo vocal
+- `tests/test_vocal_instrument_focus.py` (6) — INSTRUMENT_CONFIG: bass E2, violão D3, C6, percussão rejeitada, silêncio rejeitado
+- `tests/test_instrument_chord_detector.py` (6) — detecta C major, A minor, ruído branco não gera, performance <2s
+
+## Pipeline Health Watchdog (2026-02-08)
 
 Sistema completo de auto-recuperação para impedir o estado zumbi "Ouvindo..." infinito.
 
