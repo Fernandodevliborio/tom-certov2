@@ -826,34 +826,72 @@ class SessionAccumulator:
     
     def _current_stage(self) -> Dict[str, Any]:
         """
-        Máquina de estados v14 — JANELA FIXA 30s, decisão única.
-        
-        Stages:
-          - listening   (0-10s):    "Ouvindo…"
-          - analyzing   (10-30s):   "Analisando padrão melódico…" (não mostra tom)
-          - confirmed   (30s+):     SE critérios rigorosos, tom travado com confiança
-          - uncertain   (30s+):     SE não tem critérios, pede mais áudio (sem mostrar)
-        
-        NUNCA mostra tom antes dos 30s. Elimina o estágio "provável" que confundia
-        usuário com resultados errados "parciais".
+        Máquina de estados v15 (Fase 1) — DECISÃO PROGRESSIVA POR EVIDÊNCIA.
+
+        Stages (controlam apenas o tier de critérios — todos avaliam a tônica):
+          - listening          (0-5s):    apenas escuta, sem decisão
+          - evaluating-strict  (5-15s):   permite confirmar com evidência MUITO forte
+          - evaluating-solid   (15-30s):  permite confirmar com evidência sólida
+          - decision           (30s+):    critérios padrão (igual v14)
+
+        Diferença vs. v14: agora é POSSÍVEL ter resultado antes de 30s quando
+        o sinal é claramente forte. Nunca trava infinito após 30s.
         """
         elapsed = time.time() - self.start_time
-        return {
-            'elapsed_s': round(elapsed, 1),
-            'stage': (
-                'listening' if elapsed < 10.0
-                else 'analyzing' if elapsed < 30.0
-                else 'decision'  # decisão binária aos 30s+
-            ),
-        }
+        if elapsed < 5.0:
+            stage = 'listening'
+        elif elapsed < 15.0:
+            stage = 'evaluating-strict'
+        elif elapsed < 30.0:
+            stage = 'evaluating-solid'
+        else:
+            stage = 'decision'
+        return {'elapsed_s': round(elapsed, 1), 'stage': stage}
     
+    def _confirmed_payload(
+        self,
+        elapsed: float,
+        method: str,
+        notes_count: int,
+        criteria: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Payload comum de resposta confirmada (tom travado)."""
+        detection_s = self._detection_duration_s if self._detection_duration_s is not None else round(elapsed, 1)
+        payload: Dict[str, Any] = {
+            'success': True,
+            'stage': 'confirmed',
+            'stage_label': f'Tom confirmado em {int(round(detection_s))} segundos',
+            'stage_hint': 'A IA identificou o centro tonal da música.',
+            'show_key': True,
+            'tonic': self.locked_tonic,
+            'tonic_name': NOTE_NAMES_BR[self.locked_tonic] if self.locked_tonic is not None else None,
+            'quality': self.locked_quality,
+            'key_name': (
+                f"{NOTE_NAMES_BR[self.locked_tonic]} {'Maior' if self.locked_quality == 'major' else 'menor'}"
+                if self.locked_tonic is not None else None
+            ),
+            'confidence': self.locked_confidence,
+            'locked': True,
+            'locked_for': round(time.time() - self.locked_at, 1) if self.locked_at else 0,
+            'detection_duration_s': detection_s,
+            'elapsed_s': elapsed,
+            'window_s': 30.0,
+            'window_progress': 1.0,
+            'notes_count': notes_count,
+            'analyses': self.analysis_count,
+            'method': method,
+        }
+        if criteria is not None:
+            payload['criteria'] = criteria
+        return payload
+
     def get_result(self) -> Dict[str, Any]:
-        """Janela fixa 30s: decisão binária ao final (confirmed OU uncertain)."""
+        """Avaliação progressiva por evidência (v15) com tiers crescentes de tolerância."""
         stage_info = self._current_stage()
         elapsed = stage_info['elapsed_s']
         stage = stage_info['stage']
-        
-        # ─── STAGE LISTENING (0-10s): "Ouvindo…" sem análise exposta ───
+
+        # ─── STAGE LISTENING (0-5s): puro silêncio de UI ────────────────────
         if stage == 'listening':
             return {
                 'success': True,
@@ -867,32 +905,21 @@ class SessionAccumulator:
                 'window_progress': min(1.0, elapsed / 30.0),
                 'notes_count': len(self.all_notes),
                 'analyses': self.analysis_count,
-                'method': 'v14-listening',
+                'method': 'v15-listening',
             }
-        
-        # ─── STAGE ANALYZING (10-30s): coletando — sem mostrar tom ───
-        if stage == 'analyzing':
-            # Rodar análise internamente para alimentar vote_history,
-            # mas NUNCA expor o tom ao usuário nesta janela.
-            if len(self.all_notes) >= 2:
-                result = analyze_tonality(self.all_notes)
-                if result.success:
-                    self.last_result_snapshot = {
-                        'tonic_pc': result.tonic,
-                        'quality': result.quality,
-                        'key_name': f"{NOTE_NAMES_BR[result.tonic]} {'Maior' if result.quality == 'major' else 'menor'}",
-                        'confidence': result.confidence,
-                        'debug': result.debug or {},
-                        'phrases_count': result.phrases_count,
-                        'notes_count': result.notes_count,
-                    }
-                    self.vote_history.append(result.tonic)
-                    self.vote_history = self.vote_history[-20:]
+
+        # ─── EVALUATING / DECISION: avalia em todos os tiers ────────────────
+        if len(self.all_notes) < 4:
+            visual_stage = 'analyzing' if stage != 'decision' else 'uncertain'
             return {
                 'success': True,
-                'stage': 'analyzing',
-                'stage_label': 'Identificando o centro tonal…',
-                'stage_hint': 'Percebendo onde a música repousa.',
+                'stage': visual_stage,
+                'stage_label': (
+                    'Identificando o centro tonal…'
+                    if visual_stage == 'analyzing'
+                    else 'Aguardando uma frase musical mais clara.'
+                ),
+                'stage_hint': 'Cante mais um pouco para a IA captar o padrão.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
@@ -900,39 +927,32 @@ class SessionAccumulator:
                 'window_progress': min(1.0, elapsed / 30.0),
                 'notes_count': len(self.all_notes),
                 'analyses': self.analysis_count,
-                'method': 'v14-analyzing',
+                'method': f'v15-{stage}-insufficient',
             }
-        
-        # ─── STAGE DECISION (30s+): decisão BINÁRIA ───
-        if len(self.all_notes) < 4:
-            return {
-                'success': True,
-                'stage': 'uncertain',
-                'stage_label': 'Aguardando uma frase musical mais clara.',
-                'stage_hint': 'Cante um pouco mais alto — a IA precisa ouvir melhor.',
-                'show_key': False,
-                'locked': False,
-                'elapsed_s': elapsed,
-                'window_s': 30.0,
-                'window_progress': 1.0,
-                'notes_count': len(self.all_notes),
-                'method': 'v14-insufficient',
-            }
-        
+
         result = analyze_tonality(self.all_notes)
         if not result.success:
+            visual_stage = 'analyzing' if stage != 'decision' else 'uncertain'
             return {
                 'success': True,
-                'stage': 'uncertain',
-                'stage_label': 'Quase lá… continue cantando mais um pouco.',
+                'stage': visual_stage,
+                'stage_label': (
+                    'Identificando o centro tonal…'
+                    if visual_stage == 'analyzing'
+                    else 'Quase lá… continue cantando mais um pouco.'
+                ),
                 'stage_hint': 'Segurando o resultado até ter confiança suficiente.',
                 'show_key': False,
                 'locked': False,
                 'elapsed_s': elapsed,
-                'method': 'v14-uncertain-nofit',
+                'window_s': 30.0,
+                'window_progress': min(1.0, elapsed / 30.0),
+                'notes_count': len(self.all_notes),
+                'analyses': self.analysis_count,
+                'method': f'v15-{stage}-nofit',
             }
-        
-        # snapshot para feedback
+
+        # Atualiza snapshot e histórico de votos (sempre que houver análise válida)
         self.last_result_snapshot = {
             'tonic_pc': result.tonic,
             'quality': result.quality,
@@ -944,202 +964,211 @@ class SessionAccumulator:
         }
         self.vote_history.append(result.tonic)
         self.vote_history = self.vote_history[-20:]
-        
-        # ─── AVALIAR CRITÉRIOS RIGOROSOS ───
+
+        # Critérios extraídos do debug
         top_candidates = result.debug.get('top_candidates', [])
         ambiguity = self._evaluate_ambiguity(result, top_candidates)
         winner_details = result.debug.get('winner_details', {})
         cadence_score = winner_details.get('cadence', 0.0)
         third_ratio = winner_details.get('third_ratio', 0.5)
-        
-        # Critério 1: margem clara entre top1 e top2 (≥ 25%)
-        margin_ok = ambiguity['margin_ratio'] >= 0.25
-        # Critério 2: evidência de tônica (repouso/cadência) — cadence > 0.15
-        cadence_ok = cadence_score >= 0.15
-        # Critério 3: evidência da 3ª (para decidir maior/menor)
-        # third_ratio ≥ 0.65 = 3ª da qualidade escolhida claramente predomina
-        third_ok = third_ratio >= 0.65 or third_ratio <= 0.35
-        # Critério 4: confiança mínima honesta
-        confidence_ok = result.confidence >= 0.60
-        # Critério 5: NÃO há ambiguidade relativo ou dominante
+
+        # ─── CRITÉRIOS POR TIER (Fase 1) ────────────────────────────────────
+        if stage == 'evaluating-strict':
+            # 5-15s: precisa evidência MUITO forte
+            margin_min = 0.40
+            cadence_min = 0.20
+            confidence_min = 0.78
+            third_lo, third_hi = 0.30, 0.70
+            consensus_min = 4
+        elif stage == 'evaluating-solid':
+            # 15-30s: evidência sólida
+            margin_min = 0.30
+            cadence_min = 0.17
+            confidence_min = 0.65
+            third_lo, third_hi = 0.35, 0.65
+            consensus_min = 3
+        else:
+            # decision (30s+): critérios padrão (compatibilidade com v14)
+            margin_min = 0.25
+            cadence_min = 0.15
+            confidence_min = 0.60
+            third_lo, third_hi = 0.35, 0.65
+            consensus_min = 4
+
+        margin_ok = ambiguity['margin_ratio'] >= margin_min
+        cadence_ok = cadence_score >= cadence_min
+        third_ok = third_ratio >= third_hi or third_ratio <= third_lo
+        confidence_ok = result.confidence >= confidence_min
         no_relative = not ambiguity['is_relative_ambiguous']
         no_dominant = not ambiguity['is_dominant_ambiguous']
-        # Critério 6: consenso de votos (últimas 10 análises concordam)
-        consensus_votes = sum(1 for v in self.vote_history[-10:] if v == result.tonic)
-        consensus_ok = consensus_votes >= 4
-        
+
+        # Janela de consenso adaptativa: cap em 10, mas no mínimo cresce com a história
+        history_window = min(10, max(3, len(self.vote_history)))
+        consensus_votes = sum(1 for v in self.vote_history[-history_window:] if v == result.tonic)
+        # Em strict, exigir consenso relativamente alto à história disponível
+        if stage == 'evaluating-strict' and history_window < 6:
+            consensus_target = max(consensus_min, history_window - 1)
+        else:
+            consensus_target = consensus_min
+        consensus_ok = consensus_votes >= consensus_target
+
         all_ok = (
             margin_ok and cadence_ok and third_ok
             and confidence_ok and no_relative and no_dominant and consensus_ok
         )
-        
-        # ─── STICKY LOCK (v14.2) ───
-        # Uma vez travado, só troca o tom se:
-        #   a) já houve um lock (self.locked_tonic != None)
-        #   b) o NOVO candidato supera o travado em MÚLTIPLOS critérios MUITO fortes
-        #   c) o consenso confirma o novo tom por >= 7 das últimas 10 análises
-        # Caso contrário, mantém o tom original.
+
+        # ─── STICKY LOCK REVISÁVEL (Fase 1) ─────────────────────────────────
         already_locked = self.locked_tonic is not None
-        
         if already_locked:
-            # Votos para o tom TRAVADO (não para o novo candidato)
-            votes_for_locked = sum(1 for v in self.vote_history[-10:] if v == self.locked_tonic)
+            votes_for_locked = sum(
+                1 for v in self.vote_history[-history_window:] if v == self.locked_tonic
+            )
             same_as_locked = (
                 result.tonic == self.locked_tonic
                 and result.quality == self.locked_quality
             )
-            
+
             if same_as_locked:
-                # Resposta estável — apenas reforça confiança
+                # Reforça confiança (cap em 0.95)
                 self.locked_confidence = min(0.95, max(self.locked_confidence, result.confidence))
-                detection_s = self._detection_duration_s or round(elapsed, 1)
-                return {
-                    'success': True,
-                    'stage': 'confirmed',
-                    'stage_label': f'Tom confirmado em {int(round(detection_s))} segundos',
-                    'stage_hint': 'A IA identificou o centro tonal da música.',
-                    'show_key': True,
-                    'tonic': self.locked_tonic,
-                    'tonic_name': NOTE_NAMES_BR[self.locked_tonic],
-                    'quality': self.locked_quality,
-                    'key_name': f"{NOTE_NAMES_BR[self.locked_tonic]} {'Maior' if self.locked_quality == 'major' else 'menor'}",
-                    'confidence': self.locked_confidence,
-                    'locked': True,
-                    'locked_for': round(time.time() - self.locked_at, 1) if self.locked_at else 0,
-                    'detection_duration_s': detection_s,
-                    'elapsed_s': elapsed,
-                    'notes_count': result.notes_count,
-                    'method': 'v14-confirmed-sticky',
-                }
-            
-            # Novo candidato diferente do travado → só troca com evidência ESMAGADORA
-            new_consensus = sum(1 for v in self.vote_history[-10:] if v == result.tonic)
+                return self._confirmed_payload(elapsed, 'v15-confirmed-sticky', result.notes_count)
+
+            # Critérios de troca progressivamente mais permissivos com tempo desde lock
+            time_since_lock = time.time() - (self.locked_at or time.time())
+            new_consensus = sum(1 for v in self.vote_history[-history_window:] if v == result.tonic)
+
+            if time_since_lock >= 60.0:
+                # Lock antigo: relaxado
+                switch_consensus_min = 5
+                switch_conf_min = 0.70
+                switch_margin_min = 0.30
+                switch_old_votes_max = 4
+            else:
+                # Lock recente: médio (mais permissivo que v14)
+                switch_consensus_min = 5
+                switch_conf_min = 0.75
+                switch_margin_min = 0.35
+                switch_old_votes_max = 3
+
             overwhelming_switch = (
                 all_ok
-                and new_consensus >= 7
-                and result.confidence >= 0.80
-                and ambiguity['margin_ratio'] >= 0.40
-                and votes_for_locked <= 2  # o tom antigo praticamente sumiu do histórico
+                and new_consensus >= switch_consensus_min
+                and result.confidence >= switch_conf_min
+                and ambiguity['margin_ratio'] >= switch_margin_min
+                and votes_for_locked <= switch_old_votes_max
             )
             if overwhelming_switch:
                 logger.info(
-                    f"[v14.2] TROCA DE TOM autorizada: "
+                    f"[v15] TROCA DE TOM autorizada (t_lock={time_since_lock:.1f}s): "
                     f"{NOTE_NAMES_BR[self.locked_tonic]} {self.locked_quality} → "
                     f"{NOTE_NAMES_BR[result.tonic]} {result.quality} | "
-                    f"new_consensus={new_consensus}/10, conf={result.confidence:.2f}, "
-                    f"margin={ambiguity['margin_ratio']:.2f}, old_votes={votes_for_locked}"
+                    f"new_consensus={new_consensus}/{history_window}, "
+                    f"conf={result.confidence:.2f}, margin={ambiguity['margin_ratio']:.2f}, "
+                    f"old_votes={votes_for_locked}"
                 )
                 self._lock(result.tonic, result.quality, result.confidence)
-                # não atualiza _detection_duration_s — mantém o tempo da PRIMEIRA detecção
-            else:
-                # Manter tom travado mesmo com novo candidato "all_ok" — é o comportamento desejado
-                if all_ok:
-                    logger.info(
-                        f"[v14.2] Tentativa de troca BLOQUEADA: "
-                        f"locked={NOTE_NAMES_BR[self.locked_tonic]} (votos={votes_for_locked}), "
-                        f"novo={NOTE_NAMES_BR[result.tonic]} (consenso={new_consensus}, "
-                        f"conf={result.confidence:.2f}, margem={ambiguity['margin_ratio']:.2f}) — "
-                        f"não atinge critério de troca"
-                    )
-            
-            # Sempre retornar o tom TRAVADO (independente do candidato atual)
-            detection_s = self._detection_duration_s or round(elapsed, 1)
-            return {
-                'success': True,
-                'stage': 'confirmed',
-                'stage_label': f'Tom confirmado em {int(round(detection_s))} segundos',
-                'stage_hint': 'A IA identificou o centro tonal da música.',
-                'show_key': True,
-                'tonic': self.locked_tonic,
-                'tonic_name': NOTE_NAMES_BR[self.locked_tonic],
-                'quality': self.locked_quality,
-                'key_name': f"{NOTE_NAMES_BR[self.locked_tonic]} {'Maior' if self.locked_quality == 'major' else 'menor'}",
-                'confidence': self.locked_confidence,
-                'locked': True,
-                'locked_for': round(time.time() - self.locked_at, 1) if self.locked_at else 0,
-                'detection_duration_s': detection_s,
-                'elapsed_s': elapsed,
-                'notes_count': result.notes_count,
-                'method': 'v14-confirmed-sticky-hold',
-            }
-        
+            elif all_ok:
+                logger.info(
+                    f"[v15] Troca BLOQUEADA: locked={NOTE_NAMES_BR[self.locked_tonic]} "
+                    f"(votos={votes_for_locked}/{history_window}), "
+                    f"novo={NOTE_NAMES_BR[result.tonic]} (consenso={new_consensus}, "
+                    f"conf={result.confidence:.2f}, margin={ambiguity['margin_ratio']:.2f}) "
+                    f"— t_lock={time_since_lock:.1f}s"
+                )
+
+            return self._confirmed_payload(elapsed, 'v15-confirmed-sticky-hold', result.notes_count)
+
         if all_ok:
-            # Primeira travada
+            # Primeira travada — registra duração da detecção
             self._lock(result.tonic, result.quality, result.confidence)
             self._detection_duration_s = round(elapsed, 1)
-            detection_s = self._detection_duration_s
-            return {
-                'success': True,
-                'stage': 'confirmed',
-                'stage_label': f'Tom confirmado em {int(round(detection_s))} segundos',
-                'stage_hint': 'A IA identificou o centro tonal da música.',
-                'show_key': True,
-                'tonic': result.tonic,
-                'tonic_name': NOTE_NAMES_BR[result.tonic],
-                'quality': result.quality,
-                'key_name': f"{NOTE_NAMES_BR[result.tonic]} {'Maior' if result.quality == 'major' else 'menor'}",
-                'confidence': self.locked_confidence,
-                'locked': True,
-                'locked_for': round(time.time() - self.locked_at, 1) if self.locked_at else 0,
-                'detection_duration_s': detection_s,
-                'elapsed_s': elapsed,
-                'notes_count': result.notes_count,
-                'debug': result.debug,
-                'method': 'v14-confirmed',
-                'criteria': {
+            logger.info(
+                f"[v15] DECISÃO CONFIRMADA aos {elapsed:.1f}s tier={stage} → "
+                f"{NOTE_NAMES_BR[result.tonic]} {result.quality} | "
+                f"conf={result.confidence:.2f} margin={ambiguity['margin_ratio']:.2f} "
+                f"cad={cadence_score:.2f} third={third_ratio:.2f} "
+                f"consensus={consensus_votes}/{history_window} target={consensus_target}"
+            )
+            return self._confirmed_payload(
+                elapsed,
+                f'v15-confirmed-{stage}',
+                result.notes_count,
+                criteria={
+                    'tier': stage,
                     'margin_ratio': round(ambiguity['margin_ratio'], 3),
                     'cadence': round(cadence_score, 3),
                     'third_ratio': round(third_ratio, 3),
                     'confidence': round(result.confidence, 3),
                     'consensus_votes': consensus_votes,
+                    'history_window': history_window,
                 },
-            }
-        
-        # ─── INCERTO — bloqueia qualquer exposição de tom ───
-        # Mensagens humanas por tipo de problema
-        friendly_msg = 'Segurando o resultado até ter confiança suficiente.'
-        if ambiguity['is_relative_ambiguous']:
-            friendly_msg = 'Entre maior e menor — cante mais um trecho para eu ter certeza.'
-        elif ambiguity['is_dominant_ambiguous']:
-            friendly_msg = 'Ainda confirmando se essa é a tônica mesmo.'
-        elif not consensus_ok:
-            friendly_msg = 'Já encontrei uma direção, estou confirmando o tom.'
-        elif not cadence_ok:
-            friendly_msg = 'Aguardando um final de frase mais claro.'
-        
-        failing = []
+            )
+
+        # ─── INCERTO em qualquer tier ───────────────────────────────────────
+        failing: List[str] = []
         if not margin_ok:
-            failing.append(f"margem estreita ({ambiguity['margin_ratio']:.0%})")
+            failing.append(f"margem ({ambiguity['margin_ratio']:.0%}<{margin_min:.0%})")
         if not cadence_ok:
-            failing.append("sem cadência de repouso clara")
+            failing.append(f"cadência ({cadence_score:.2f}<{cadence_min:.2f})")
         if not third_ok:
-            failing.append("3ª ambígua (maior/menor)")
+            failing.append(f"3ª ambígua ({third_ratio:.2f})")
         if not confidence_ok:
-            failing.append(f"confiança baixa ({result.confidence:.0%})")
+            failing.append(f"confiança ({result.confidence:.0%}<{confidence_min:.0%})")
         if ambiguity['is_relative_ambiguous']:
-            failing.append("ambiguidade entre relativos")
+            failing.append("relativos")
         if ambiguity['is_dominant_ambiguous']:
-            failing.append("ambiguidade tônica/dominante")
+            failing.append("dominante")
         if not consensus_ok:
-            failing.append(f"votos inconsistentes ({consensus_votes}/4)")
-        
+            failing.append(f"consenso ({consensus_votes}/{history_window}<{consensus_target})")
+
+        # Log do motivo + top-5 (visibilidade obrigatória da Fase 1)
         logger.info(
-            f"[v14] DECISÃO INCERTA aos {elapsed:.1f}s — {', '.join(failing)} | "
-            f"melhor candidato interno: {NOTE_NAMES_BR[result.tonic]} {result.quality} "
-            f"(conf={result.confidence:.2f}) — NÃO mostrando ao usuário"
+            f"[v15] INCERTO aos {elapsed:.1f}s tier={stage} — {', '.join(failing)} | "
+            f"melhor: {NOTE_NAMES_BR[result.tonic]} {result.quality} (conf={result.confidence:.2f}) "
+            f"top5={top_candidates[:5]}"
         )
+
+        visual_stage = 'analyzing' if stage != 'decision' else 'uncertain'
+        if stage == 'evaluating-strict':
+            visual_label = 'Identificando o centro tonal…'
+        elif stage == 'evaluating-solid':
+            visual_label = 'Confirmando o tom com mais segurança…'
+        elif ambiguity['is_relative_ambiguous']:
+            visual_label = 'Entre maior e menor — cante mais um trecho para eu ter certeza.'
+        elif ambiguity['is_dominant_ambiguous']:
+            visual_label = 'Ainda confirmando se essa é a tônica mesmo.'
+        elif not consensus_ok:
+            visual_label = 'Já encontrei uma direção, estou confirmando o tom.'
+        elif not cadence_ok:
+            visual_label = 'Aguardando um final de frase mais claro.'
+        else:
+            visual_label = 'Segurando o resultado até ter confiança suficiente.'
+
         return {
             'success': True,
-            'stage': 'uncertain',
-            'stage_label': friendly_msg,
+            'stage': visual_stage,
+            'stage_label': visual_label,
             'stage_hint': 'Continue cantando — só mostro o tom quando tiver certeza.',
             'show_key': False,
             'locked': False,
             'elapsed_s': elapsed,
+            'window_s': 30.0,
+            'window_progress': min(1.0, elapsed / 30.0),
             'notes_count': result.notes_count,
+            'analyses': self.analysis_count,
             'debug': result.debug,
-            'method': 'v14-uncertain',
+            'method': f'v15-{stage}-uncertain',
             'failing_criteria': failing,
+            'criteria_attempted': {
+                'tier': stage,
+                'margin_ratio': round(ambiguity['margin_ratio'], 3),
+                'cadence': round(cadence_score, 3),
+                'third_ratio': round(third_ratio, 3),
+                'confidence': round(result.confidence, 3),
+                'consensus_votes': consensus_votes,
+                'consensus_target': consensus_target,
+                'history_window': history_window,
+            },
         }
     
     def _evaluate_ambiguity(self, result: AnalysisResult, top_candidates: List) -> Dict[str, Any]:
@@ -1276,12 +1305,18 @@ def reset_session(device_id: str, mode: Optional[str] = None):
     if mode is not None:
         key = _session_key(device_id, mode)
         if key in _sessions:
-            _sessions[key].reset()
+            sess = _sessions[key]
+            had_lock = sess.locked_tonic is not None
+            sess.reset()
+            logger.info(f"[v15/reset] dev={device_id[:8]} mode={mode} had_lock={had_lock}")
+        else:
+            logger.info(f"[v15/reset] dev={device_id[:8]} mode={mode} (sessão não existia ainda)")
         return
     # Reset todas as sessões do device (qualquer modo)
-    for k in list(_sessions.keys()):
-        if k.startswith(f"{device_id}::"):
-            _sessions[k].reset()
+    keys = [k for k in _sessions.keys() if k.startswith(f"{device_id}::")]
+    for k in keys:
+        _sessions[k].reset()
+    logger.info(f"[v15/reset] dev={device_id[:8]} mode=ALL sessões_zeradas={len(keys)}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1336,13 +1371,19 @@ def analyze_audio_bytes_v10(
               'vocal_instrument' (nova camada que aceita instrumentos harmônicos).
               Se INSTRUMENT_MODE_ENABLED=False, qualquer valor cai em 'vocal'.
     """
+    # ─── Timing Fase 1 — instrumentação para diagnóstico de produção ─────
+    t_total_start = time.time()
+    timings: Dict[str, float] = {}
+
     # ─── Normalização do modo (rollback seguro) ───────────────────────────
     if not INSTRUMENT_MODE_ENABLED or mode not in ('vocal', 'vocal_instrument'):
         mode = 'vocal'
 
     # Carregar áudio
+    t0 = time.time()
     audio, has_audio = load_audio(audio_bytes)
     duration_s = len(audio) / SAMPLE_RATE
+    timings['load_ms'] = round((time.time() - t0) * 1000.0, 1)
 
     if duration_s < 1.0:
         return {
@@ -1373,7 +1414,9 @@ def analyze_audio_bytes_v10(
         }
 
     # Extrair pitch
+    t0 = time.time()
     f0, conf = extract_pitch(audio)
+    timings['crepe_ms'] = round((time.time() - t0) * 1000.0, 1)
     valid_frames_raw = int(np.sum(~np.isnan(f0)))
 
     # ─── CAMADA VOCAL FOCUS / NOISE REJECTION ────────────────────────────────
@@ -1385,6 +1428,7 @@ def analyze_audio_bytes_v10(
     active_focus_config = INSTRUMENT_CONFIG if mode == 'vocal_instrument' else VOCAL_FOCUS_CONFIG
     if VOCAL_FOCUS_ENABLED:
         try:
+            t0 = time.time()
             vf_result = apply_vocal_focus(
                 audio=audio,
                 f0=f0,
@@ -1393,14 +1437,17 @@ def analyze_audio_bytes_v10(
                 hop_ms=HOP_MS,
                 config=active_focus_config,
             )
+            timings['focus_ms'] = round((time.time() - t0) * 1000.0, 1)
             if vf_result.passed and vf_result.filtered_f0 is not None:
                 f0_for_notes = vf_result.filtered_f0
                 conf_for_notes = vf_result.filtered_conf
             else:
                 # Filtro rejeitou o clip — não enviar ao motor tonal.
                 logger.info(
-                    f"[v10/{mode}] Clip rejeitado por focus: stage={vf_result.noise_stage} "
-                    f"motivo={vf_result.rejection_reason}"
+                    f"[v15/{mode}] CLIP REJEITADO dev={device_id[:8]} "
+                    f"stage={vf_result.noise_stage} motivo={vf_result.rejection_reason} "
+                    f"valid={vf_result.valid_frames}/{vf_result.total_frames} "
+                    f"focus={timings['focus_ms']}ms"
                 )
                 if mode == 'vocal_instrument':
                     _instr_logger.info(
@@ -1411,11 +1458,13 @@ def analyze_audio_bytes_v10(
                 session = get_session(device_id, mode)
                 session.last_activity_time = time.time()
                 result = session.get_result()
+                timings['total_ms'] = round((time.time() - t_total_start) * 1000.0, 1)
                 result['duration_s'] = round(duration_s, 2)
                 result['clip_notes'] = 0
                 result['clip_rejected'] = True
                 result['noise_rejection'] = _build_noise_rejection_payload(vf_result)
                 result['mode'] = mode
+                result['timings_ms'] = timings
                 return result
         except Exception as exc:
             logger.warning(f"[v10/{mode}] focus falhou ({exc}) — usando f0/conf brutos")
@@ -1528,9 +1577,24 @@ def analyze_audio_bytes_v10(
     # ─── HYSTERESIS REFORÇADA NO MODO INSTRUMENTO ────────────────────────
     # Salvamos snapshot pra detectar se houve troca de tom protegida.
     locked_before = session.locked_tonic
+    t0 = time.time()
     session.add_analysis(notes)
     result = session.get_result()
+    timings['score_ms'] = round((time.time() - t0) * 1000.0, 1)
+    timings['total_ms'] = round((time.time() - t_total_start) * 1000.0, 1)
     locked_after = session.locked_tonic
+
+    # Log estruturado de timing + estado da sessão (Fase 1)
+    sess_start_age = round(time.time() - session.start_time, 1)
+    logger.info(
+        f"[v15/timing] dev={device_id[:8]} mode={mode} "
+        f"load={timings.get('load_ms', 0)}ms crepe={timings.get('crepe_ms', 0)}ms "
+        f"focus={timings.get('focus_ms', 0)}ms score={timings.get('score_ms', 0)}ms "
+        f"total={timings['total_ms']}ms | session_age={sess_start_age}s "
+        f"all_notes={len(session.all_notes)} votes={len(session.vote_history)} "
+        f"locked={NOTE_NAMES_BR[session.locked_tonic] + ' ' + (session.locked_quality or '') if session.locked_tonic is not None else 'no'} "
+        f"clip_notes={len(notes)} stage={result.get('stage')}"
+    )
 
     # Logs específicos do modo instrumento
     if mode == 'vocal_instrument':
@@ -1554,6 +1618,7 @@ def analyze_audio_bytes_v10(
     result['clip_notes'] = len(notes)
     result['noise_rejection'] = _build_noise_rejection_payload(vf_result)
     result['mode'] = mode
+    result['timings_ms'] = timings
     if mode == 'vocal_instrument':
         result['instrument_evidence'] = {
             'chords': chord_evidence,

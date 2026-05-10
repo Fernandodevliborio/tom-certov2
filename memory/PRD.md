@@ -403,3 +403,51 @@ PCP acumulado por sessão (zera no /reset chamado pelo START).
   - **`useTuner.ts`:** `minVolume` do Pitchy native elevado de −60 → −42 dBFS para rejeitar ambiente
   - **Validação:** 7 cenários pytest-like em `/tmp/test_tuner_logic.mjs` — todos passando (silêncio, ruído baixo, corda errada, desafinada, afinada, silêncio pós-afinado, harmônico)
   - **Arquivos:** `/app/frontend/app/tuner.tsx` (rewrite completo) + `/app/frontend/src/hooks/useTuner.ts` (minVolume)
+---
+
+## Phase 1 — Estabilização do Pipeline de Detecção (Feb 2026)
+
+**Contexto:** Após investigação técnica completa (`/app/summary/diagnostic_report.md`), identificadas 4 causas-raiz dos sintomas (45 s de espera, travas em "Analisando…", tom errado com confiança alta, contaminação cross-sessão).
+
+**Mudanças Phase 1 implementadas:**
+
+### Backend (`backend/key_detection_v10.py`)
+- ✅ **Decisão progressiva por evidência (substitui 30 s hardcoded)**:
+  - `0–5 s`: `listening` (sem decisão)
+  - `5–15 s`: `evaluating-strict` — confirma com evidência muito forte (margin ≥0.40, conf ≥0.78, cadence ≥0.20)
+  - `15–30 s`: `evaluating-solid` — evidência sólida (margin ≥0.30, conf ≥0.65)
+  - `≥30 s`: `decision` — critérios padrão (preservados)
+- ✅ **Sticky-lock revisável**: critérios variam por tempo desde lock (recente vs ≥60 s)
+- ✅ **Helper `_confirmed_payload`** para reduzir duplicação
+- ✅ **Logs `[v15]`**: timing por componente (`load/crepe/focus/score/total`), `session_age`, top-5 candidatos, motivo de incerteza, troca de tom autorizada/bloqueada, reset rastreável
+
+### Frontend (`frontend/src/hooks/useKeyDetection.ts`, `frontend/app/index.tsx`)
+- ✅ **Bug do `lastBackendProgressAtRef` corrigido**: rejeições silenciosas do vocal_focus não contam mais como "progresso", desbloqueando o watchdog 30 s
+- ✅ **Watchdog camada E**: streak de 8+ rejeições por >20 s → softReset automático
+- ✅ **Reset síncrono** em `start()`/`hardReset()`/`softReset()` (Promise.all + await): elimina contaminação cross-sessão por race condition
+- ✅ **Reset de boot aguarda `getDeviceId()`**: corrige reset que zerava apenas `anon::vocal`
+- ✅ **Logs estruturados**: `ml_state_transition`, `backend_request_success` com `rttMs/timings/showKey/rejected/notesProcessed`, `clip_rejected_streak`, `backend_reset_done`, `watchdog_rejected_streak_recover`
+
+### Validação em produção (curl real)
+- Teste com WAV sintético "Dó-Mi-Sol-Dó-Sol-Mi-Dó" (Dó Maior):
+  - T+9.3 s: `evaluating-strict` (uncertain — margin 37%<40%)
+  - T+18.6 s: **`confirmed em evaluating-solid → "Dó Maior" conf=1.00`** ✅
+  - Antes da Fase 1 era impossível antes de 30 s
+- Reset síncrono validado: após `/reset`, próxima análise volta para `listening` em T+0.6 s (não retorna lock antigo)
+
+### Arquivos modificados
+- `/app/backend/key_detection_v10.py` (edição cirúrgica — `_current_stage`, `get_result`, `_confirmed_payload`, `analyze_audio_bytes_v10`, `reset_session`)
+- `/app/frontend/src/hooks/useKeyDetection.ts` (refs novos, `runMLAnalysis` resposta, `start`/`hardReset`/`softReset` aguardando reset, watchdog camada E)
+- `/app/frontend/app/index.tsx` (reset de boot aguarda deviceId)
+
+### Documentação produzida
+- `/app/summary/diagnostic_report.md` (relatório de 13 pontos, ~700 linhas)
+- `/app/summary/phase1_report.md` (relatório curto da Fase 1: arquivos alterados, riscos, como testar APK, logs)
+
+### Riscos remanescentes (a tratar em Fase 2-4)
+- CREPE `tiny` ainda comete erros de oitava em F0 extremo
+- Krumhansl-Kessler simétrico em relativas (Dó M ↔ Lá m)
+- `_sessions` sem TTL
+- Sem session_id por uso (UUID)
+- Web fallback continua sem `captureClip`
+

@@ -181,12 +181,22 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   // Timestamps autoritativos para os watchdogs:
   //   lastAudioFrameAtRef  → atualizado em cada onPitch (sinal de vida do recorder)
   //   lastValidPitchAtRef  → atualizado quando ev.clarity passa o limiar
-  //   lastBackendProgressAtRef → atualizado quando backend responde com sucesso E avança o estado
+  //   lastBackendProgressAtRef → atualizado SOMENTE quando backend efetivamente
+  //                              avança o estado (show_key=true OU notas musicais
+  //                              processadas sem rejeição). NÃO atualiza em
+  //                              clip_rejected/uncertain — esse era o bug v14
+  //                              que mascarava ambiente ruidoso.
   //   lastWatchdogActionAtRef → último restart/reset automático (para grace period)
   const lastAudioFrameAtRef = useRef<number>(0);
   const lastValidPitchAtRef = useRef<number>(0);
   const lastBackendProgressAtRef = useRef<number>(0);
   const lastWatchdogActionAtRef = useRef<number>(0);
+
+  // Streak de rejeições do vocal_focus em sequência. Quando passa de N seguidas,
+  // dispara aviso (UI já mostra "ambiente ruidoso" via noise_stage debounciado).
+  const rejectedStreakRef = useRef<number>(0);
+  // Tempo da primeira rejeição da sequência (para watchdog de "só rejeição há X s").
+  const rejectedStreakStartAtRef = useRef<number>(0);
 
   // ─── Anti-concorrência ML ───────────────────────────────────────────────
   // Lock booleano + AbortController para cancelar request em voo (stop/reset).
@@ -419,6 +429,8 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     lastValidPitchAtRef.current = startNow;
     lastBackendProgressAtRef.current = startNow;
     lastWatchdogActionAtRef.current = startNow;
+    rejectedStreakRef.current = 0;
+    rejectedStreakStartAtRef.current = 0;
     mlInFlightRef.current = false;
     if (mlAbortControllerRef.current) {
       try { mlAbortControllerRef.current.abort(); } catch { /* noop */ }
@@ -426,11 +438,33 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     mlAbortControllerRef.current = null;
     setRecoveryStatus('idle');
 
-    // Reset PCP em background — NÃO aguarda para não bloquear o start do microfone
-    resetKeyAnalysisSession(deviceIdRef.current ?? undefined, detectionModeRef.current).catch(() => {});
+    // ── FASE 1: Reset PCP no backend ANTES de pedir mic — evita contaminação ──
+    // O start do recorder leva centenas de ms; o reset roda em paralelo mas
+    // com timeout curto. Se o reset falhar, logamos e seguimos (rede ruim
+    // não pode bloquear o start do microfone). A grande diferença vs antes:
+    // agora o reset começa enquanto a permissão é pedida, e na maioria dos
+    // casos completa antes da primeira análise.
+    const tResetStart = Date.now();
+    const resetPromise = resetKeyAnalysisSession(
+      deviceIdRef.current ?? undefined,
+      detectionModeRef.current,
+    ).then((ok) => {
+      audioLog.info('backend_reset_done', {
+        ok,
+        ms: Date.now() - tResetStart,
+        mode: detectionModeRef.current,
+      });
+      return ok;
+    }).catch((e: any) => {
+      audioLog.warn('backend_reset_error', { msg: String(e?.message || e) });
+      return false;
+    });
 
     try {
-      const ok = await engine.start(onPitch, onError);
+      const [ok, _resetOk] = await Promise.all([
+        engine.start(onPitch, onError),
+        resetPromise,
+      ]);
       if (ok) {
         setIsRunning(true);
         // Reset os timestamps DE NOVO após start bem-sucedido (start pode demorar)
@@ -526,6 +560,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     let progTimer: ReturnType<typeof setInterval> | null = null;
 
     try {
+      audioLog.info('ml_state_transition', { from: 'idle/done/waiting', to: 'listening' });
       setMlState('listening');
       setMlProgress(0);
       const startT = Date.now();
@@ -540,12 +575,14 @@ export function useKeyDetection(): UseKeyDetectionReturn {
 
       if (controller.signal.aborted) {
         audioLog.info('backend_request_cancelled', { phase: 'pre_capture' });
+        audioLog.info('ml_state_transition', { from: 'listening', to: 'waiting', reason: 'aborted_pre_capture' });
         setMlState('waiting');
         return;
       }
 
       if (!clip) {
         audioLog.info('ml_clip_unavailable', { reason: 'ring_buffer_empty' });
+        audioLog.info('ml_state_transition', { from: 'listening', to: 'waiting', reason: 'no_clip' });
         setMlState('waiting');
         return;
       }
@@ -553,11 +590,14 @@ export function useKeyDetection(): UseKeyDetectionReturn {
 
       if (clip.samples.length < ML_MIN_CLIP_SAMPLES) {
         audioLog.info('ml_clip_too_short', { durMs: Math.round(durS * 1000) });
+        audioLog.info('ml_state_transition', { from: 'listening', to: 'waiting', reason: 'clip_too_short' });
         setMlState('waiting');
         return;
       }
 
+      audioLog.info('ml_state_transition', { from: 'listening', to: 'analyzing' });
       setMlState('analyzing');
+      const tBackendStart = Date.now();
       audioLog.info('backend_request_start', { samples: clip.samples.length, durSec: Math.round(durS * 10) / 10 });
 
       const result = await analyzeKeyML(
@@ -567,9 +607,11 @@ export function useKeyDetection(): UseKeyDetectionReturn {
         controller.signal,
         detectionModeRef.current,
       );
+      const rttMs = Date.now() - tBackendStart;
 
       if (controller.signal.aborted || result.error === 'cancelled') {
-        audioLog.info('backend_request_cancelled', { phase: 'post_send' });
+        audioLog.info('backend_request_cancelled', { phase: 'post_send', rttMs });
+        audioLog.info('ml_state_transition', { from: 'analyzing', to: 'waiting', reason: 'aborted_post_send' });
         setMlState('waiting');
         return;
       }
@@ -578,19 +620,62 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       ingestNoiseStage(result.noise_rejection?.stage);
 
       if (result.success) {
+        const showKey = (result as any).show_key === true;
+        const wasRejected = (result as any).clip_rejected === true;
+        const stage = (result as any).stage as string | undefined;
+        const notesProcessed = (result as any).notes_count ?? 0;
+
         audioLog.info('backend_request_success', {
-          stage: (result as any).stage,
+          stage,
           locked: !!result.locked,
           key: result.key_name,
           confidence: result.confidence,
           noiseStage: result.noise_rejection?.stage,
+          showKey,
+          rejected: wasRejected,
+          rttMs,
+          timings: (result as any).timings_ms,
+          notesProcessed,
         });
-        // Atualiza watchdog de progresso (qualquer resposta success conta)
-        lastBackendProgressAtRef.current = Date.now();
+
+        // ── FIX FASE 1: lastBackendProgressAtRef só conta PROGRESSO REAL ──
+        // Antes: qualquer success contava → vocal_focus rejeitando em loop
+        // mascarava o watchdog 30s.
+        // Agora: só conta quando há tom liberado OU clip não rejeitado com
+        // material musical processado.
+        const isRealProgress = showKey || (!wasRejected && notesProcessed > 0);
+        if (isRealProgress) {
+          lastBackendProgressAtRef.current = Date.now();
+        }
+
+        // Streak de rejeições (Fase 1 — observabilidade)
+        if (wasRejected) {
+          if (rejectedStreakRef.current === 0) {
+            rejectedStreakStartAtRef.current = Date.now();
+          }
+          rejectedStreakRef.current += 1;
+          if (rejectedStreakRef.current === 5 || rejectedStreakRef.current === 10) {
+            audioLog.warn('clip_rejected_streak', {
+              count: rejectedStreakRef.current,
+              durationMs: Date.now() - rejectedStreakStartAtRef.current,
+              noiseStage: result.noise_rejection?.stage,
+              reason: result.noise_rejection?.rejection_reason,
+            });
+          }
+        } else {
+          if (rejectedStreakRef.current > 0) {
+            audioLog.info('clip_rejected_streak_cleared', { previous: rejectedStreakRef.current });
+          }
+          rejectedStreakRef.current = 0;
+          rejectedStreakStartAtRef.current = 0;
+        }
+
         setMlResult(result);
+        audioLog.info('ml_state_transition', { from: 'analyzing', to: 'done' });
         setMlState('done');
       } else {
-        audioLog.warn('backend_request_error', { error: result.error, message: result.message });
+        audioLog.warn('backend_request_error', { error: result.error, message: result.message, rttMs });
+        audioLog.info('ml_state_transition', { from: 'analyzing', to: 'waiting' });
         setMlState('waiting');
       }
     } catch (e: any) {
@@ -690,11 +775,31 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     lastValidPitchAtRef.current = t;
     lastBackendProgressAtRef.current = t;
     lastWatchdogActionAtRef.current = t;
+    rejectedStreakRef.current = 0;
+    rejectedStreakStartAtRef.current = 0;
     startTimeRef.current = t;
 
-    // 5. Restart engine completo (destrói + recria recorder + re-pede permissão se necessário)
+    // 5. Restart engine completo + reset síncrono do backend em paralelo
+    //    Antes: o reset era fire-and-forget após o restart → corrida garantida
+    //    Agora: roda em paralelo com restart, mas AGUARDA antes de marcar idle
     setIsRunning(false);
     isStartingRef.current = false;
+    const tResetStart = Date.now();
+    const resetPromise = resetKeyAnalysisSession(
+      deviceIdRef.current ?? undefined,
+      detectionModeRef.current,
+    ).then((ok) => {
+      audioLog.info('backend_reset_done', {
+        ok,
+        ms: Date.now() - tResetStart,
+        reason: 'hard_reset',
+      });
+      return ok;
+    }).catch((e: any) => {
+      audioLog.warn('backend_reset_error', { msg: String(e?.message || e), reason: 'hard_reset' });
+      return false;
+    });
+
     let restartOk = false;
     if (engine.restart) {
       restartOk = await engine.restart();
@@ -702,6 +807,9 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       // Fallback: usa start() normal se restart() não existir (ex.: web)
       restartOk = await engine.start(onPitch, onError);
     }
+    // Aguarda o reset do backend (com timeout interno na própria função)
+    await resetPromise;
+
     if (restartOk) {
       setIsRunning(true);
       // Reseta timestamps de novo após start (start pode demorar)
@@ -711,9 +819,6 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       lastBackendProgressAtRef.current = t2;
       lastWatchdogActionAtRef.current = t2;
     }
-
-    // 6. Reset PCP no backend (não bloqueia)
-    resetKeyAnalysisSession(deviceIdRef.current ?? undefined, detectionModeRef.current).catch(() => {});
 
     setRecoveryStatus('idle');
     audioLog.info('hard_reset_detection', { phase: 'done', restartOk });
@@ -771,8 +876,30 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     const t = Date.now();
     lastValidPitchAtRef.current = t;
     lastBackendProgressAtRef.current = t;
-    // Zera o acumulador PCP no backend em background (não bloqueia UI)
-    resetKeyAnalysisSession(deviceIdRef.current ?? undefined, detectionModeRef.current).catch(() => {});
+    rejectedStreakRef.current = 0;
+    rejectedStreakStartAtRef.current = 0;
+    // FASE 1: aguarda reset do backend (com timeout interno) para evitar
+    // contaminação de resposta antiga em sessão nova. softReset não destrói
+    // o recorder, então este wait não impacta UX em > 1-2 s no pior caso.
+    const tResetStart = Date.now();
+    try {
+      const ok = await resetKeyAnalysisSession(
+        deviceIdRef.current ?? undefined,
+        detectionModeRef.current,
+      );
+      audioLog.info('backend_reset_done', {
+        ok,
+        ms: Date.now() - tResetStart,
+        reason: 'soft_reset',
+      });
+    } catch (e: any) {
+      audioLog.warn('backend_reset_error', { msg: String(e?.message || e), reason: 'soft_reset' });
+    }
+    // Atualiza timestamps DEPOIS do reset para o watchdog não disparar logo
+    const t2 = Date.now();
+    lastValidPitchAtRef.current = t2;
+    lastBackendProgressAtRef.current = t2;
+    lastWatchdogActionAtRef.current = t2;
     setRecoveryStatus('idle');
   }, []);
 
@@ -954,10 +1081,36 @@ export function useKeyDetection(): UseKeyDetectionReturn {
       if (lastProgress > 0) {
         const ageProgress = now - lastProgress;
         if (ageProgress > NO_PROGRESS_HARD_RESET_MS) {
-          audioLog.error('no_progress_hard_reset', { ageMs: ageProgress });
+          audioLog.error('no_progress_hard_reset', {
+            ageMs: ageProgress,
+            mlState: mlStateRef.current,
+            rejectedStreak: rejectedStreakRef.current,
+          });
           lastWatchdogActionAtRef.current = now;
           (async () => {
             await hardResetRef.current?.();
+          })();
+          return;
+        }
+      }
+
+      // ── Camada E (FASE 1): streak de rejeições do vocal_focus ──────
+      // Se vocal_focus rejeitou 8+ clips em sequência por > 20s, o ambiente
+      // está claramente ruim (percussão, silêncio, distorção). Forçar um
+      // soft_reset para limpar buffers e dar nova chance ao usuário.
+      // O usuário continua vendo o noise_indicator ("ambiente com ruído").
+      if (rejectedStreakRef.current >= 8 && rejectedStreakStartAtRef.current > 0) {
+        const streakDuration = now - rejectedStreakStartAtRef.current;
+        if (streakDuration > 20000) {
+          audioLog.warn('watchdog_rejected_streak_recover', {
+            count: rejectedStreakRef.current,
+            durationMs: streakDuration,
+          });
+          lastWatchdogActionAtRef.current = now;
+          rejectedStreakRef.current = 0;
+          rejectedStreakStartAtRef.current = 0;
+          (async () => {
+            await softResetRef.current?.();
           })();
         }
       }

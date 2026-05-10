@@ -49,17 +49,34 @@ export default function HomeScreen() {
   const det = useKeyDetection();
   const screen: 'initial' | 'active' = det.isRunning ? 'active' : 'initial';
 
+  // ── FASE 1: Reset de sessão de backend só DEPOIS de ter o deviceId ──
+  // Antes: reset disparava no mount sem X-Device-Id e zerava apenas a sessão
+  // 'anon::vocal', deixando a sessão real do device intacta. Agora aguarda o
+  // deviceId e envia o reset corretamente. Se a chamada falhar, não bloqueia.
   useEffect(() => {
     const base = (process.env.EXPO_PUBLIC_BACKEND_URL as string) ?? '';
     if (!base) return;
+    let cancelled = false;
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 10000);
-    fetch(`${base}/api/analyze-key/reset`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: ctrl.signal,
-    }).catch(() => {}).finally(() => clearTimeout(t));
-    return () => { ctrl.abort(); clearTimeout(t); };
+    (async () => {
+      try {
+        const did = await getDeviceId();
+        if (cancelled || !did) return;
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        await fetch(`${base}/api/analyze-key/reset`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Device-Id': did,
+          },
+          signal: ctrl.signal,
+        }).catch(() => {});
+        clearTimeout(t);
+      } catch {
+        /* silencioso */
+      }
+    })();
+    return () => { cancelled = true; ctrl.abort(); };
   }, []);
 
   return (
