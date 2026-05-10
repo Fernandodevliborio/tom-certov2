@@ -177,9 +177,9 @@ A resposta agora SEMPRE contém:
 - Features: listar, criar, revogar/ativar, limpar devices, editar, excluir tokens
 
 ## URLs
-- **Backend API:** `https://vocal-shield.preview.emergentagent.com/api/*`
-- **Admin UI:** `https://vocal-shield.preview.emergentagent.com/api/admin-ui`
-- **Expo Web Preview:** `https://vocal-shield.preview.emergentagent.com/`
+- **Backend API:** `https://tone-detection-debug.preview.emergentagent.com/api/*`
+- **Admin UI:** `https://tone-detection-debug.preview.emergentagent.com/api/admin-ui`
+- **Expo Web Preview:** `https://tone-detection-debug.preview.emergentagent.com/`
 
 ## Stack
 - Frontend: Expo SDK + expo-router + react-native-reanimated

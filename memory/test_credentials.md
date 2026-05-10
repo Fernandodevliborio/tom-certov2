@@ -1,7 +1,7 @@
 # Test Credentials — Tom Certo v2
 
 ## Backend API
-- **Preview (local):** `https://vocal-shield.preview.emergentagent.com`
+- **Preview (local):** `https://tone-detection-debug.preview.emergentagent.com`
 - **Production (Railway):** `https://tomcerto.online`
 
 ## Expo
