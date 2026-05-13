@@ -167,6 +167,62 @@ def extract_pitch(audio: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return pitch_np, conf_np
 
 
+# ─── FASE 1.5: Warmup de modelo CREPE no startup ─────────────────────────────
+# Sem isto, a PRIMEIRA chamada após boot do servidor leva 15-20s (download +
+# carga + JIT do CREPE), o que provoca timeouts no frontend (12s) e o
+# auto-reset do session em cascata, deixando o usuário preso em "Ouvindo...".
+# Aquecer o modelo no startup elimina o cold-start tax.
+_warmup_done = False
+
+
+def warmup_models() -> Dict[str, Any]:
+    """Pré-carrega CREPE e librosa para eliminar cold-start.
+
+    Deve ser chamado UMA VEZ no startup do servidor. Idempotente.
+    Retorna dicionário com timings para log.
+    """
+    global _warmup_done
+    if _warmup_done:
+        return {'already_warmed': True}
+    t0 = time.time()
+    # Cria 0.5s de áudio sintético (silêncio + sinusoide leve)
+    sr = SAMPLE_RATE
+    dummy = np.zeros(int(sr * 0.5), dtype=np.float32)
+    dummy[::100] = 0.01  # ruído leve para CREPE não rejeitar de cara
+    # Força carga do CREPE em memória
+    try:
+        _, _ = extract_pitch(dummy)
+        crepe_ms = (time.time() - t0) * 1000.0
+    except Exception as e:
+        logger.error(f"[v15/warmup] extract_pitch falhou: {e}")
+        crepe_ms = -1.0
+    # Força carga do librosa
+    t1 = time.time()
+    try:
+        # criar WAV em memória e carregar
+        import io, wave
+        buf = io.BytesIO()
+        with wave.open(buf, 'wb') as wf:
+            wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(sr)
+            wf.writeframes((dummy * 32767).astype(np.int16).tobytes())
+        buf.seek(0)
+        _, _ = load_audio(buf.getvalue())
+        librosa_ms = (time.time() - t1) * 1000.0
+    except Exception as e:
+        logger.error(f"[v15/warmup] load_audio falhou: {e}")
+        librosa_ms = -1.0
+    total_ms = (time.time() - t0) * 1000.0
+    _warmup_done = True
+    logger.info(
+        f"[v15/warmup] OK crepe={crepe_ms:.0f}ms librosa={librosa_ms:.0f}ms total={total_ms:.0f}ms"
+    )
+    return {
+        'crepe_ms': round(crepe_ms, 1),
+        'librosa_ms': round(librosa_ms, 1),
+        'total_ms': round(total_ms, 1),
+    }
+
+
 def pitch_to_notes(f0: np.ndarray, conf: np.ndarray) -> List[Note]:
     """Converte F0 em lista de notas com detecção de fins de frase.
     
@@ -808,9 +864,17 @@ class SessionAccumulator:
     def add_analysis(self, notes: List[Note]):
         """Adiciona notas de uma análise."""
         now = time.time()
-        # Auto-reset se inativo por mais de 10 segundos
-        if now - self.last_activity_time > 10.0 and self.analysis_count > 0:
-            logger.info(f"[v10] Auto-reset por inatividade ({now - self.last_activity_time:.1f}s)")
+        # ── FASE 1.5: Auto-reset apenas em INATIVIDADE REAL (>120s) ──
+        # Antes (10s): em servidores frios (CREPE warmup 15-20s) ou redes lentas
+        # o gap entre chamadas consecutivas excedia 10s e o auto-reset disparava
+        # CONSTANTEMENTE → sessão permanecia eternamente com start_time=0 e
+        # stage='listening' (sintoma do usuário ficar preso em "Ouvindo...").
+        # 120s = tempo suficiente para tolerar cold start + rede ruim, ainda
+        # mantém o propósito original (reset de sessão abandonada).
+        if now - self.last_activity_time > 120.0 and self.analysis_count > 0:
+            logger.info(
+                f"[v15] Auto-reset por inatividade real ({now - self.last_activity_time:.1f}s)"
+            )
             self.reset()
         self.last_activity_time = now
         # Janela deslizante MAIOR (250 notas ≈ 30-60s) = contexto musical
@@ -1284,39 +1348,79 @@ class SessionAccumulator:
         self.locked_at = time.time()
 
 
-# Armazenamento de sessões — chave: f"{device_id}::{mode}" para ISOLAR sessões
-# por modo (vocal vs vocal_instrument). Trocar de modo cria nova sessão limpa.
+# Armazenamento de sessões — chave inclui session_id (UUID por uso) quando
+# disponível, mantendo isolamento por device+mode como fallback retrocompatível.
+# Sem session_id: f"{device_id}::{mode}"      (frontends antigos)
+# Com session_id:  f"{device_id}::{mode}::{session_id}"  (Fase 3)
 _sessions: Dict[str, SessionAccumulator] = {}
 
+# FASE 3: TTL de sessões — sessões inativas há mais de SESSION_TTL_S são
+# eliminadas em background pelo garbage collector.
+SESSION_TTL_S = 600.0  # 10 minutos
 
-def _session_key(device_id: str, mode: str) -> str:
+
+def _session_key(device_id: str, mode: str, session_id: Optional[str] = None) -> str:
+    if session_id:
+        # session_id curto (UUID full ou os primeiros 8 chars) para evitar
+        # chaves gigantes; o que importa é unicidade por device+sessão.
+        return f"{device_id}::{mode}::{session_id[:16]}"
     return f"{device_id}::{mode}"
 
 
-def get_session(device_id: str, mode: str = 'vocal') -> SessionAccumulator:
-    key = _session_key(device_id, mode)
+def get_session(
+    device_id: str,
+    mode: str = 'vocal',
+    session_id: Optional[str] = None,
+) -> SessionAccumulator:
+    key = _session_key(device_id, mode, session_id)
     if key not in _sessions:
         _sessions[key] = SessionAccumulator()
     return _sessions[key]
 
 
-def reset_session(device_id: str, mode: Optional[str] = None):
+def reset_session(
+    device_id: str,
+    mode: Optional[str] = None,
+    session_id: Optional[str] = None,
+):
     """Reseta a sessão. Se `mode` for None, reseta TODAS as sessões do device."""
     if mode is not None:
-        key = _session_key(device_id, mode)
+        key = _session_key(device_id, mode, session_id)
         if key in _sessions:
             sess = _sessions[key]
             had_lock = sess.locked_tonic is not None
             sess.reset()
-            logger.info(f"[v15/reset] dev={device_id[:8]} mode={mode} had_lock={had_lock}")
+            logger.info(
+                f"[v15/reset] dev={device_id[:8]} mode={mode} "
+                f"sid={(session_id or '-')[:8]} had_lock={had_lock}"
+            )
         else:
-            logger.info(f"[v15/reset] dev={device_id[:8]} mode={mode} (sessão não existia ainda)")
+            logger.info(
+                f"[v15/reset] dev={device_id[:8]} mode={mode} "
+                f"sid={(session_id or '-')[:8]} (sessão não existia)"
+            )
         return
-    # Reset todas as sessões do device (qualquer modo)
+    # Reset todas as sessões do device (qualquer modo, qualquer session_id)
     keys = [k for k in _sessions.keys() if k.startswith(f"{device_id}::")]
     for k in keys:
         _sessions[k].reset()
     logger.info(f"[v15/reset] dev={device_id[:8]} mode=ALL sessões_zeradas={len(keys)}")
+
+
+def gc_expired_sessions() -> int:
+    """Remove sessões inativas há mais de SESSION_TTL_S. Retorna quantas
+    foram removidas (para log)."""
+    now = time.time()
+    expired = [
+        k for k, sess in _sessions.items()
+        if (now - sess.last_activity_time) > SESSION_TTL_S
+    ]
+    for k in expired:
+        del _sessions[k]
+    if expired:
+        logger.info(f"[v15/gc] Removidas {len(expired)} sessões expiradas. "
+                    f"Sessões ativas restantes: {len(_sessions)}")
+    return len(expired)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1363,6 +1467,7 @@ def analyze_audio_bytes_v10(
     audio_bytes: bytes,
     device_id: str = 'anon',
     mode: str = 'vocal',
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Análise de tonalidade v10 — Versão Definitiva.
 
@@ -1370,6 +1475,9 @@ def analyze_audio_bytes_v10(
         mode: 'vocal' (padrão — comportamento atual preservado) ou
               'vocal_instrument' (nova camada que aceita instrumentos harmônicos).
               Se INSTRUMENT_MODE_ENABLED=False, qualquer valor cai em 'vocal'.
+        session_id: UUID opcional gerado pelo cliente para isolar sessões por
+                    uso (Fase 3). Sem este parâmetro, comportamento é o legado
+                    (chave = device_id + mode).
     """
     # ─── Timing Fase 1 — instrumentação para diagnóstico de produção ─────
     t_total_start = time.time()
@@ -1455,7 +1563,7 @@ def analyze_audio_bytes_v10(
                         f"frames_rejeitados_ruido={vf_result.rejected_frames} "
                         f"motivo_rejeicao={vf_result.rejection_reason}"
                     )
-                session = get_session(device_id, mode)
+                session = get_session(device_id, mode, session_id)
                 session.last_activity_time = time.time()
                 result = session.get_result()
                 timings['total_ms'] = round((time.time() - t_total_start) * 1000.0, 1)
@@ -1571,8 +1679,8 @@ def analyze_audio_bytes_v10(
     # Log das notas detectadas
     logger.info(f"[v10/{mode}] Notas: {[(NOTE_NAMES_BR[n.pitch_class], f'{n.dur_ms:.0f}ms', 'END' if n.is_phrase_end else '') for n in notes]}")
 
-    # Acumular e analisar (sessões SEPARADAS por modo)
-    session = get_session(device_id, mode)
+    # Acumular e analisar (sessões SEPARADAS por modo + session_id opcional)
+    session = get_session(device_id, mode, session_id)
 
     # ─── HYSTERESIS REFORÇADA NO MODO INSTRUMENTO ────────────────────────
     # Salvamos snapshot pra detectar se houve troca de tom protegida.
@@ -1587,7 +1695,7 @@ def analyze_audio_bytes_v10(
     # Log estruturado de timing + estado da sessão (Fase 1)
     sess_start_age = round(time.time() - session.start_time, 1)
     logger.info(
-        f"[v15/timing] dev={device_id[:8]} mode={mode} "
+        f"[v15/timing] dev={device_id[:8]} sid={(session_id or '-')[:8]} mode={mode} "
         f"load={timings.get('load_ms', 0)}ms crepe={timings.get('crepe_ms', 0)}ms "
         f"focus={timings.get('focus_ms', 0)}ms score={timings.get('score_ms', 0)}ms "
         f"total={timings['total_ms']}ms | session_age={sess_start_age}s "

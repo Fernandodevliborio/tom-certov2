@@ -11,6 +11,7 @@ import uuid
 import jwt
 import bcrypt
 import asyncio
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -451,6 +452,7 @@ from key_detection_v10 import (
     analyze_audio_bytes_v10,
     reset_session,
     get_session as _get_kd_session,
+    gc_expired_sessions as _gc_expired_sessions,
     NOTE_NAMES_BR,
 )
 
@@ -459,17 +461,86 @@ from key_detection_v10 import (
 async def reset_key_session(request: Request):
     """Zera o acumulador de sessão — chamado quando usuário inicia nova análise.
 
-    Aceita header opcional X-Detection-Mode ('vocal' | 'vocal_instrument').
-    Se não vier, reseta TODAS as sessões do device (qualquer modo).
+    Aceita headers:
+      - X-Device-Id         (obrigatório para isolar device)
+      - X-Detection-Mode    ('vocal' | 'vocal_instrument'). Sem ele, reseta todas.
+      - X-Session-Id        (Fase 3, opcional) UUID por uso. Sem ele, reseta no
+                             nível device+mode (compatibilidade com frontends antigos).
     """
     device_id = request.headers.get('X-Device-Id', 'anon')
     mode_header = request.headers.get('X-Detection-Mode')
+    session_id = request.headers.get('X-Session-Id') or None
     mode_norm: Optional[str] = None
     if mode_header in ('vocal', 'vocal_instrument'):
         mode_norm = mode_header
-    reset_session(device_id, mode_norm)
-    logger.info(f"[AnalyzeKey v10] sessão resetada dev={device_id[:8]} mode={mode_norm or 'all'}")
-    return {'reset': True, 'device': device_id[:8], 'mode': mode_norm or 'all', 'version': 'v10-definitivo'}
+    reset_session(device_id, mode_norm, session_id)
+    logger.info(
+        f"[AnalyzeKey v15] sessão resetada dev={device_id[:8]} "
+        f"mode={mode_norm or 'all'} sid={(session_id or '-')[:8]}"
+    )
+    return {
+        'reset': True,
+        'device': device_id[:8],
+        'mode': mode_norm or 'all',
+        'session_id': (session_id or '')[:16] if session_id else None,
+        'version': 'v15-phase1',
+    }
+
+
+@api_router.get("/analyze-key/session-info")
+async def analyze_key_session_info(request: Request):
+    """FASE 1.5: Endpoint de diagnóstico do estado da sessão.
+
+    Retorna o estado interno da sessão atual: start_time, elapsed,
+    analysis_count, locked_key, vote_history, etc. Útil para diagnosticar
+    travas em produção sem precisar de logs do servidor.
+
+    Headers aceitos:
+      - X-Device-Id (obrigatório)
+      - X-Detection-Mode (vocal/vocal_instrument, default 'vocal')
+      - X-Session-Id (opcional, Fase 3)
+    """
+    device_id = request.headers.get('X-Device-Id', 'anon')
+    mode_header = request.headers.get('X-Detection-Mode', 'vocal')
+    session_id = request.headers.get('X-Session-Id') or None
+    mode = mode_header if mode_header in ('vocal', 'vocal_instrument') else 'vocal'
+
+    try:
+        # Não cria sessão se não existir — apenas inspeciona
+        from key_detection_v10 import _sessions, _session_key, NOTE_NAMES_BR
+        key = _session_key(device_id, mode, session_id)
+        sess = _sessions.get(key)
+        if sess is None:
+            return {
+                'exists': False,
+                'device': device_id[:8],
+                'mode': mode,
+                'session_id': (session_id or '')[:16] if session_id else None,
+            }
+        now = time.time()
+        return {
+            'exists': True,
+            'device': device_id[:8],
+            'mode': mode,
+            'session_id': (session_id or '')[:16] if session_id else None,
+            'session_age_s': round(now - sess.start_time, 1),
+            'inactive_for_s': round(now - sess.last_activity_time, 1),
+            'analysis_count': sess.analysis_count,
+            'all_notes_count': len(sess.all_notes),
+            'vote_history_count': len(sess.vote_history),
+            'locked': {
+                'tonic': NOTE_NAMES_BR[sess.locked_tonic] if sess.locked_tonic is not None else None,
+                'quality': sess.locked_quality,
+                'confidence': sess.locked_confidence,
+                'locked_for_s': round(now - sess.locked_at, 1) if sess.locked_at else None,
+            } if sess.locked_tonic is not None else None,
+            'detection_duration_s': sess._detection_duration_s,
+            'total_active_sessions': len(_sessions),
+            'version': 'v15-phase1',
+        }
+    except Exception as e:
+        logger.error(f"[SessionInfo] Erro: {e}", exc_info=True)
+        return JSONResponse({'error': str(e)}, status_code=500)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -751,8 +822,12 @@ async def analyze_key(request: Request):
     audio_bytes = await request.body()
     device_id = request.headers.get('X-Device-Id', 'anon')
     mode_header = request.headers.get('X-Detection-Mode', 'vocal')
+    session_id = request.headers.get('X-Session-Id') or None
     mode = mode_header if mode_header in ('vocal', 'vocal_instrument') else 'vocal'
-    logger.info(f"[AnalyzeKey v10] recebeu {len(audio_bytes)} bytes dev={device_id[:8]} mode={mode}")
+    logger.info(
+        f"[AnalyzeKey v15] recebeu {len(audio_bytes)} bytes dev={device_id[:8]} "
+        f"mode={mode} sid={(session_id or '-')[:8]}"
+    )
 
     if not audio_bytes or len(audio_bytes) < 500:
         return JSONResponse({
@@ -766,24 +841,25 @@ async def analyze_key(request: Request):
             audio_bytes=audio_bytes,
             device_id=device_id,
             mode=mode,
+            session_id=session_id,
         )
 
         if result.get('success'):
             locked_str = '🔒TRAVADO' if result.get('locked') else '⏳analisando'
             logger.info(
-                f"[AnalyzeKey v10] ✓ {locked_str} mode={result.get('mode', mode)} "
+                f"[AnalyzeKey v15] ✓ {locked_str} mode={result.get('mode', mode)} "
                 f"key={result.get('key_name', '?')} "
                 f"conf={result.get('confidence', 0):.2f} "
                 f"analyses={result.get('analyses', 0)} "
                 f"notes={result.get('clip_notes', 0)}"
             )
         else:
-            logger.warning(f"[AnalyzeKey v10] ✗ mode={mode} error={result.get('error')}")
+            logger.warning(f"[AnalyzeKey v15] ✗ mode={mode} error={result.get('error')}")
 
         return JSONResponse(result)
 
     except Exception as e:
-        logger.error(f"[AnalyzeKey v10] Erro: {e}", exc_info=True)
+        logger.error(f"[AnalyzeKey v15] Erro: {e}", exc_info=True)
         return JSONResponse({
             "success": False,
             "error": "internal_error",
@@ -1165,6 +1241,55 @@ async def start_expiration_job():
             logger.info(f"[Expiration Job] Expirados no startup: {expired} tokens")
     except Exception as e:
         logger.error(f"[Expiration Job] Erro no startup: {e}")
+
+
+@app.on_event("startup")
+async def warmup_crepe_model():
+    """FASE 1.5: Pré-carrega CREPE no startup.
+    
+    Sem isso, a primeira chamada após boot leva 15-20s (download de modelo +
+    JIT do PyTorch), excedendo o timeout do frontend (12s) e provocando
+    auto-reset de sessão em cascata → usuário trava em 'Ouvindo...'.
+    
+    Executa em thread separada para não bloquear o startup do servidor
+    (o warmup leva ~3-5s). Endpoints ficam disponíveis imediatamente, mas
+    o primeiro /api/analyze-key não pagará o cold-start tax.
+    """
+    import asyncio as _asyncio
+    
+    def _do_warmup():
+        try:
+            from key_detection_v10 import warmup_models
+            info = warmup_models()
+            logger.info(f"[Warmup] CREPE pronto: {info}")
+        except Exception as e:
+            logger.error(f"[Warmup] Falhou: {e}")
+    
+    # Roda em thread de background (não bloqueia o servidor)
+    loop = _asyncio.get_event_loop()
+    loop.run_in_executor(None, _do_warmup)
+    logger.info("[Warmup] Disparado em background")
+
+
+@app.on_event("startup")
+async def start_session_gc_loop():
+    """FASE 3: Garbage collector de sessões inativas a cada 60s.
+
+    Sessões inativas há mais de SESSION_TTL_S (10 min) são removidas
+    automaticamente, evitando vazamento de memória.
+    """
+    async def _gc_loop():
+        while True:
+            try:
+                await asyncio.sleep(60.0)
+                _gc_expired_sessions()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[Session GC] Erro: {e}")
+    
+    asyncio.create_task(_gc_loop())
+    logger.info("[Session GC] Loop iniciado (intervalo 60s)")
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -198,6 +198,29 @@ export function useKeyDetection(): UseKeyDetectionReturn {
   // Tempo da primeira rejeição da sequência (para watchdog de "só rejeição há X s").
   const rejectedStreakStartAtRef = useRef<number>(0);
 
+  // FASE 3: UUID por sessão (cada start() gera um novo, garantindo
+  // isolamento absoluto contra contaminação cruzada entre detecções).
+  // Enviado como X-Session-Id ao backend. Backend retrocompat sem isto.
+  const sessionIdRef = useRef<string | null>(null);
+
+  // Gera um UUID v4 simples (sem deps externas — usa crypto se disponível).
+  const newSessionId = useCallback((): string => {
+    try {
+      const c: any = (globalThis as any).crypto;
+      if (c?.randomUUID) return c.randomUUID();
+      if (c?.getRandomValues) {
+        const a = new Uint8Array(16);
+        c.getRandomValues(a);
+        a[6] = (a[6] & 0x0f) | 0x40;
+        a[8] = (a[8] & 0x3f) | 0x80;
+        const hex = Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
+        return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+      }
+    } catch { /* fallback abaixo */ }
+    // Fallback inseguro mas válido como ID
+    return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  }, []);
+
   // ─── Anti-concorrência ML ───────────────────────────────────────────────
   // Lock booleano + AbortController para cancelar request em voo (stop/reset).
   const mlInFlightRef = useRef<boolean>(false);
@@ -438,6 +461,14 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     mlAbortControllerRef.current = null;
     setRecoveryStatus('idle');
 
+    // FASE 3: gera NOVO UUID de sessão a cada start() — garante isolamento
+    // total contra contaminação. Backend usa este UUID como parte da chave.
+    sessionIdRef.current = newSessionId();
+    audioLog.info('session_id_generated', {
+      sessionId: sessionIdRef.current.slice(0, 8),
+      reason: 'start',
+    });
+
     // ── FASE 1: Reset PCP no backend ANTES de pedir mic — evita contaminação ──
     // O start do recorder leva centenas de ms; o reset roda em paralelo mas
     // com timeout curto. Se o reset falhar, logamos e seguimos (rede ruim
@@ -448,6 +479,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     const resetPromise = resetKeyAnalysisSession(
       deviceIdRef.current ?? undefined,
       detectionModeRef.current,
+      sessionIdRef.current ?? undefined,
     ).then((ok) => {
       audioLog.info('backend_reset_done', {
         ok,
@@ -606,6 +638,7 @@ export function useKeyDetection(): UseKeyDetectionReturn {
         deviceIdRef.current ?? undefined,
         controller.signal,
         detectionModeRef.current,
+        sessionIdRef.current ?? undefined,
       );
       const rttMs = Date.now() - tBackendStart;
 
@@ -784,10 +817,17 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     //    Agora: roda em paralelo com restart, mas AGUARDA antes de marcar idle
     setIsRunning(false);
     isStartingRef.current = false;
+    // FASE 3: nova sessão = novo UUID (isolamento garantido)
+    sessionIdRef.current = newSessionId();
+    audioLog.info('session_id_generated', {
+      sessionId: sessionIdRef.current.slice(0, 8),
+      reason: 'hard_reset',
+    });
     const tResetStart = Date.now();
     const resetPromise = resetKeyAnalysisSession(
       deviceIdRef.current ?? undefined,
       detectionModeRef.current,
+      sessionIdRef.current ?? undefined,
     ).then((ok) => {
       audioLog.info('backend_reset_done', {
         ok,
@@ -881,11 +921,18 @@ export function useKeyDetection(): UseKeyDetectionReturn {
     // FASE 1: aguarda reset do backend (com timeout interno) para evitar
     // contaminação de resposta antiga em sessão nova. softReset não destrói
     // o recorder, então este wait não impacta UX em > 1-2 s no pior caso.
+    // FASE 3: também regenera session_id para isolamento total.
+    sessionIdRef.current = newSessionId();
+    audioLog.info('session_id_generated', {
+      sessionId: sessionIdRef.current.slice(0, 8),
+      reason: 'soft_reset',
+    });
     const tResetStart = Date.now();
     try {
       const ok = await resetKeyAnalysisSession(
         deviceIdRef.current ?? undefined,
         detectionModeRef.current,
+        sessionIdRef.current ?? undefined,
       );
       audioLog.info('backend_reset_done', {
         ok,

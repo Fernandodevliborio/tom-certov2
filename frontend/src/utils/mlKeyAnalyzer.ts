@@ -246,10 +246,15 @@ export interface MLAnalysisResult {
 
 export async function analyzeKeyML(
   clip: CapturedClip,
-  timeoutMs: number = 12000,
+  // FASE 1.5: timeout aumentado de 12s → 25s.
+  // Servidores em cold start (Railway, etc.) podem demorar 15-20s na primeira
+  // requisição. 12s era curto demais e provocava timeouts em cascata que
+  // mascaravam o sucesso real do backend e causavam travamento em "Ouvindo...".
+  timeoutMs: number = 25000,
   deviceId?: string,
   externalSignal?: AbortSignal,
   mode?: 'vocal' | 'vocal_instrument',
+  sessionId?: string,
 ): Promise<MLAnalysisResult> {
   const wav = float32ToWav(clip.samples, clip.sampleRate);
   const base = getBackendUrl();
@@ -276,6 +281,7 @@ export async function analyzeKeyML(
   if (mode === 'vocal' || mode === 'vocal_instrument') {
     headers['X-Detection-Mode'] = mode;
   }
+  if (sessionId) headers['X-Session-Id'] = sessionId;
 
   try {
     const res = await fetch(`${base}/api/analyze-key`, {
@@ -317,6 +323,7 @@ export async function analyzeKeyML(
 export async function resetKeyAnalysisSession(
   deviceId?: string,
   mode?: 'vocal' | 'vocal_instrument',
+  sessionId?: string,
 ): Promise<boolean> {
   const base = getBackendUrl();
   if (!base) return false;
@@ -329,6 +336,7 @@ export async function resetKeyAnalysisSession(
     if (mode === 'vocal' || mode === 'vocal_instrument') {
       headers['X-Detection-Mode'] = mode;
     }
+    if (sessionId) headers['X-Session-Id'] = sessionId;
     const res = await fetch(`${base}/api/analyze-key/reset`, {
       method: 'POST',
       headers,
