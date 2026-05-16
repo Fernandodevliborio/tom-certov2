@@ -1043,21 +1043,21 @@ class SessionAccumulator:
             cadence_min = 0.20
             confidence_min = 0.78
             third_lo, third_hi = 0.30, 0.70
-            consensus_min = 4
+            consensus_min = 3
         elif stage == 'evaluating-solid':
             # 15-30s: evidência sólida
             margin_min = 0.30
             cadence_min = 0.17
             confidence_min = 0.65
             third_lo, third_hi = 0.35, 0.65
-            consensus_min = 3
+            consensus_min = 2
         else:
-            # decision (30s+): critérios padrão (compatibilidade com v14)
+            # decision (30s+): critérios padrão
             margin_min = 0.25
             cadence_min = 0.15
             confidence_min = 0.60
             third_lo, third_hi = 0.35, 0.65
-            consensus_min = 4
+            consensus_min = 3
 
         margin_ok = ambiguity['margin_ratio'] >= margin_min
         cadence_ok = cadence_score >= cadence_min
@@ -1069,12 +1069,37 @@ class SessionAccumulator:
         # Janela de consenso adaptativa: cap em 10, mas no mínimo cresce com a história
         history_window = min(10, max(3, len(self.vote_history)))
         consensus_votes = sum(1 for v in self.vote_history[-history_window:] if v == result.tonic)
-        # Em strict, exigir consenso relativamente alto à história disponível
-        if stage == 'evaluating-strict' and history_window < 6:
-            consensus_target = max(consensus_min, history_window - 1)
-        else:
-            consensus_target = consensus_min
+        consensus_target = consensus_min
+        # Em strict com pouca história, exigir maioria razoável (≥ history-1)
+        if stage == 'evaluating-strict' and history_window < 5:
+            consensus_target = max(2, history_window - 1)
         consensus_ok = consensus_votes >= consensus_target
+
+        # ─── FAST PATH (Fase 1.5): sinal MUITO claro confirma com consenso 2 ──
+        # Quando todos os critérios musicais estão fortíssimos (margem >50%,
+        # cadência >40%, terça inequívoca, confiança >85%, sem ambiguidade
+        # relativa/dominante), o usuário está cantando algo claramente tonal —
+        # não precisa de 3-4 análises de consenso pra confirmar. Basta 2 votos
+        # consistentes. Isso resolve o caso onde o WAV é cristalino mas o tempo
+        # de processamento do servidor (~2-3s/análise) faz o consenso de 4
+        # demorar 50s desnecessariamente.
+        very_strong_signal = (
+            ambiguity['margin_ratio'] >= 0.50
+            and cadence_score >= 0.40
+            and (third_ratio >= 0.85 or third_ratio <= 0.15)
+            and result.confidence >= 0.85
+            and no_relative
+            and no_dominant
+        )
+        if very_strong_signal and consensus_votes >= 2 and not consensus_ok:
+            consensus_ok = True
+            consensus_target = 2  # log refletindo a regra que se aplicou
+            logger.info(
+                f"[v15/fastpath] Sinal MUITO forte aos {elapsed:.1f}s — "
+                f"consenso reduzido a 2 (vs {consensus_min}) | "
+                f"margin={ambiguity['margin_ratio']:.2f} cad={cadence_score:.2f} "
+                f"third={third_ratio:.2f} conf={result.confidence:.2f}"
+            )
 
         all_ok = (
             margin_ok and cadence_ok and third_ok
