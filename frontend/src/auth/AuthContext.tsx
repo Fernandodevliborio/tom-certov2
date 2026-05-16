@@ -52,7 +52,14 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const SESSION_KEY = 'tc_session_v1';
 const TOKEN_KEY = 'tc_token_v1';
 
-const PROD_BACKEND_URL = 'https://tomcerto.online';
+// FASE 1.5: lista de URLs com fallback automático. Se a URL primária
+// (vinda do build env) estiver morta, tenta as próximas. Mesma lógica do
+// mlKeyAnalyzer.ts.
+const FALLBACK_BACKEND_URLS = [
+  'https://tomcerto.online',
+  'https://tom-certov2-production.up.railway.app',
+];
+const PROD_BACKEND_URL = FALLBACK_BACKEND_URLS[0];
 
 function getBackendUrl(): string {
   const url =
@@ -60,6 +67,15 @@ function getBackendUrl(): string {
     (Constants.expoConfig?.extra as any)?.backendUrl ||
     PROD_BACKEND_URL;
   return (url || '').replace(/\/+$/g, '');
+}
+
+function getBackendUrlChain(): string[] {
+  const primary = getBackendUrl();
+  const chain = [primary];
+  for (const fb of FALLBACK_BACKEND_URLS) {
+    if (fb && !chain.includes(fb)) chain.push(fb);
+  }
+  return chain;
 }
 
 function reasonToMessage(reason?: string | null): string {

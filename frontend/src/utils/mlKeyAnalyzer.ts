@@ -5,14 +5,40 @@
 import Constants from 'expo-constants';
 import type { CapturedClip } from '../audio/types';
 
-const PROD_BACKEND_URL = 'https://tomcerto.online';
+// URLs do backend de produção. A ordem importa — se a primária falhar
+// (404, DNS, timeout), a secundária é tentada automaticamente.
+// FASE 1.5: descoberto que APK v3.17.0 foi buildado quando o EXPO_PUBLIC_BACKEND_URL
+// apontava para uma URL morta. Sem fallback automático, o app travava em "Ouvindo..."
+// para sempre. Agora, qualquer erro de rede ou 4xx/5xx escala para a próxima URL.
+const FALLBACK_BACKEND_URLS = [
+  'https://tomcerto.online',
+  'https://tom-certov2-production.up.railway.app',
+];
+const PROD_BACKEND_URL = FALLBACK_BACKEND_URLS[0];
 
-function getBackendUrl(): string {
+// URL primária = vinda do build env. Tentada primeiro. Se 404/falha, fallback.
+function getPrimaryBackendUrl(): string {
   const url =
     (process.env.EXPO_PUBLIC_BACKEND_URL as string | undefined) ||
     (Constants.expoConfig?.extra as any)?.backendUrl ||
     PROD_BACKEND_URL;
   return (url || '').replace(/\/+$/g, '');
+}
+
+// Lista de URLs a tentar em ordem (primária + fallbacks únicos)
+function getBackendUrlChain(): string[] {
+  const primary = getPrimaryBackendUrl();
+  const chain = [primary];
+  for (const fb of FALLBACK_BACKEND_URLS) {
+    if (fb && !chain.includes(fb)) chain.push(fb);
+  }
+  return chain;
+}
+
+// Retrocompat: getBackendUrl continua retornando apenas a primária para
+// callers que não querem fallback (ex.: resetKeyAnalysisSession).
+function getBackendUrl(): string {
+  return getPrimaryBackendUrl();
 }
 
 export function float32ToWav(samples: Float32Array, sampleRate: number): Uint8Array {
@@ -257,22 +283,19 @@ export async function analyzeKeyML(
   sessionId?: string,
 ): Promise<MLAnalysisResult> {
   const wav = float32ToWav(clip.samples, clip.sampleRate);
-  const base = getBackendUrl();
-  if (!base) {
+  const urls = getBackendUrlChain();
+  if (urls.length === 0) {
     return { success: false, error: 'no_backend', message: 'URL do backend não configurada.' };
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  // Encadeia o sinal externo (pra cancelar de fora — em stop/reset)
+  // Cancelamento externo (stop / reset)
   let externalListener: (() => void) | null = null;
+  let externalCancelled = false;
   if (externalSignal) {
     if (externalSignal.aborted) {
-      clearTimeout(timer);
       return { success: false, error: 'cancelled', message: 'Análise cancelada antes do envio.' };
     }
-    externalListener = () => controller.abort();
+    externalListener = () => { externalCancelled = true; };
     externalSignal.addEventListener('abort', externalListener);
   }
 
@@ -283,69 +306,129 @@ export async function analyzeKeyML(
   }
   if (sessionId) headers['X-Session-Id'] = sessionId;
 
-  try {
-    const res = await fetch(`${base}/api/analyze-key`, {
-      method: 'POST',
-      headers,
-      body: wav as any,
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (externalListener && externalSignal) {
-      externalSignal.removeEventListener('abort', externalListener);
-    }
-    const data: MLAnalysisResult = await res.json();
-    if (!res.ok) {
-      return { success: false, error: 'http_error', message: data?.message || `HTTP ${res.status}` };
-    }
-    return data;
-  } catch (err: any) {
-    clearTimeout(timer);
-    if (externalListener && externalSignal) {
-      externalSignal.removeEventListener('abort', externalListener);
-    }
-    if (err?.name === 'AbortError') {
-      // Distingue cancelamento externo de timeout interno
-      if (externalSignal?.aborted) {
-        return { success: false, error: 'cancelled', message: 'Análise cancelada.' };
+  // FASE 1.5: tenta cada URL na cadeia. Pula para a próxima em caso de
+  // 404 (rota não existe = backend morto/errado), 5xx, network error ou DNS.
+  // Mantém o último erro para reportar no final.
+  let lastError: MLAnalysisResult = {
+    success: false,
+    error: 'no_backend',
+    message: 'Nenhum backend respondeu.',
+  };
+
+  for (let i = 0; i < urls.length; i++) {
+    if (externalCancelled || externalSignal?.aborted) {
+      if (externalListener && externalSignal) {
+        externalSignal.removeEventListener('abort', externalListener);
       }
-      return { success: false, error: 'timeout', message: 'Tempo esgotado. Tente novamente.' };
+      return { success: false, error: 'cancelled', message: 'Análise cancelada.' };
     }
-    return { success: false, error: 'network', message: err?.message || 'Erro de rede.' };
+
+    const base = urls[i];
+    const controller = new AbortController();
+    // Encadeia cancelamento externo no controller atual
+    const cancelHandler = () => controller.abort();
+    if (externalSignal) externalSignal.addEventListener('abort', cancelHandler);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(`${base}/api/analyze-key`, {
+        method: 'POST',
+        headers,
+        body: wav as any,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (externalSignal) externalSignal.removeEventListener('abort', cancelHandler);
+
+      const data: MLAnalysisResult = await res.json().catch(() => ({ success: false } as any));
+      if (!res.ok) {
+        const status = res.status;
+        lastError = {
+          success: false,
+          error: 'http_error',
+          message: (data as any)?.message || `HTTP ${status}`,
+        };
+        // 404/5xx → tenta próximo URL
+        if (status === 404 || status >= 500) continue;
+        // Outros erros (400, 403, etc.) — não adianta tentar fallback
+        if (externalListener && externalSignal) {
+          externalSignal.removeEventListener('abort', externalListener);
+        }
+        return lastError;
+      }
+      if (externalListener && externalSignal) {
+        externalSignal.removeEventListener('abort', externalListener);
+      }
+      return data;
+    } catch (err: any) {
+      clearTimeout(timer);
+      if (externalSignal) externalSignal.removeEventListener('abort', cancelHandler);
+      if (err?.name === 'AbortError') {
+        if (externalCancelled || externalSignal?.aborted) {
+          if (externalListener && externalSignal) {
+            externalSignal.removeEventListener('abort', externalListener);
+          }
+          return { success: false, error: 'cancelled', message: 'Análise cancelada.' };
+        }
+        // Timeout: registra e tenta próximo
+        lastError = { success: false, error: 'timeout', message: 'Tempo esgotado.' };
+        continue;
+      }
+      // Erro de rede/DNS — registra e tenta próximo
+      lastError = {
+        success: false,
+        error: 'network',
+        message: err?.message || 'Erro de rede.',
+      };
+      continue;
+    }
   }
+
+  // Esgotou todos os URLs sem sucesso
+  if (externalListener && externalSignal) {
+    externalSignal.removeEventListener('abort', externalListener);
+  }
+  return lastError;
 }
 
 
 /**
  * Reseta o acumulador de PCP da sessão atual no backend.
  * Chamado quando usuário inicia nova captura (botão START).
+ * FASE 1.5: percorre o chain de URLs até uma responder OK.
  */
 export async function resetKeyAnalysisSession(
   deviceId?: string,
   mode?: 'vocal' | 'vocal_instrument',
   sessionId?: string,
 ): Promise<boolean> {
-  const base = getBackendUrl();
-  if (!base) return false;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000); // 5s max — não trava o start
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (deviceId) headers['X-Device-Id'] = deviceId;
-    // Sem X-Detection-Mode: backend reseta TODAS as sessões do device
-    if (mode === 'vocal' || mode === 'vocal_instrument') {
-      headers['X-Detection-Mode'] = mode;
-    }
-    if (sessionId) headers['X-Session-Id'] = sessionId;
-    const res = await fetch(`${base}/api/analyze-key/reset`, {
-      method: 'POST',
-      headers,
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    return res.ok;
-  } catch {
-    clearTimeout(timer);
-    return false;
+  const urls = getBackendUrlChain();
+  if (urls.length === 0) return false;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (deviceId) headers['X-Device-Id'] = deviceId;
+  if (mode === 'vocal' || mode === 'vocal_instrument') {
+    headers['X-Detection-Mode'] = mode;
   }
+  if (sessionId) headers['X-Session-Id'] = sessionId;
+
+  for (const base of urls) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(`${base}/api/analyze-key/reset`, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) return true;
+      // 404 → tenta próxima
+      if (res.status === 404 || res.status >= 500) continue;
+      return false;
+    } catch {
+      clearTimeout(timer);
+      continue;
+    }
+  }
+  return false;
 }
