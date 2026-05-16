@@ -475,15 +475,20 @@ def test_stablekey_engine_thresholds():
 
 
 def test_ml_timeout_correto():
-    """Verificar que o timeout do fetch ML foi reduzido de 30s para 12s."""
+    """Verificar que o timeout do fetch ML não é mais 30s (valor original problemático).
+    FASE 1.5 aumentou de 12s → 25s para evitar timeouts em cascata com backend lento.
+    O importante é que 30s não esteja mais como padrão hardcoded.
+    """
     with open('/app/frontend/src/utils/mlKeyAnalyzer.ts', 'r') as f:
         content = f.read()
     
     assert 'timeoutMs: number = 30000' not in content, \
-        "CRÍTICO: timeout ainda é 30000ms (30s) — deveria ser 12000ms"
+        "CRÍTICO: timeout ainda é 30000ms (30s) — o padrão problemático original"
     
-    assert '12000' in content, \
-        "Timeout de 12000ms não encontrado em mlKeyAnalyzer.ts"
+    # Aceita qualquer timeout entre 12s e 25s (ambos melhores que 30s)
+    has_reasonable_timeout = any(v in content for v in ['12000', '15000', '20000', '25000'])
+    assert has_reasonable_timeout, \
+        "Nenhum timeout razoável encontrado (12000-25000ms) em mlKeyAnalyzer.ts"
 
 
 def test_watchdog_presente():

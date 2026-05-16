@@ -4,7 +4,7 @@
 
 O APK v3.17.0 que o usuário tem instalado foi buildado **antes de 26/Abril/2026**, quando o `eas.json` apontava `EXPO_PUBLIC_BACKEND_URL` para:
 ```
-https://tom-certo-v2.preview.emergentagent.com
+https://harmony-check-6.preview.emergentagent.com
 ```
 
 **Essa URL está MORTA hoje (retorna 404 page not found).**

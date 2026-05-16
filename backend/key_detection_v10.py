@@ -744,11 +744,15 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     def _bonus_for_scale(label: str, is_top: bool) -> float:
         """Base bonus para uma escala empatada (maior se top-1 sozinho).
         
-        Major recebe um pouco mais que harmonic_minor para enforce default "maior"
+        Major recebe mais que harmonic_minor para enforce default "maior"
         em casos ambíguos (sem 3ª clara definindo o modo).
+        
+        v13 fix: aumentado de 0.28→0.38 para major_natural pois casos reais
+        com meldia residindo no III grau (mediant) precisam de bônus maior
+        para a tônica real vencer sobre candidatos com alta cadência no mediant.
         """
         if label == 'major_natural':
-            return 0.28 if is_top else 0.22
+            return 0.38 if is_top else 0.28
         return 0.25 if is_top else 0.20  # harmonic_minor ligeiramente menor
     
     for i, (s_root, s_label, _s_fit) in enumerate(tied_scales):
@@ -760,7 +764,7 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
             aligned_tonics[key_major] = max(aligned_tonics.get(key_major, 0.0), base)
             aligned_tonics[key_minor] = max(
                 aligned_tonics.get(key_minor, 0.0),
-                base - 0.06,  # relativo menor recebe um pouco menos
+                base - 0.18,  # relativo menor recebe significativamente menos que a tônica
             )
         else:  # 'harmonic_minor'
             key_minor = (s_root, 'minor')
@@ -772,7 +776,7 @@ def analyze_tonality(notes: List[Note]) -> AnalysisResult:
     if len(tied_scales) < len(scale_scores):
         next_fit = scale_scores[len(tied_scales)][2]
         effective_margin = max(0.0, tied_scales[-1][2] - next_fit)
-    margin_bonus = min(0.20, effective_margin * 3.5)
+    margin_bonus = min(0.20, effective_margin * 4.5)
     for k in list(aligned_tonics.keys()):
         aligned_tonics[k] += margin_bonus
     

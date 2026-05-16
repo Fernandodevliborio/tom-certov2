@@ -902,7 +902,7 @@ async def analyze_key(request: Request):
         f"mode={mode} sid={(session_id or '-')[:8]}"
     )
 
-    if not audio_bytes or len(audio_bytes) < 500:
+    if not audio_bytes or len(audio_bytes) <= 500:
         return JSONResponse({
             "success": False, "error": "audio_too_short",
             "message": "Áudio muito curto ou vazio.",
@@ -1619,10 +1619,17 @@ async def admin_stats(request: Request):
 # ─── Seed: Token de Teste ───────────────────────────────────────────────
 @api_router.post("/admin/seed-test-token")
 async def seed_test_token():
-    """Cria o token TEST-DEV2026 para testes (idempotente)."""
+    """Cria o token TEST-DEV2026 para testes (idempotente). 
+    Sempre limpa device vinculado para garantir que testes possam validar."""
     code = "TEST-DEV2026"
     exists = await db.tokens.find_one({"code": code})
     if exists:
+        # Limpa device vinculado para que testes possam validar com qualquer device
+        await db.tokens.update_one(
+            {"code": code},
+            {"$unset": {"device_id": "", "device_linked_at": ""}, 
+             "$set": {"active_devices": [], "active": True}}
+        )
         return JSONResponse({"ok": True, "already_exists": True, "code": code})
     doc = {
         "code": code,
