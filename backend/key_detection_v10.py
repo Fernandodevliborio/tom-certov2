@@ -450,6 +450,12 @@ def _score_tonic_candidate(
       LEI 3 (V GRADE):    5ª justa presente reforça função tonal
       LEI 4 (NÃO-V):      tônica não pode ser a 5ª de outra raiz com peso maior
                           — mas penalty é MULTIPLICATIVA e cancelada por 3ª forte
+      LEI 5 (BOUNDARY):   primeira e ÚLTIMA nota da gravação têm peso especial
+                          como pistas tonais (Phase 1.6 — corrige Mi→Si, Lá→Ré)
+      LEI 6 (V/IV-PCP):   se PCP do V grau OU do IV grau da tônica candidata é
+                          muito mais alto que o PCP da tônica, e o candidato V
+                          ou IV tem cadência forte, alta probabilidade de o
+                          algoritmo estar confundindo (Phase 1.6)
     """
     # Notas da escala diatônica natural a partir da tônica
     if mode == 'major':
@@ -459,9 +465,12 @@ def _score_tonic_candidate(
         third_pc = (tonic_pc + 3) % 12   # 3ª menor
         seventh_pc = (tonic_pc + 10) % 12  # 7ª menor (natural)
     fifth_pc = (tonic_pc + 7) % 12  # 5ª justa (V grau)
+    fourth_pc = (tonic_pc + 5) % 12  # 4ª justa (IV grau / subdominante)
     
     # ─── LEI 1: REPOUSO ───
     cadence_score = float(cadence[tonic_pc])  # 0..1, já normalizado
+    cadence_fifth = float(cadence[fifth_pc])
+    cadence_fourth = float(cadence[fourth_pc])
     
     # ─── LEI 2: 3ª PRESENTE ───
     # 3ª da qualidade certa precisa estar presente. Penalize se a 3ª da
@@ -482,6 +491,71 @@ def _score_tonic_candidate(
     # ─── LEI 3: 5ª presente reforça função tonal ───
     fifth_score = float(pcp[fifth_pc])
     
+    # ─── LEI 5 (FASE 1.6): EVIDÊNCIA DE FRONTEIRA ───────────────────────
+    # Primeira nota e (sobretudo) ÚLTIMA nota da gravação são pistas fortes
+    # em música tonal. A última frequentemente é a tônica. A primeira
+    # frequentemente é a tônica ou a dominante.
+    # Esse sinal não está no PCP nem na cadence (que dilui em normalização).
+    boundary_score = 0.0
+    if notes:
+        last_pc = notes[-1].pitch_class
+        first_pc = notes[0].pitch_class
+        if last_pc == tonic_pc:
+            boundary_score += 0.60
+        elif last_pc == fifth_pc:
+            boundary_score += 0.10  # último V é evidência fraca (cadência interrompida)
+        elif last_pc == third_pc:
+            boundary_score += 0.15  # último 3ª também tonifica
+        if first_pc == tonic_pc:
+            boundary_score += 0.25
+        elif first_pc == fifth_pc:
+            boundary_score += 0.05
+        # Cap em 1.0
+        boundary_score = min(1.0, boundary_score)
+    
+    # ─── LEI 6 (FASE 1.6): PENALTY V/IV PCP ─────────────────────────────
+    # Se PCP do V grau (tonic+7) é muito maior que PCP da tônica, candidato
+    # provavelmente é o IV do "tom real" (i.e., a "tônica real" é tonic+7
+    # OU tonic-7). Aplicar penalty.
+    # Caso 1 (Mi Maior detectado como Si Maior): se o algoritmo chuta Si
+    #   como tônica e Si é fortemente cantado, mas Mi também é, podemos
+    #   detectar que Mi (que seria a 4ª de Si) tem cadência alta — o que é
+    #   atípico (cadência cai NA tônica, não na 4ª). Isso é sinal de que
+    #   na verdade Mi é a tônica e Si é a 5ª.
+    # Caso 2 (Lá Maior detectado como Ré Maior): se chuta Ré e Lá é
+    #   fortemente cantado, Lá seria o V de Ré — V com cadência mais alta
+    #   que tônica é antimusical, então Lá deve ser a tônica.
+    pcp_tonic_v = float(pcp[tonic_pc])
+    pcp_fifth_v = float(pcp[fifth_pc])
+    pcp_fourth_v = float(pcp[fourth_pc])
+    
+    v_pcp_dominance_penalty = 1.0
+    iv_cadence_excess_penalty = 1.0
+    
+    # Caso A: 5ª domina o PCP E cadência. Mi→Si pattern.
+    # Se PCP[fifth] > 1.5 * PCP[tonic] AND cadence[fifth] > cadence[tonic],
+    # o "candidato" é provavelmente IV grau (cantando na quarta).
+    if pcp_fifth_v > pcp_tonic_v * 1.5 and cadence_fifth > cadence_score * 1.0:
+        # Forte sinal de que a tônica real está em fifth_pc (i.e., candidato é IV)
+        if third_ratio < 0.70:
+            v_pcp_dominance_penalty = 0.55
+        else:
+            v_pcp_dominance_penalty = 0.78  # 3ª ainda salva parcialmente
+    
+    # Caso B: 4ª (subdominante) tem cadência MAIOR que a tônica. Antimusical.
+    # Em música tonal, IV pode aparecer no meio mas a cadência V→I dominia
+    # o repouso. Se IV tem cadência maior, há grande chance de o candidato
+    # ser na verdade o V do "tom real" (i.e., tom_real = tonic_pc + 5).
+    # Lá→Ré: se candidato é Ré, então a 4ª de Ré é Sol. Mas o usuário tá
+    # cantando em Lá, e Lá é a 5ª de Ré. Cadence[Lá] = cadence[fifth_pc].
+    # Cobertor: usar fifth como proxy.
+    if cadence_fifth > cadence_score * 1.5 and pcp_fifth_v > pcp_tonic_v:
+        # 5ª domina pcp E cadence — quase certamente a tônica real é fifth_pc
+        if third_ratio < 0.70:
+            iv_cadence_excess_penalty = 0.50
+        else:
+            iv_cadence_excess_penalty = 0.75
+    
     # ─── LEI 4: NÃO-DOMINANTE (multiplicativa, tolerante a 3ª forte) ───
     # Se há um candidato R' tal que tonic = R' + 7 (= ser 5ª de R'), penalize.
     # IMPORTANTE: se a 3ª da qualidade certa é FORTE (ratio ≥ 0.75), a tônica
@@ -497,17 +571,23 @@ def _score_tonic_candidate(
             not_dominant_penalty_factor = 0.82
         else:
             # Sem 3ª forte: alta chance de ser realmente a 5ª → penalty pesado
-            not_dominant_penalty_factor = 0.70
+            not_dominant_penalty_factor = 0.65
     
-    # ─── COMBINAÇÃO ───
-    # Pesos: cadência (REPOUSO) é o sinal mais forte musicalmente
+    # ─── COMBINAÇÃO (PHASE 1.6 — pesos revistos) ───
+    # cadence (REPOUSO) é o sinal MAIS FORTE em música tonal.
+    # boundary_score é evidência direta de função tonal (último=tônica).
+    # PCP_tonic ajuda a desempatar mas é diluído pela escala (igual em I, IV, V).
     score = (
-        0.40 * cadence_score +
-        0.20 * pcp[tonic_pc] +     # tônica deve estar presente em geral
-        0.25 * third_score +        # 3ª da qualidade certa (subiu de 0.20 para 0.25)
-        0.15 * fifth_score          # 5ª presente reforça (subiu de 0.10 para 0.15)
+        0.38 * cadence_score +
+        0.12 * pcp_tonic_v +
+        0.22 * third_score +
+        0.10 * fifth_score +
+        0.18 * boundary_score
     )
-    score = score * not_dominant_penalty_factor
+    # Aplica os 3 penalties multiplicativos
+    score *= not_dominant_penalty_factor
+    score *= v_pcp_dominance_penalty
+    score *= iv_cadence_excess_penalty
     
     return {
         'score': score,
@@ -515,7 +595,10 @@ def _score_tonic_candidate(
         'third_ratio': third_ratio,
         'pcp_tonic': float(pcp[tonic_pc]),
         'fifth_score': fifth_score,
+        'boundary_score': boundary_score,
         'penalty_dominant': round(1.0 - not_dominant_penalty_factor, 3),
+        'penalty_v_pcp': round(1.0 - v_pcp_dominance_penalty, 3),
+        'penalty_iv_cadence': round(1.0 - iv_cadence_excess_penalty, 3),
     }
 
 
