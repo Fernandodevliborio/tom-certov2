@@ -543,6 +543,79 @@ async def analyze_key_session_info(request: Request):
         return JSONResponse({'error': str(e)}, status_code=500)
 
 
+@api_router.get("/analyze-key/active-sessions")
+async def analyze_key_active_sessions():
+    """FASE 1.5 / DEBUG: Lista TODAS as sessões ativas no servidor.
+
+    Endpoint público (sem autenticação) que retorna snapshot do estado de
+    todas as sessões em memória. Útil para diagnosticar se as requests do APK
+    estão realmente chegando — basta abrir esta URL no navegador antes e
+    depois do usuário tentar usar o app.
+
+    Cuidado: vaza device_ids parciais (8 chars). Mantém-se PII baixa.
+    """
+    try:
+        from key_detection_v10 import _sessions, NOTE_NAMES_BR
+        now = time.time()
+        items = []
+        for key, sess in _sessions.items():
+            parts = key.split('::')
+            device_id = parts[0] if parts else ''
+            mode = parts[1] if len(parts) > 1 else 'vocal'
+            sid_short = parts[2] if len(parts) > 2 else None
+            items.append({
+                'device_id_short': device_id[:8],
+                'mode': mode,
+                'session_id': sid_short,
+                'session_age_s': round(now - sess.start_time, 1),
+                'inactive_for_s': round(now - sess.last_activity_time, 1),
+                'analyses': sess.analysis_count,
+                'notes': len(sess.all_notes),
+                'votes': len(sess.vote_history),
+                'locked': (
+                    f"{NOTE_NAMES_BR[sess.locked_tonic]} {sess.locked_quality}"
+                    if sess.locked_tonic is not None else None
+                ),
+                'locked_conf': sess.locked_confidence if sess.locked_tonic is not None else None,
+            })
+        # ordenar pela atividade mais recente
+        items.sort(key=lambda x: x['inactive_for_s'])
+        return {
+            'total': len(items),
+            'now_iso': datetime.now(timezone.utc).isoformat(),
+            'sessions': items,
+            'version': 'v15-phase1',
+        }
+    except Exception as e:
+        logger.error(f"[ActiveSessions] Erro: {e}", exc_info=True)
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@api_router.post("/analyze-key/ping")
+async def analyze_key_ping(request: Request):
+    """FASE 1.5 / DEBUG: Ping simples que confirma que o APK está chegando ao
+    backend. Não processa áudio, só registra que o request chegou e devolve
+    eco com timestamp.
+    """
+    device_id = request.headers.get('X-Device-Id', 'anon')
+    mode = request.headers.get('X-Detection-Mode', 'vocal')
+    session_id = request.headers.get('X-Session-Id')
+    body = await request.body()
+    logger.info(
+        f"[Ping] dev={device_id[:12]} mode={mode} sid={(session_id or '-')[:8]} "
+        f"body_bytes={len(body)}"
+    )
+    return {
+        'ok': True,
+        'pong': True,
+        'device_id_short': device_id[:12],
+        'mode': mode,
+        'session_id': (session_id or '')[:16] if session_id else None,
+        'server_time': datetime.now(timezone.utc).isoformat(),
+        'version': 'v15-phase1',
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # FEEDBACK DO USUÁRIO (v3.17) — quando usuário marca "tom errado"
 # ═══════════════════════════════════════════════════════════════════════════════
